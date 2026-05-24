@@ -3,760 +3,900 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>UR3e Program Builder V3</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
+<title>UR3e Program Builder</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root {
-  --bg:        #0e0e10;
-  --surface:   #17171a;
-  --surface2:  #1f1f24;
-  --border:    #2a2a30;
-  --border2:   #3a3a44;
-  --text:      #e8e8ec;
-  --text2:     #8888a0;
-  --text3:     #55556a;
-  
-  /* Reverted to Orange */
-  --accent:    #f97316;
-  --accent-lo: #f9731620;
-  --accent2:   #fb923c;
-  
-  --green:     #22c55e;
-  --green-lo:  #22c55e18;
-  --red:       #ef4444;
-  --red-lo:    #ef444418;
-  --blue:      #3b82f6;
-  --blue-lo:   #3b82f618;
-  --purple:    #c084fc;
-  --purple-lo: #c084fc18;
-  --yellow:    #eab308;
-  --yellow-lo: #eab30818;
-  
-  --radius:    6px;
-  --radius-lg: 10px;
-  --sans:      'IBM Plex Sans', sans-serif;
-  --mono:      'JetBrains Mono', monospace;
-}
-* { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; }
-
-body {
-  font-family: var(--sans);
-  background: var(--bg);
-  color: var(--text);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-/* ── Header ─────────────────────────────────────────── */
-.hdr { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 20px; height: 52px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 200; }
-.hdr-brand { display: flex; flex-direction: column; gap: 1px; }
-.hdr-title { font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--accent); letter-spacing: 0.02em; }
-.hdr-sub   { font-size: 10px; color: var(--text3); letter-spacing: 0.05em; text-transform: uppercase; }
-.hdr-sep   { width: 1px; height: 24px; background: var(--border); }
-.hdr-space { flex: 1; }
-
-.seg { display: flex; border: 1px solid var(--border2); border-radius: var(--radius); overflow: hidden; }
-.seg-btn { padding: 5px 14px; font-family: var(--mono); font-size: 11px; font-weight: 500; border: none; background: none; color: var(--text2); cursor: pointer; transition: background 0.15s, color 0.15s; }
-.seg-btn.on { background: var(--accent); color: #fff; }
-
-.btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 14px; font-family: var(--sans); font-size: 12px; font-weight: 500; border-radius: var(--radius); border: 1px solid var(--border2); background: var(--surface2); color: var(--text); cursor: pointer; transition: background 0.15s, border-color 0.15s; white-space: nowrap; }
-.btn:hover { background: var(--border); border-color: var(--border2); }
-.btn-accent { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn-accent:hover { background: var(--accent2); border-color: var(--accent2); }
-.btn-ghost { background: none; border-color: transparent; color: var(--text2); padding: 4px 8px; }
-.btn-ghost:hover { background: var(--surface2); color: var(--text); }
-.btn-del { background: none; border-color: transparent; color: var(--text3); padding: 4px 7px; }
-.btn-del:hover { background: var(--red-lo); color: var(--red); }
-.btn-sm { padding: 4px 8px; font-size: 11px; }
-
-/* ── Layout ──────────────────────────────────────────── */
-.app { display: grid; grid-template-columns: 420px 1fr; gap: 14px; padding: 14px 20px; max-width: 1400px; margin: 0 auto; }
-.left-col { display: flex; flex-direction: column; gap: 14px; }
-.right-col { display: flex; flex-direction: column; gap: 14px; }
-
-/* ── Card / Panel ───────────────────────────────────── */
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; display: flex; flex-direction: column; }
-.card-hdr { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border); background: var(--surface2); }
-.card-title { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--text2); letter-spacing: 0.08em; text-transform: uppercase; flex: 1; }
-.card-body { padding: 12px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
-
-/* ── Position cards ─────────────────────────────────── */
-.pos-card, .var-card { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; transition: border-color 0.15s; background: var(--bg); }
-.pos-card:hover, .var-card:hover { border-color: var(--border2); }
-.pos-hdr { display: flex; align-items: center; gap: 6px; padding: 7px 10px; border-bottom: 1px solid var(--border); }
-.pos-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border2); flex-shrink: 0; transition: background 0.2s; }
-.pos-dot.full { background: var(--green); box-shadow: 0 0 6px var(--green); }
-
-.pos-name, .var-input { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--accent); background: transparent; border: 1px solid transparent; border-radius: 4px; padding: 2px 6px; flex: 1; }
-.var-val { color: var(--text); font-weight: 400; width: 80px; border: 1px solid var(--border); }
-.pos-name:focus, .var-input:focus { outline: none; border-color: var(--accent); background: var(--bg); }
-
-.joints { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; padding: 8px 10px; }
-.jcell { display: flex; flex-direction: column; gap: 3px; }
-.jlabel { font-size: 9px; color: var(--text3); text-align: center; font-family: var(--mono); text-transform: uppercase; }
-.jinput { width: 100%; text-align: center; font-family: var(--mono); font-size: 11px; padding: 5px 2px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: var(--text); }
-.jinput:focus { outline: none; border-color: var(--accent); }
-.jinput.filled { border-color: #22c55e55; color: var(--green); }
-
-/* ── Settings grid ───────────────────────────────────── */
-.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; }
-.sg { display: flex; flex-direction: column; gap: 4px; }
-.sg label { font-size: 10px; color: var(--text3); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.06em; }
-.sg input { padding: 6px 8px; border: 1px solid var(--border); border-radius: var(--radius); font-family: var(--mono); font-size: 12px; background: var(--bg); color: var(--text); }
-.sg input:focus { outline: none; border-color: var(--accent); }
-
-/* ── Steps ───────────────────────────────────────────── */
-.steps-body { padding: 10px; display: flex; flex-direction: column; gap: 5px; }
-.step { display: flex; align-items: center; gap: 6px; padding: 7px 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg); transition: border-color 0.15s, margin-left 0.2s ease; }
-.step:hover { border-color: var(--border2); }
-.step.block-end { border-top-style: dashed; opacity: 0.8; }
-
-.step-n { font-family: var(--mono); font-size: 10px; color: var(--text3); min-width: 20px; text-align: right; }
-.step-sel, .step-input { font-family: var(--mono); font-size: 11px; background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; color: var(--text); padding: 4px 7px; cursor: pointer; }
-.step-input { cursor: text; }
-.step-sel:focus, .step-input:focus { outline: none; border-color: var(--accent); }
-.step-spacer { flex: 1; }
-.step-label { font-size: 11px; color: var(--text2); }
-
-.step-tag { font-family: var(--mono); font-size: 10px; padding: 2px 7px; border-radius: 3px; background: var(--surface2); color: var(--text2); border: 1px solid var(--border); flex-shrink: 0; width: 44px; text-align: center; }
-.tag-move   { background: var(--accent-lo);  color: var(--accent); border-color: #f9731640; }
-.tag-grip   { background: var(--green-lo);   color: var(--green);  border-color: #22c55e40; }
-.tag-util   { background: var(--surface2);   color: var(--text2);  border-color: var(--border); }
-.tag-flow   { background: var(--purple-lo);  color: var(--purple); border-color: #c084fc40; }
-.tag-io     { background: var(--blue-lo);    color: var(--blue);   border-color: #3b82f640; }
-.tag-var    { background: var(--yellow-lo);  color: var(--yellow); border-color: #eab30840; }
-
-.add-step-row { display: flex; gap: 6px; padding: 10px; border-top: 1px solid var(--border); align-items: center; background: var(--surface2); }
-.add-step-row select { flex: 1; font-family: var(--mono); font-size: 11px; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); padding: 6px 8px; }
-.add-step-row select:focus { outline: none; border-color: var(--accent); }
-
-.template-row { padding: 10px 14px; display: flex; gap: 8px; border-bottom: 1px solid var(--border); background: var(--bg); align-items: center;}
-.template-row .card-title { flex: none; margin-right: 10px; }
-
-/* ── Code output ─────────────────────────────────────── */
-.code-wrap { padding: 0 20px 20px; max-width: 1400px; margin: 0 auto; }
-.code-hdr { background: #0a0a0c; }
-.code-hdr .card-title { color: var(--accent); }
-.code-block { font-family: var(--mono); font-size: 12px; line-height: 1.75; padding: 16px; background: #07070a; color: #c8c8d8; overflow-x: auto; white-space: pre; max-height: 520px; overflow-y: auto; border-top: 1px solid var(--border); }
-.code-block::-webkit-scrollbar { width: 6px; height: 6px; }
-.code-block::-webkit-scrollbar-track { background: #0a0a0c; }
-.code-block::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
-
-/* Syntax colours */
-.c-cm  { color: #6b7280; font-style: italic; }
-.c-kw  { color: #c792ea; }
-.c-fn  { color: #82aaff; }
-.c-str { color: #c3e88d; }
-.c-num { color: #f78c6c; }
-.c-var { color: #ffcb6b; }
-
-.card-body::-webkit-scrollbar { width: 5px; }
-.card-body::-webkit-scrollbar-track { background: transparent; }
-.card-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-.collapse-btn { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 10px; padding: 2px 4px; }
-.collapse-btn:hover { color: var(--text2); }
+:root{--bg:#0e0e10;--sf:#17171a;--sf2:#1f1f24;--bd:#2a2a30;--bd2:#3a3a44;--tx:#e8e8ec;--tx2:#8888a0;--tx3:#55556a;--ac:#f97316;--aclo:#f9731622;--ac2:#fb923c;--gn:#22c55e;--gnlo:#22c55e18;--rd:#ef4444;--rdlo:#ef444418;--bl:#60a5fa;--bllo:#60a5fa18;--pu:#a78bfa;--pulo:#a78bfa18;--r:6px;--rl:10px;--sans:'IBM Plex Sans',sans-serif;--mono:'JetBrains Mono',monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font:13px/1.5 var(--sans)}
+/* Header */
+.hdr{background:var(--sf);border-bottom:1px solid var(--bd);padding:0 20px;height:52px;display:flex;align-items:center;gap:12px;flex-shrink:0;z-index:200}
+.brand-title{font:600 13px/1 var(--mono);color:var(--ac);letter-spacing:.02em}
+.brand-sub{font-size:10px;color:var(--tx3);letter-spacing:.05em;text-transform:uppercase}
+.hsep{width:1px;height:24px;background:var(--bd)}
+.hspace{flex:1}
+.seg{display:flex;border:1px solid var(--bd2);border-radius:var(--r);overflow:hidden}
+.seg-btn{padding:5px 13px;font:500 11px var(--mono);border:none;background:none;color:var(--tx2);cursor:pointer;transition:.15s}
+.seg-btn.on{background:var(--ac);color:#fff}
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;font:500 12px var(--sans);border-radius:var(--r);border:1px solid var(--bd2);background:var(--sf2);color:var(--tx);cursor:pointer;transition:.15s;white-space:nowrap}
+.btn:hover{background:var(--bd)}
+.btn:disabled{opacity:.35;cursor:default}
+.btn-ac{background:var(--ac);border-color:var(--ac);color:#fff}
+.btn-ac:hover{background:var(--ac2);border-color:var(--ac2)}
+.btn-sm{padding:4px 9px;font-size:11px}
+.btn-ghost{background:none;border-color:transparent;color:var(--tx2);padding:4px 7px}
+.btn-ghost:hover{background:var(--sf2);color:var(--tx)}
+.btn-del{background:none;border-color:transparent;color:var(--tx3);padding:4px 7px}
+.btn-del:hover{background:var(--rdlo);color:var(--rd)}
+/* Layout — full viewport below header */
+.page{display:flex;flex-direction:column;height:calc(100vh - 52px);overflow:hidden}
+.app{display:grid;grid-template-columns:400px 1fr;gap:12px;padding:12px 16px;flex:1;min-height:0;overflow:hidden}
+/* Card */
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:var(--rl);overflow:hidden;display:flex;flex-direction:column;min-height:0}
+.card-hdr{display:flex;align-items:center;gap:8px;padding:9px 13px;border-bottom:1px solid var(--bd);background:var(--sf2)}
+.card-title{font:600 11px/1 var(--mono);color:var(--tx2);letter-spacing:.08em;text-transform:uppercase;flex:1}
+/* Position cards */
+.pos-card{border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;margin-bottom:8px}
+.pos-hdr{display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--sf2);border-bottom:1px solid var(--bd)}
+.pos-dot{width:7px;height:7px;border-radius:50%;background:var(--bd2);flex-shrink:0;transition:.2s}
+.pos-dot.full{background:var(--gn);box-shadow:0 0 6px var(--gn)}
+.pos-name{font:600 12px var(--mono);color:var(--ac);background:transparent;border:1px solid transparent;border-radius:4px;padding:2px 5px;flex:1;text-transform:uppercase;letter-spacing:.04em}
+.pos-name:focus{outline:none;border-color:var(--ac);background:var(--bg)}
+.type-seg{display:flex;border:1px solid var(--bd2);border-radius:4px;overflow:hidden;flex-shrink:0}
+.type-btn{padding:2px 8px;font:500 9px var(--mono);border:none;background:none;color:var(--tx3);cursor:pointer;transition:.15s;letter-spacing:.04em}
+.type-btn.on{background:var(--bl);color:#fff}
+.joints{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;padding:8px 10px}
+.jcell{display:flex;flex-direction:column;gap:3px}
+.jlabel{font-size:9px;color:var(--tx3);text-align:center;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;line-height:1.3}
+.jinput{width:100%;text-align:center;font:11px var(--mono);padding:5px 2px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);color:var(--tx);transition:.15s}
+.jinput:focus{outline:none;border-color:var(--ac)}
+.jinput.filled{border-color:#22c55e55;color:var(--gn)}
+/* Settings */
+.sg-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px}
+.sg{display:flex;flex-direction:column;gap:4px}
+.sg label{font-size:10px;color:var(--tx3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em}
+.sg input,.sg select{padding:6px 8px;border:1px solid var(--bd);border-radius:var(--r);font:12px var(--mono);background:var(--bg);color:var(--tx)}
+.sg input:focus,.sg select:focus{outline:none;border-color:var(--ac)}
+.sg-section{padding:6px 12px 2px;font-size:9px;color:var(--tx3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.1em;border-top:1px solid var(--bd)}
+/* Right column */
+.right-col{display:flex;flex-direction:column;gap:10px;min-height:0;height:100%}
+.right-col .settings-card{flex-shrink:0}
+.right-col .program-card{flex:1;min-height:0;display:flex;flex-direction:column}
+/* Steps */
+.steps-body{padding:8px;display:flex;flex-direction:column;gap:4px;flex:1;overflow-y:auto;min-height:0}
+.step-row{display:flex;align-items:stretch;gap:0}
+.step-indent{flex-shrink:0;display:flex}
+.step-indent-line{width:20px;border-right:1px solid var(--bd);margin:0 0 0 10px;flex-shrink:0}
+.step{display:flex;align-items:center;gap:5px;padding:6px 9px;border:1px solid var(--bd);border-radius:var(--r);background:var(--bg);transition:.15s;flex:1;min-width:0}
+.step:hover{border-color:var(--bd2)}
+.step.block-open{border-left:2px solid var(--bl)}
+.step.block-end-row{border-left:2px solid var(--bd2);opacity:.8}
+.step.else-row{border-left:2px solid var(--pu)}
+.step-n{font:11px var(--mono);color:var(--tx3);min-width:18px;text-align:right;flex-shrink:0}
+.step-tag{font:10px var(--mono);padding:2px 6px;border-radius:3px;flex-shrink:0;letter-spacing:.03em}
+.tag-move{background:var(--aclo);color:var(--ac);border:1px solid #f9731640}
+.tag-grip{background:var(--gnlo);color:var(--gn);border:1px solid #22c55e40}
+.tag-flow{background:var(--bllo);color:var(--bl);border:1px solid #60a5fa40}
+.tag-util{background:var(--sf2);color:var(--tx2);border:1px solid var(--bd)}
+.tag-warn{background:var(--rdlo);color:var(--rd);border:1px solid #ef444440}
+.step-sel,.step-inp{font:11px var(--mono);background:var(--sf2);border:1px solid var(--bd);border-radius:4px;color:var(--tx);padding:3px 6px;cursor:pointer;flex-shrink:0}
+.step-sel:focus,.step-inp:focus{outline:none;border-color:var(--ac)}
+.step-spacer{flex:1}
+.step-controls{display:flex;gap:2px;flex-shrink:0}
+/* Add step bar */
+.add-bar{display:flex;gap:6px;padding:10px;border-top:1px solid var(--bd);align-items:center;flex-wrap:wrap}
+.add-bar select{font:11px var(--mono);background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);color:var(--tx);padding:6px 8px;flex:1;min-width:160px}
+.add-bar select:focus{outline:none;border-color:var(--ac)}
+/* Warnings */
+.warn-box{margin:8px 10px;padding:8px 10px;background:var(--rdlo);border:1px solid #ef444440;border-radius:var(--r);font-size:11px;color:var(--rd);display:none}
+.warn-box.show{display:block}
+/* Code panel — bottom strip, always visible */
+.code-wrap{padding:0 16px 12px;flex-shrink:0;height:240px;display:flex;flex-direction:column;min-height:0}
+.code-wrap .card{flex:1;min-height:0}
+.code-block{font:12px/1.8 var(--mono);padding:12px 16px;background:#07070a;color:#c8c8d8;overflow:auto;white-space:pre;flex:1;min-height:0}
+.code-block::-webkit-scrollbar{width:5px;height:5px}
+.code-block::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:3px}
+/* Syntax */
+.c-cm{color:#4a4a64;font-style:italic}
+.c-kw{color:#c792ea}
+.c-fn{color:#82aaff}
+.c-str{color:#c3e88d}
+.c-num{color:#f78c6c}
+.c-var{color:var(--ac)}
+/* Left column — positions */
+.left-col{display:flex;flex-direction:column;min-height:0;height:100%}
+.left-col .card{flex:1;min-height:0}
+.pos-list{padding:10px;overflow-y:auto;flex:1;min-height:0}
+.cfg-body{display:flex;flex-direction:column;flex-shrink:0}
+.settings-card{flex-shrink:0}
+.program-card{flex:1;min-height:0;display:flex;flex-direction:column}
+.program-card .warn-box{flex-shrink:0}
+.program-card .add-bar{flex-shrink:0}
+.steps-body::-webkit-scrollbar{width:5px}
+.steps-body::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:3px}
+/* Tabs */
+.tab-bar{display:flex;border-bottom:1px solid var(--bd);background:var(--sf2);flex-shrink:0}
+.tab{padding:8px 14px;font:500 11px var(--mono);color:var(--tx3);cursor:pointer;border-bottom:2px solid transparent;transition:.15s;text-transform:uppercase;letter-spacing:.06em}
+.tab:hover{color:var(--tx2)}
+.tab.on{color:var(--ac);border-bottom-color:var(--ac)}
+.tab-pane{display:none}
+.tab-pane.on{display:block}
 </style>
 </head>
 <body>
 
 <header class="hdr">
-  <div class="hdr-brand">
-    <div class="hdr-title">UR3e Program Builder V3</div>
-    <div class="hdr-sub">Robotiq 2F-85 · URScript</div>
+  <div>
+    <div class="brand-title">UR3e Program Builder</div>
+    <div class="brand-sub">Robotiq 2F-85 · Phase 1</div>
   </div>
-  <div class="hdr-sep"></div>
+  <div class="hsep"></div>
   <div class="seg">
     <button class="seg-btn on" id="btn-deg" onclick="setMode('deg')">DEG</button>
-    <button class="seg-btn"    id="btn-rad" onclick="setMode('rad')">RAD</button>
+    <button class="seg-btn"   id="btn-rad" onclick="setMode('rad')">RAD</button>
   </div>
-  <div class="hdr-space"></div>
+  <div class="hspace"></div>
   <button class="btn" onclick="copyCode()">Copy code</button>
-  <button class="btn btn-accent" onclick="downloadCode()">↓ Download .script</button>
+  <button class="btn btn-ac" onclick="downloadCode()">↓ Download .script</button>
 </header>
 
+<div class="page">
 <div class="app">
+  <!-- LEFT: Positions -->
   <div class="left-col">
-    <div class="card" style="flex: 1; max-height: 60vh;">
-      <div class="card-hdr">
-        <span class="card-title">Positions</span>
-        <button class="btn" onclick="addPosition()">+ Add New</button>
-      </div>
-      <div class="card-body" id="pos-list"></div>
+  <div class="card">
+    <div class="card-hdr">
+      <span class="card-title">Positions</span>
+      <button class="btn btn-sm" onclick="addPos('joint')">+ Joint</button>
+      <button class="btn btn-sm" onclick="addPos('cart')">+ Cartesian</button>
     </div>
-    
-    <div class="card" style="flex: 0 0 auto;">
-      <div class="card-hdr">
-        <span class="card-title">Variables</span>
-        <button class="btn" onclick="addVariable()">+ Add New</button>
-      </div>
-      <div class="card-body" id="var-list" style="max-height: 250px;"></div>
-    </div>
+    <div class="pos-list" id="pos-list"></div>
+  </div>
   </div>
 
+  <!-- RIGHT -->
   <div class="right-col">
-    <div class="card">
+    <!-- Settings -->
+    <div class="card settings-card">
       <div class="card-hdr">
-        <span class="card-title">Robot Settings</span>
-        <button class="collapse-btn" id="cfg-toggle" onclick="toggleCfg()">▼</button>
+        <span class="card-title">Settings</span>
+        <button class="btn btn-sm" id="cfg-tog" onclick="toggleCfg()">▼ collapse</button>
       </div>
-      <div id="cfg-body">
-        <div class="settings-grid">
-          <div class="sg"><label>Joint speed (rad/s)</label><input type="number" step="0.01" id="cfg-jspeed" value="1.05" oninput="refreshCode()"></div>
-          <div class="sg"><label>Joint accel (rad/s²)</label><input type="number" step="0.01" id="cfg-jaccel" value="1.4" oninput="refreshCode()"></div>
-          <div class="sg"><label>Gripper open (mm)</label><input type="number" step="1" id="cfg-gopen" value="25" oninput="refreshCode()"></div>
-          <div class="sg"><label>Gripper close (mm)</label><input type="number" step="1" id="cfg-gclose" value="70" oninput="refreshCode()"></div>
-          <div class="sg"><label>Gripper speed (0–100)</label><input type="number" step="1" min="0" max="100" id="cfg-gspeed" value="100" oninput="refreshCode()"></div>
-          <div class="sg"><label>Gripper force (0–100)</label><input type="number" step="1" min="0" max="100" id="cfg-gforce" value="100" oninput="refreshCode()"></div>
+      <div id="cfg-body" class="cfg-body">
+        <div class="tab-bar">
+          <div class="tab on" onclick="showTab('motion')">Motion</div>
+          <div class="tab" onclick="showTab('gripper')">Gripper</div>
+          <div class="tab" onclick="showTab('tcp')">TCP</div>
+          <div class="tab" onclick="showTab('payload')">Payload</div>
+        </div>
+        <div id="tab-motion" class="tab-pane on">
+          <div class="sg-grid">
+            <div class="sg"><label>Joint speed (rad/s)</label><input type="number" step="0.01" id="js" value="1.05" oninput="refreshCode()"></div>
+            <div class="sg"><label>Joint accel (rad/s²)</label><input type="number" step="0.01" id="ja" value="1.4"  oninput="refreshCode()"></div>
+            <div class="sg"><label>Linear speed (m/s)</label><input type="number" step="0.01" id="ls" value="0.25"  oninput="refreshCode()"></div>
+            <div class="sg"><label>Linear accel (m/s²)</label><input type="number" step="0.01" id="la" value="1.2"  oninput="refreshCode()"></div>
+            <div class="sg"><label>Blend radius (m)</label><input type="number" step="0.001" id="br" value="0.0"  oninput="refreshCode()"></div>
+          </div>
+        </div>
+        <div id="tab-gripper" class="tab-pane">
+          <div class="sg-grid">
+            <div class="sg"><label>Open position (mm)</label><input type="number" step="1" id="go" value="60" oninput="refreshCode()"></div>
+            <div class="sg"><label>Close position (mm)</label><input type="number" step="1" id="gc" value="20" oninput="refreshCode()"></div>
+            <div class="sg"><label>Speed (0–100)</label><input type="number" step="1" min="0" max="100" id="gs" value="100" oninput="refreshCode()"></div>
+            <div class="sg"><label>Force (0–100)</label><input type="number" step="1" min="0" max="100" id="gf" value="100" oninput="refreshCode()"></div>
+          </div>
+        </div>
+        <div id="tab-tcp" class="tab-pane">
+          <div class="sg-grid">
+            <div class="sg"><label>X (m)</label><input type="number" step="0.001" id="tcp-x" value="0" oninput="refreshCode()"></div>
+            <div class="sg"><label>Y (m)</label><input type="number" step="0.001" id="tcp-y" value="0" oninput="refreshCode()"></div>
+            <div class="sg"><label>Z (m)</label><input type="number" step="0.001" id="tcp-z" value="0" oninput="refreshCode()"></div>
+            <div class="sg"><label>RX (rad)</label><input type="number" step="0.001" id="tcp-rx" value="0" oninput="refreshCode()"></div>
+            <div class="sg"><label>RY (rad)</label><input type="number" step="0.001" id="tcp-ry" value="0" oninput="refreshCode()"></div>
+            <div class="sg"><label>RZ (rad)</label><input type="number" step="0.001" id="tcp-rz" value="0" oninput="refreshCode()"></div>
+          </div>
+        </div>
+        <div id="tab-payload" class="tab-pane">
+          <div class="sg-grid">
+            <div class="sg"><label>Weight (kg)</label><input type="number" step="0.1" id="pl-w" value="0.5" oninput="refreshCode()"></div>
+            <div class="sg"><label>CoG X (m)</label><input type="number" step="0.001" id="pl-x" value="0" oninput="refreshCode()"></div>
+            <div class="sg"><label>CoG Y (m)</label><input type="number" step="0.001" id="pl-y" value="0" oninput="refreshCode()"></div>
+            <div class="sg"><label>CoG Z (m)</label><input type="number" step="0.001" id="pl-z" value="0" oninput="refreshCode()"></div>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="card" style="flex:1;">
+    <!-- Program -->
+    <div class="card program-card">
       <div class="card-hdr">
-        <span class="card-title">Program Sequence</span>
-        <span style="font-size:10px;color:var(--text3);margin-right:4px;" id="step-count">0 steps</span>
+        <span class="card-title">Program</span>
+        <span style="font-size:10px;color:var(--tx3)" id="step-count"></span>
       </div>
-      
-      <div class="template-row">
-        <span class="card-title">Quick Templates:</span>
-        <button class="btn btn-sm" onclick="loadTemplate('pick_place')">Pick & Place</button>
-        <button class="btn btn-sm" onclick="loadTemplate('pallet_loop')">Basic Loop</button>
-        <div class="hdr-sep" style="height: 14px; margin: 0 4px;"></div>
-        <button class="btn btn-sm btn-del" onclick="loadTemplate('clear')">Clear All</button>
-      </div>
-
-      <div class="steps-body" id="steps-list" style="overflow-y:auto; max-height: 45vh;"></div>
-      
-      <div class="add-step-row">
+      <div class="warn-box" id="warn-box"></div>
+      <div class="steps-body" id="steps-list"></div>
+      <div class="add-bar">
         <select id="new-type">
           <optgroup label="Motion">
-            <option value="movej">Move Joint (movej)</option>
-            <option value="movel">Move Linear (movel)</option>
-            <option value="movec">Move Circular Arc (movec)</option>
-          </optgroup>
-          <optgroup label="Logic & Flow">
-            <option value="loop_start">Loop (Repeat N times)</option>
-            <option value="if_di">If Digital Input</option>
-            <option value="end_block">End Loop / If Block</option>
-          </optgroup>
-          <optgroup label="I/O & Variables">
-            <option value="wait_di">Wait for Digital Input</option>
-            <option value="set_do">Set Digital Output</option>
-            <option value="assign_var">Assign Variable</option>
+            <option value="movej">movej — Joint move</option>
+            <option value="movel">movel — Linear move</option>
+            <option value="movec">movec — Circular arc</option>
           </optgroup>
           <optgroup label="Gripper">
+            <option value="activate_gripper">Activate gripper</option>
             <option value="open_gripper">Open gripper</option>
             <option value="close_gripper">Close gripper</option>
-            <option value="activate_gripper">Activate gripper</option>
           </optgroup>
-          <optgroup label="Utility">
+          <optgroup label="Flow Control">
+            <option value="loop_n">Repeat N times</option>
+            <option value="loop_forever">Loop forever</option>
+            <option value="loop_while">While digital input</option>
+            <option value="if_din">If digital input</option>
+            <option value="else_block">Else</option>
+            <option value="block_end">End block</option>
+          </optgroup>
+          <optgroup label="Utilities">
             <option value="sleep">Sleep</option>
-            <option value="comment">Comment</option>
             <option value="textmsg">Log message</option>
-            <option value="popup">Popup message</option>
-            <option value="set_payload">Set Payload (kg)</option>
+            <option value="popup">Popup (pendant)</option>
+            <option value="set_digital_out">Set digital output</option>
+            <option value="set_payload">Set payload</option>
+            <option value="set_tcp">Set TCP</option>
           </optgroup>
         </select>
-        <button class="btn btn-accent" onclick="addStep()">+ Add step</button>
+        <button class="btn btn-ac" onclick="addStep()">+ Add step</button>
       </div>
     </div>
   </div>
 </div>
 
+<!-- Code output — pinned to bottom inside .page -->
 <div class="code-wrap">
   <div class="card">
-    <div class="card-hdr code-hdr">
-      <span class="card-title">Generated URScript</span>
-      <span style="font-size:10px;color:var(--text3);" id="code-lines"></span>
+    <div class="card-hdr" style="background:#0a0a0c">
+      <span class="card-title" style="color:var(--ac)">Generated URScript</span>
+      <span style="font-size:10px;color:var(--tx3)" id="code-lines"></span>
+      <button class="btn btn-sm" onclick="copyCode()">Copy</button>
+      <button class="btn btn-sm btn-ac" onclick="downloadCode()">↓ Download</button>
     </div>
     <div class="code-block" id="code-out"></div>
   </div>
 </div>
+</div>
 
 <script>
-// ══ STATE ═══════════════════════════════════════════════
-let mode = 'deg';  
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let mode = 'deg';
 let cfgOpen = true;
 let _uid = 0;
-function uid() { return 'x' + (_uid++); }
+const uid = () => 'u' + (_uid++);
 
-// Start completely empty to encourage template usage
-let positions = [];
-let variables = [];
+// Each position: {id, name, type:'joint'|'cart', j:[6 radians or m/rad]}
+let positions = [
+  {id:uid(), name:'HOME',     type:'joint', j:[0,-1.5708,0,-1.5708,0,0]},
+  {id:uid(), name:'APPROACH', type:'joint', j:[0,-1.5708,0,-1.5708,0,0]},
+  {id:uid(), name:'PICK',     type:'joint', j:[0,-1.5708,0,-1.5708,0,0]},
+  {id:uid(), name:'PLACE',    type:'joint', j:[0,-1.5708,0,-1.5708,0,0]},
+];
+
+// Each step: flat list; blocks use loop_n/if_din + block_end
 let steps = [];
 
-// ══ AUTOMATION TEMPLATES ════════════════════════════════
-function loadTemplate(type) {
-  if (!confirm("This will replace your current program. Continue?")) return;
-  
-  steps = [];
-  
-  if (type === 'clear') {
-    positions = [];
-    variables = [];
-  } 
-  else if (type === 'pick_place') {
-    positions = [
-      { id: uid(), name: 'HOME',     j: [0, -1.5708, 0, -1.5708, 0, 0] },
-      { id: uid(), name: 'APPROACH', j: [0.5, -1.57, 0.5, -1.57, 0, 0] },
-      { id: uid(), name: 'PICK',     j: [0.5, -1.2, 0.8, -1.57, 0, 0] },
-      { id: uid(), name: 'PLACE',    j: [-0.5, -1.2, 0.8, -1.57, 0, 0] }
-    ];
-    variables = [{ id: uid(), name: 'parts_moved', val: '0' }];
-    
-    const p = positions.map(x => x.id);
-    const v = variables[0].id;
-    
-    steps = [
-      { id: uid(), type: 'comment', msg: 'Standard Pick and Place Cycle' },
-      { id: uid(), type: 'activate_gripper' },
-      { id: uid(), type: 'movej', pid: p[0] },
-      { id: uid(), type: 'open_gripper' },
-      { id: uid(), type: 'movel', pid: p[1] },
-      { id: uid(), type: 'movel', pid: p[2] },
-      { id: uid(), type: 'close_gripper' },
-      { id: uid(), type: 'movel', pid: p[1] },
-      { id: uid(), type: 'movel', pid: p[3] },
-      { id: uid(), type: 'open_gripper' },
-      { id: uid(), type: 'assign_var', varId: v, expr: 'parts_moved + 1' },
-      { id: uid(), type: 'movej', pid: p[0] }
-    ];
-  }
-  else if (type === 'pallet_loop') {
-    positions = [
-      { id: uid(), name: 'START', j: [0, -1.5708, 0, -1.5708, 0, 0] },
-      { id: uid(), name: 'DROP',  j: [0.5, -1.2, 0.8, -1.57, 0, 0] }
-    ];
-    variables = [];
-    const p = positions.map(x => x.id);
-    
-    steps = [
-      { id: uid(), type: 'comment', msg: 'Repeating Drop Cycle' },
-      { id: uid(), type: 'loop_start', iters: 5 },
-      { id: uid(), type: 'movej', pid: p[0] },
-      { id: uid(), type: 'movel', pid: p[1] },
-      { id: uid(), type: 'open_gripper' },
-      { id: uid(), type: 'sleep', sec: 0.5 },
-      { id: uid(), type: 'close_gripper' },
-      { id: uid(), type: 'end_block' },
-      { id: uid(), type: 'movej', pid: p[0] }
-    ];
-  }
-
-  renderPositions();
-  renderVariables();
-  renderSteps();
-  refreshCode();
+function initSteps() {
+  const [home,approach,pick,place] = positions.map(p=>p.id);
+  steps = [
+    {id:uid(), type:'activate_gripper'},
+    {id:uid(), type:'movej', pid:home},
+    {id:uid(), type:'open_gripper'},
+    {id:uid(), type:'movej', pid:approach},
+    {id:uid(), type:'movej', pid:pick},
+    {id:uid(), type:'close_gripper'},
+    {id:uid(), type:'movej', pid:approach},
+    {id:uid(), type:'movej', pid:place},
+    {id:uid(), type:'open_gripper'},
+    {id:uid(), type:'movej', pid:home},
+  ];
 }
 
-function quickAddMove(pid) {
-  const s = { id: uid(), type: 'movej', pid: pid };
-  steps.push(s);
-  renderSteps();
-  refreshCode();
-  // Scroll to bottom of steps
-  const list = document.getElementById('steps-list');
-  list.scrollTop = list.scrollHeight;
-}
-
-// ══ UI CONVERSIONS ══════════════════════════════════════
-function toDisp(rad) { return mode === 'deg' ? +(rad * 180 / Math.PI).toFixed(2) : +rad.toFixed(4); }
-function fromDisp(v) { const n = parseFloat(v); if (isNaN(n)) return 0; return mode === 'deg' ? n * Math.PI / 180 : n; }
-
-function setMode(m) {
-  mode = m;
-  document.getElementById('btn-deg').classList.toggle('on', m === 'deg');
-  document.getElementById('btn-rad').classList.toggle('on', m === 'rad');
-  renderPositions();
-  refreshCode();
-}
-
-// ══ POSITIONS ═══════════════════════════════════════════
-const JNAMES = ['Base', 'Shldr', 'Elbow', 'Wrist1', 'Wrist2', 'Wrist3'];
-function posComplete(pos) { return pos.j.every(v => v !== 0); }
-
-function renderPositions() {
-  const list = document.getElementById('pos-list');
-  if (positions.length === 0) {
-    list.innerHTML = `<div style="text-align:center; padding: 20px; color: var(--text3); font-style: italic;">No positions defined. Add one or load a template.</div>`;
-    return;
-  }
-
-  list.innerHTML = positions.map(pos => `
-    <div class="pos-card" id="pc-${pos.id}">
-      <div class="pos-hdr">
-        <div class="pos-dot ${posComplete(pos) ? 'full' : ''}" id="dot-${pos.id}"></div>
-        <input class="pos-name" value="${pos.name}" onchange="renamePos('${pos.id}', this.value)">
-        <button class="btn btn-sm" onclick="quickAddMove('${pos.id}')" title="Add a Move step to this position">↳ Add Move</button>
-        <button class="btn-del btn" onclick="deletePos('${pos.id}')">✕</button>
-      </div>
-      <div class="joints">
-        ${JNAMES.map((name, ji) => `
-          <div class="jcell">
-            <div class="jlabel">${name}</div>
-            <input class="jinput ${pos.j[ji] !== 0 ? 'filled' : ''}" type="number" step="${mode === 'deg' ? '0.1' : '0.0001'}"
-              value="${toDisp(pos.j[ji])}" onchange="setJoint('${pos.id}', ${ji}, this.value)" oninput="this.classList.toggle('filled', this.value !== '' && this.value !== '0')">
-          </div>
-        `).join('')}
-      </div>
-    </div>`).join('');
-}
-
-function setJoint(pid, ji, v) {
-  const pos = positions.find(p => p.id === pid);
-  if (pos) { pos.j[ji] = fromDisp(v); updatePosDot(pid); refreshCode(); }
-}
-function updatePosDot(pid) {
-  const pos = positions.find(p => p.id === pid);
-  const dot = document.getElementById('dot-' + pid);
-  if (dot && pos) dot.className = 'pos-dot' + (posComplete(pos) ? ' full' : '');
-}
-function renamePos(pid, val) {
-  const pos = positions.find(p => p.id === pid);
-  if (pos) { pos.name = val.toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, ''); refreshCode(); renderSteps(); }
-}
-function addPosition() {
-  positions.push({ id: uid(), name: 'POS_' + (positions.length + 1), j: [0,0,0,0,0,0] });
-  renderPositions(); renderSteps(); refreshCode();
-}
-function deletePos(pid) {
-  positions = positions.filter(p => p.id !== pid);
-  steps = steps.filter(s => s.pid !== pid && s.pid2 !== pid);
-  renderPositions(); renderSteps(); refreshCode();
-}
-
-// ══ VARIABLES ═══════════════════════════════════════════
-function renderVariables() {
-  const list = document.getElementById('var-list');
-  if (variables.length === 0) {
-    list.innerHTML = `<div style="text-align:center; padding: 10px; color: var(--text3); font-style: italic;">No variables defined.</div>`;
-    return;
-  }
-  list.innerHTML = variables.map(v => `
-    <div class="var-card" style="display:flex; align-items:center; gap:6px; padding:6px 10px;">
-      <span style="color:var(--text3); font-family:var(--mono);">var</span>
-      <input class="var-input" value="${v.name}" onchange="renameVar('${v.id}', this.value)">
-      <span style="color:var(--text3);">=</span>
-      <input class="var-input var-val" value="${v.val}" onchange="updateVarVal('${v.id}', this.value)">
-      <button class="btn-del btn" onclick="deleteVar('${v.id}')">✕</button>
-    </div>`).join('');
-}
-function addVariable() {
-  variables.push({ id: uid(), name: 'var_' + (variables.length + 1), val: '0' });
-  renderVariables(); renderSteps(); refreshCode();
-}
-function renameVar(vid, val) {
-  const v = variables.find(x => x.id === vid);
-  if (v) { v.name = val.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, ''); refreshCode(); renderSteps(); }
-}
-function updateVarVal(vid, val) {
-  const v = variables.find(x => x.id === vid);
-  if (v) { v.val = val; refreshCode(); }
-}
-function deleteVar(vid) {
-  variables = variables.filter(x => x.id !== vid);
-  steps = steps.filter(s => s.varId !== vid);
-  renderVariables(); renderSteps(); refreshCode();
+// ═══════════════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════════════
+function showTab(name) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.getElementById('tab-'+name).classList.add('on');
+  event.target.classList.add('on');
 }
 
 function toggleCfg() {
   cfgOpen = !cfgOpen;
   document.getElementById('cfg-body').style.display = cfgOpen ? '' : 'none';
-  document.getElementById('cfg-toggle').textContent = cfgOpen ? '▼' : '▶';
+  document.getElementById('cfg-tog').textContent = cfgOpen ? '▼ collapse' : '▶ expand';
 }
-function g(id) { return parseFloat(document.getElementById(id).value) || 0; }
 
-// ══ STEPS ═══════════════════════════════════════════════
-const TYPE_LABEL = {
-  movej: 'Move Joint', movel: 'Move Linear', movec: 'Move Arc',
-  open_gripper: 'Open gripper', close_gripper: 'Close gripper', activate_gripper: 'Activate gripper',
-  loop_start: 'Loop Start', if_di: 'If Digital In', end_block: 'End Block',
-  wait_di: 'Wait I/O', set_do: 'Set I/O', assign_var: 'Set Var',
-  sleep: 'Sleep', comment: 'Comment', textmsg: 'Log msg', popup: 'Popup msg', set_payload: 'Set Payload'
+// ═══════════════════════════════════════════════════════════
+// UNITS
+// ═══════════════════════════════════════════════════════════
+function setMode(m) {
+  mode = m;
+  document.getElementById('btn-deg').classList.toggle('on', m==='deg');
+  document.getElementById('btn-rad').classList.toggle('on', m==='rad');
+  renderPositions();
+  refreshCode();
+}
+
+// For joint positions: stored as radians, displayed as deg or rad
+function toDisp(rad, isAngle=true) {
+  if (!isAngle) return +rad.toFixed(4); // meters never converted
+  return mode==='deg' ? +(rad*180/Math.PI).toFixed(2) : +rad.toFixed(4);
+}
+function fromDisp(v, isAngle=true) {
+  const n = parseFloat(v); if (isNaN(n)) return 0;
+  if (!isAngle) return n;
+  return mode==='deg' ? n*Math.PI/180 : n;
+}
+
+// ═══════════════════════════════════════════════════════════
+// POSITIONS
+// ═══════════════════════════════════════════════════════════
+const JOINT_LABELS = ['Base','Shldr','Elbow','Wrst1','Wrst2','Wrst3'];
+const CART_LABELS  = ['X(m)','Y(m)','Z(m)','RX','RY','RZ'];
+// For cartesian: cols 0,1,2 = meters (no conversion), cols 3,4,5 = angles
+
+function isAngleCol(type, col) {
+  if (type === 'joint') return true;
+  return col >= 3; // cart: only rx,ry,rz are angles
+}
+
+function renderPositions() {
+  const el = document.getElementById('pos-list');
+  el.innerHTML = positions.map(pos => {
+    const labels = pos.type==='joint' ? JOINT_LABELS : CART_LABELS;
+    const unit = pos.type==='joint' ? (mode==='deg'?'°':'r') : '';
+    return `
+    <div class="pos-card" id="pc-${pos.id}">
+      <div class="pos-hdr">
+        <div class="pos-dot ${posComplete(pos)?'full':''}" id="dot-${pos.id}"></div>
+        <input class="pos-name" value="${pos.name}"
+          onchange="renamePos('${pos.id}',this.value)"
+          onblur="renamePos('${pos.id}',this.value)"/>
+        <div class="type-seg">
+          <button class="type-btn ${pos.type==='joint'?'on':''}" onclick="setPosType('${pos.id}','joint')">JOINT</button>
+          <button class="type-btn ${pos.type==='cart'?'on':''}"  onclick="setPosType('${pos.id}','cart')">CART</button>
+        </div>
+        <button class="btn-del btn btn-sm" onclick="deletePos('${pos.id}')">✕</button>
+      </div>
+      <div class="joints">
+        ${labels.map((name,ji)=>{
+          const isAng = isAngleCol(pos.type,ji);
+          const disp = toDisp(pos.j[ji], isAng);
+          const unitStr = pos.type==='cart' ? (ji<3?'m':(mode==='deg'?'°':'r')) : unit;
+          return `<div class="jcell">
+            <div class="jlabel">${name}<br>${unitStr}</div>
+            <input class="jinput ${pos.j[ji]!==0?'filled':''}" type="number"
+              step="${isAng&&mode==='deg'?'0.1':'0.0001'}"
+              value="${disp}"
+              oninput="liveJoint(this,'${pos.id}',${ji},${isAng})"/>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function posComplete(pos) { return pos.j.some(v=>v!==0); }
+
+function liveJoint(el, pid, ji, isAngle) {
+  el.classList.toggle('filled', el.value!==''&&el.value!=='0');
+  const pos = positions.find(p=>p.id===pid); if(!pos) return;
+  pos.j[ji] = fromDisp(el.value, isAngle);
+  document.getElementById('dot-'+pid).className = 'pos-dot'+(posComplete(pos)?' full':'');
+  refreshCode();
+}
+
+function renamePos(pid, val) {
+  const pos = positions.find(p=>p.id===pid); if(!pos) return;
+  pos.name = val.toUpperCase().replace(/\s+/g,'_').replace(/[^A-Z0-9_]/g,'') || pos.name;
+  refreshCode(); renderSteps();
+}
+
+function setPosType(pid, type) {
+  const pos = positions.find(p=>p.id===pid); if(!pos) return;
+  pos.type = type;
+  renderPositions(); refreshCode(); renderSteps();
+}
+
+function addPos(type) {
+  positions.push({id:uid(), name:'POS_'+(positions.length+1), type, j:[0,0,0,0,0,0]});
+  renderPositions(); renderSteps(); refreshCode();
+}
+
+function deletePos(pid) {
+  if(positions.length<=1) return;
+  positions = positions.filter(p=>p.id!==pid);
+  steps = steps.map(s=>{
+    if((s.type==='movej'||s.type==='movel')&&s.pid===pid) return {...s,pid:null};
+    if(s.type==='movec'&&s.via===pid) return {...s,via:null};
+    if(s.type==='movec'&&s.to===pid) return {...s,to:null};
+    return s;
+  });
+  renderPositions(); renderSteps(); refreshCode();
+}
+
+// ═══════════════════════════════════════════════════════════
+// STEP DEPTHS (for indentation)
+// ═══════════════════════════════════════════════════════════
+const OPENERS = ['loop_n','loop_forever','loop_while','if_din'];
+
+function computeDepths() {
+  const depths=[], opens=[];
+  steps.forEach(s=>{
+    if(s.type==='block_end'){
+      const d = opens.length>0 ? opens[opens.length-1] : 0;
+      opens.pop();
+      depths.push(opens.length);
+    } else if(s.type==='else_block'){
+      depths.push(opens.length>0 ? opens.length-1 : 0);
+    } else {
+      depths.push(opens.length);
+      if(OPENERS.includes(s.type)) opens.push(opens.length);
+    }
+  });
+  return depths;
+}
+
+// ═══════════════════════════════════════════════════════════
+// STEP RENDERING
+// ═══════════════════════════════════════════════════════════
+const TAG_INFO = {
+  movej:            ['MOVEJ','tag-move'],
+  movel:            ['MOVEL','tag-move'],
+  movec:            ['MOVEC','tag-move'],
+  open_gripper:     ['GRIP', 'tag-grip'],
+  close_gripper:    ['GRIP', 'tag-grip'],
+  activate_gripper: ['GRIP', 'tag-grip'],
+  loop_n:           ['LOOP', 'tag-flow'],
+  loop_forever:     ['LOOP∞','tag-flow'],
+  loop_while:       ['WHILE','tag-flow'],
+  if_din:           ['IF',   'tag-flow'],
+  else_block:       ['ELSE', 'tag-flow'],
+  block_end:        ['END',  'tag-util'],
+  sleep:            ['WAIT', 'tag-util'],
+  textmsg:          ['LOG',  'tag-util'],
+  popup:            ['POP',  'tag-util'],
+  set_digital_out:  ['DOUT', 'tag-util'],
+  set_payload:      ['LOAD', 'tag-util'],
+  set_tcp:          ['TCP',  'tag-util'],
 };
 
-const TYPE_TAG = {
-  movej: ['MOVE', 'tag-move'], movel: ['MOVE', 'tag-move'], movec: ['MOVE', 'tag-move'],
-  open_gripper: ['GRIP', 'tag-grip'], close_gripper: ['GRIP', 'tag-grip'], activate_gripper: ['GRIP', 'tag-grip'],
-  loop_start: ['FLOW', 'tag-flow'], if_di: ['FLOW', 'tag-flow'], end_block: ['END', 'tag-flow'],
-  wait_di: ['I/O', 'tag-io'], set_do: ['I/O', 'tag-io'], assign_var: ['VAR', 'tag-var'],
-  sleep: ['UTIL', 'tag-util'], comment: ['#', 'tag-util'], textmsg: ['LOG', 'tag-util'], popup: ['POP', 'tag-util'], set_payload: ['CFG', 'tag-util']
-};
+function posOpts(filterType) {
+  return positions
+    .filter(p => !filterType || p.type===filterType)
+    .map(p=>`<option value="${p.id}">${p.name} (${p.type})</option>`)
+    .join('');
+}
+
+function allPosOpts() {
+  return positions.map(p=>`<option value="${p.id}">${p.name}</option>`).join('');
+}
+
+function stepParams(s) {
+  const si = `'${s.id}'`;
+  switch(s.type) {
+    case 'movej': return `
+      <select class="step-sel" onchange="upd(${si},'pid',this.value)">${
+        positions.map(p=>`<option value="${p.id}" ${s.pid===p.id?'selected':''}>${p.name}</option>`).join('')
+      }</select>`;
+    case 'movel': {
+      const cartPos = positions.filter(p=>p.type==='cart');
+      const opts = cartPos.length
+        ? cartPos.map(p=>`<option value="${p.id}" ${s.pid===p.id?'selected':''}>${p.name}</option>`).join('')
+        : `<option value="">— add Cartesian position —</option>`;
+      return `<select class="step-sel" onchange="upd(${si},'pid',this.value)">${opts}</select>`;
+    }
+    case 'movec': {
+      const cartPos = positions.filter(p=>p.type==='cart');
+      const mkOpts = (sel) => cartPos.map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>${p.name}</option>`).join('');
+      return `<span style="font-size:10px;color:var(--tx3)">via</span>
+        <select class="step-sel" onchange="upd(${si},'via',this.value)">${mkOpts(s.via)}</select>
+        <span style="font-size:10px;color:var(--tx3)">to</span>
+        <select class="step-sel" onchange="upd(${si},'to',this.value)">${mkOpts(s.to)}</select>`;
+    }
+    case 'loop_n':
+      return `<input class="step-inp" type="number" min="1" value="${s.count??5}" style="width:60px"
+        oninput="upd(${si},'count',+this.value)">
+        <span style="font-size:10px;color:var(--tx3)">times</span>`;
+    case 'loop_while':
+    case 'if_din':
+      return `<span style="font-size:10px;color:var(--tx3)">D.IN</span>
+        <input class="step-inp" type="number" min="0" max="15" value="${s.port??0}" style="width:44px"
+          oninput="upd(${si},'port',+this.value)">
+        <select class="step-sel" onchange="upd(${si},'val',this.value==='true')">
+          <option value="true"  ${s.val!==false?'selected':''}>== TRUE</option>
+          <option value="false" ${s.val===false ?'selected':''}>== FALSE</option>
+        </select>`;
+    case 'sleep':
+      return `<input class="step-inp" type="number" min="0" step="0.1" value="${s.sec??1}" style="width:60px"
+        oninput="upd(${si},'sec',+this.value)">
+        <span style="font-size:10px;color:var(--tx3)">sec</span>`;
+    case 'textmsg':
+    case 'popup':
+      return `<input class="step-inp" type="text" value="${esc(s.msg??'')}" style="width:200px"
+        placeholder="${s.type==='popup'?'Pendant message...':'Log message...'}"
+        oninput="upd(${si},'msg',this.value)">`;
+    case 'set_digital_out':
+      return `<span style="font-size:10px;color:var(--tx3)">D.OUT</span>
+        <input class="step-inp" type="number" min="0" max="15" value="${s.port??0}" style="width:44px"
+          oninput="upd(${si},'port',+this.value)">
+        <select class="step-sel" onchange="upd(${si},'val',this.value==='true')">
+          <option value="true"  ${s.val!==false?'selected':''}>HIGH</option>
+          <option value="false" ${s.val===false ?'selected':''}>LOW</option>
+        </select>`;
+    case 'set_payload':
+      return `<input class="step-inp" type="number" step="0.1" min="0" value="${s.weight??0}" style="width:60px"
+        oninput="upd(${si},'weight',+this.value)">
+        <span style="font-size:10px;color:var(--tx3)">kg</span>`;
+    case 'set_tcp':
+      return `<input class="step-inp" type="text" value="${s.pose??'0,0,0,0,0,0'}" style="width:160px"
+        placeholder="x,y,z,rx,ry,rz" oninput="upd(${si},'pose',this.value)">`;
+    default: return '';
+  }
+}
 
 function renderSteps() {
+  const depths = computeDepths();
   const list = document.getElementById('steps-list');
-  
-  if (steps.length === 0) {
-    list.innerHTML = `<div style="text-align:center; padding: 30px; color: var(--text3); font-style: italic;">Program is empty. Add a step below or load a template above.</div>`;
-    document.getElementById('step-count').textContent = '0 steps';
-    return;
-  }
+  const typeOpts = Object.keys(TAG_INFO).map(v=>`<option value="${v}">${v}</option>`).join('');
 
-  let depth = 0;
-  list.innerHTML = steps.map((s, si) => {
-    if (s.type === 'end_block') depth = Math.max(0, depth - 1);
-    const [tag, tagClass] = TYPE_TAG[s.type];
-    const typeOpts = Object.entries(TYPE_LABEL).map(([v, l]) => `<option value="${v}" ${s.type === v ? 'selected' : ''}>${l}</option>`).join('');
-
-    let param = '<span class="step-spacer"></span>';
-    
-    // Safety check for empty positions
-    const posOpts = (selId) => {
-      if (positions.length === 0) return `<option value="">-- No Positions --</option>`;
-      return positions.map(p => `<option value="${p.id}" ${selId === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
-    };
-    
-    const varOpts = (selId) => {
-      if (variables.length === 0) return `<option value="">-- No Variables --</option>`;
-      return variables.map(v => `<option value="${v.id}" ${selId === v.id ? 'selected' : ''}>${v.name}</option>`).join('');
-    };
-
-    if (s.type === 'movej' || s.type === 'movel') {
-      param = `<select class="step-sel" onchange="updateStepProp('${s.id}','pid',this.value)">${posOpts(s.pid)}</select><span class="step-spacer"></span>`;
-    } else if (s.type === 'movec') {
-      param = `<span class="step-label">Via:</span><select class="step-sel" onchange="updateStepProp('${s.id}','pid',this.value)">${posOpts(s.pid)}</select>
-               <span class="step-label" style="margin-left:4px">End:</span><select class="step-sel" onchange="updateStepProp('${s.id}','pid2',this.value)">${posOpts(s.pid2)}</select><span class="step-spacer"></span>`;
-    } else if (s.type === 'sleep') {
-      param = `<input class="step-input" type="number" min="0" step="0.1" value="${s.sec ?? 1}" style="width:50px" onchange="updateStepProp('${s.id}','sec',this.value)">
-               <span class="step-label" style="margin-left:2px">sec</span><span class="step-spacer"></span>`;
-    } else if (s.type === 'set_payload') {
-      param = `<input class="step-input" type="number" min="0" step="0.1" value="${s.mass ?? 1}" style="width:50px" onchange="updateStepProp('${s.id}','mass',this.value)">
-               <span class="step-label" style="margin-left:2px">kg</span><span class="step-spacer"></span>`;
-    } else if (['textmsg', 'popup', 'comment'].includes(s.type)) {
-      param = `<input class="step-input" type="text" value="${esc(s.msg ?? '')}" style="flex:1" placeholder="..." onchange="updateStepProp('${s.id}','msg',this.value)">`;
-    } else if (s.type === 'loop_start') {
-      param = `<span class="step-label">Repeat</span><input class="step-input" type="number" min="1" step="1" value="${s.iters ?? 3}" style="width:50px" onchange="updateStepProp('${s.id}','iters',this.value)">
-               <span class="step-label">times</span><span class="step-spacer"></span>`;
-    } else if (s.type === 'if_di' || s.type === 'wait_di') {
-      param = `<span class="step-label">DI</span><input class="step-input" type="number" min="0" max="7" value="${s.pin ?? 0}" style="width:40px" onchange="updateStepProp('${s.id}','pin',this.value)">
-               <span class="step-label">${s.type === 'wait_di' ? 'until' : 'is'}</span>
-               <select class="step-sel" onchange="updateStepProp('${s.id}','state',this.value)">
-                 <option value="True" ${s.state === 'True' ? 'selected' : ''}>High</option><option value="False" ${s.state === 'False' ? 'selected' : ''}>Low</option>
-               </select><span class="step-spacer"></span>`;
-    } else if (s.type === 'set_do') {
-      param = `<span class="step-label">DO</span><input class="step-input" type="number" min="0" max="7" value="${s.pin ?? 0}" style="width:40px" onchange="updateStepProp('${s.id}','pin',this.value)">
-               <span class="step-label">to</span>
-               <select class="step-sel" onchange="updateStepProp('${s.id}','state',this.value)">
-                 <option value="True" ${s.state === 'True' ? 'selected' : ''}>High</option><option value="False" ${s.state === 'False' ? 'selected' : ''}>Low</option>
-               </select><span class="step-spacer"></span>`;
-    } else if (s.type === 'assign_var') {
-      param = `<select class="step-sel" onchange="updateStepProp('${s.id}','varId',this.value)">${varOpts(s.varId)}</select>
-               <span class="step-label">=</span><input class="step-input" type="text" value="${esc(s.expr ?? '')}" style="flex:1" onchange="updateStepProp('${s.id}','expr',this.value)">`;
-    } else if (s.type === 'end_block') {
-      param = `<span class="step-label" style="font-style:italic;">Closes previous loop or if</span><span class="step-spacer"></span>`;
-    }
-
-    const margin = depth * 22;
-    if (s.type === 'loop_start' || s.type === 'if_di') depth++;
-
-    return `
-    <div class="step ${s.type === 'end_block' ? 'block-end' : ''}" id="st-${s.id}" style="margin-left: ${margin}px;">
-      <span class="step-n">${si + 1}</span>
-      <span class="step-tag ${tagClass}">${tag}</span>
-      <select class="step-sel" onchange="updateStepType('${s.id}',this.value)" style="width:115px">${typeOpts}</select>
-      ${param}
-      <button class="btn-ghost btn" onclick="moveStep('${s.id}',-1)" ${si===0?'disabled':''}>↑</button>
-      <button class="btn-ghost btn" onclick="moveStep('${s.id}',1)"  ${si===steps.length-1?'disabled':''}>↓</button>
-      <button class="btn-del btn"   onclick="deleteStep('${s.id}')">✕</button>
+  list.innerHTML = steps.map((s,si)=>{
+    const [tag,tagCls] = TAG_INFO[s.type] || ['?','tag-util'];
+    const depth = depths[si];
+    const indent = Array(depth).fill('<div class="step-indent-line"></div>').join('');
+    const extraCls = OPENERS.includes(s.type)?'block-open'
+      : s.type==='block_end'?'block-end-row'
+      : s.type==='else_block'?'else-row':'';
+    const params = stepParams(s);
+    return `<div class="step-row">
+      <div class="step-indent">${indent}</div>
+      <div class="step ${extraCls}" id="st-${s.id}">
+        <span class="step-n">${si+1}</span>
+        <span class="step-tag ${tagCls}">${tag}</span>
+        <select class="step-sel" onchange="changeType('${s.id}',this.value)" style="font-size:10px;max-width:100px">
+          ${Object.entries(TAG_INFO).map(([v])=>`<option value="${v}" ${s.type===v?'selected':''}>${v}</option>`).join('')}
+        </select>
+        ${params}
+        <span class="step-spacer"></span>
+        <div class="step-controls">
+          <button class="btn-ghost btn btn-sm" onclick="moveStep('${s.id}',-1)" ${si===0?'disabled':''}>↑</button>
+          <button class="btn-ghost btn btn-sm" onclick="moveStep('${s.id}',1)" ${si===steps.length-1?'disabled':''}>↓</button>
+          <button class="btn-del btn btn-sm" onclick="deleteStep('${s.id}')">✕</button>
+        </div>
+      </div>
     </div>`;
   }).join('');
 
-  document.getElementById('step-count').textContent = steps.length + ' step' + (steps.length !== 1 ? 's' : '');
+  document.getElementById('step-count').textContent = steps.length+' step'+(steps.length!==1?'s':'');
+  validateSteps();
+}
+
+function validateSteps() {
+  const warns = [];
+  // Check movel uses cart positions
+  steps.forEach((s,i)=>{
+    if(s.type==='movel'){
+      const pos = positions.find(p=>p.id===s.pid);
+      if(!pos) warns.push(`Step ${i+1}: movel has no position set`);
+      else if(pos.type!=='cart') warns.push(`Step ${i+1}: movel requires a Cartesian position — "${pos.name}" is JOINT`);
+    }
+    if(s.type==='movec'){
+      const via=positions.find(p=>p.id===s.via), to=positions.find(p=>p.id===s.to);
+      if(!via||!to) warns.push(`Step ${i+1}: movec needs both Via and To positions`);
+      else{
+        if(via.type!=='cart') warns.push(`Step ${i+1}: movec Via must be Cartesian — "${via.name}" is JOINT`);
+        if(to.type!=='cart') warns.push(`Step ${i+1}: movec To must be Cartesian — "${to.name}" is JOINT`);
+      }
+    }
+    if(s.type==='movej'&&!s.pid) warns.push(`Step ${i+1}: movej has no position set`);
+  });
+  // Check block balance
+  let depth=0;
+  steps.forEach((s,i)=>{
+    if(OPENERS.includes(s.type)) depth++;
+    else if(s.type==='block_end') {
+      depth--;
+      if(depth<0){warns.push(`Step ${i+1}: "End block" has no matching opener`); depth=0;}
+    }
+  });
+  if(depth>0) warns.push(`${depth} block(s) left open — add "End block" step(s)`);
+
+  const wb = document.getElementById('warn-box');
+  if(warns.length){
+    wb.className='warn-box show';
+    wb.innerHTML='⚠ '+warns.join('<br>⚠ ');
+  } else {
+    wb.className='warn-box';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// STEP MUTATIONS
+// ═══════════════════════════════════════════════════════════
+function defaultStep(type) {
+  const s = {id:uid(), type};
+  if(type==='movej') s.pid = positions.find(p=>p.type==='joint')?.id ?? positions[0]?.id ?? null;
+  if(type==='movel') s.pid = positions.find(p=>p.type==='cart')?.id ?? null;
+  if(type==='movec'){s.via=positions.find(p=>p.type==='cart')?.id??null; s.to=s.via;}
+  if(type==='loop_n') s.count=5;
+  if(type==='loop_while'||type==='if_din'){s.port=0; s.val=true;}
+  if(type==='sleep') s.sec=1;
+  if(type==='textmsg'||type==='popup') s.msg='';
+  if(type==='set_digital_out'){s.port=0; s.val=true;}
+  if(type==='set_payload') s.weight=0.5;
+  if(type==='set_tcp') s.pose='0,0,0,0,0,0';
+  return s;
 }
 
 function addStep() {
-  const type = document.getElementById('new-type').value;
-  const s = { id: uid(), type };
-  initStepDefaults(s);
-  steps.push(s);
+  steps.push(defaultStep(document.getElementById('new-type').value));
   renderSteps(); refreshCode();
-  
-  const list = document.getElementById('steps-list');
-  list.scrollTop = list.scrollHeight;
 }
 
-function initStepDefaults(s) {
-  if (['movej', 'movel', 'movec'].includes(s.type)) s.pid = positions[0]?.id ?? null;
-  if (s.type === 'movec') s.pid2 = positions[1]?.id ?? positions[0]?.id ?? null;
-  if (s.type === 'sleep') s.sec = 1;
-  if (['textmsg', 'popup', 'comment'].includes(s.type)) s.msg = '';
-  if (s.type === 'set_payload') s.mass = 1;
-  if (s.type === 'loop_start') s.iters = 3;
-  if (['if_di', 'wait_di', 'set_do'].includes(s.type)) { s.pin = 0; s.state = 'True'; }
-  if (s.type === 'assign_var') { s.varId = variables[0]?.id ?? null; s.expr = '0'; }
+function deleteStep(sid) {
+  steps = steps.filter(s=>s.id!==sid);
+  renderSteps(); refreshCode();
 }
 
-function deleteStep(sid) { steps = steps.filter(s => s.id !== sid); renderSteps(); refreshCode(); }
 function moveStep(sid, dir) {
-  const i = steps.findIndex(s => s.id === sid); const j = i + dir;
-  if (j < 0 || j >= steps.length) return;
-  [steps[i], steps[j]] = [steps[j], steps[i]];
+  const i=steps.findIndex(s=>s.id===sid), j=i+dir;
+  if(j<0||j>=steps.length) return;
+  [steps[i],steps[j]]=[steps[j],steps[i]];
   renderSteps(); refreshCode();
 }
-function updateStepType(sid, type) {
-  const s = steps.find(x => x.id === sid); if (!s) return;
-  s.type = type; initStepDefaults(s); renderSteps(); refreshCode();
-}
-function updateStepProp(sid, prop, val) {
-  const s = steps.find(x => x.id === sid);
-  if (s) { if (['sec', 'mass', 'iters', 'pin'].includes(prop)) s[prop] = parseFloat(val); else s[prop] = val; refreshCode(); }
+
+function changeType(sid, type) {
+  const i=steps.findIndex(s=>s.id===sid); if(i<0) return;
+  steps[i] = {...defaultStep(type), id:sid};
+  renderSteps(); refreshCode();
 }
 
-function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function upd(sid, key, val) {
+  const s=steps.find(x=>x.id===sid); if(!s) return;
+  s[key]=val; refreshCode(); validateSteps();
+}
 
-// ══ CODE GENERATION ═════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// CODE GENERATION
+// ═══════════════════════════════════════════════════════════
+function gv(id){ return parseFloat(document.getElementById(id)?.value)||0; }
+
+function poseStr(pos) {
+  if(pos.type==='joint') return `[${pos.j.map(v=>v.toFixed(4)).join(', ')}]`;
+  return `p[${pos.j.map(v=>v.toFixed(4)).join(', ')}]`;
+}
+
 function buildCode() {
-  const T = '  ';
-  const jspeed = g('cfg-jspeed'), jaccel = g('cfg-jaccel');
-  const L = [];
+  const T='    ';
+  const js=gv('js'), ja=gv('ja'), ls=gv('ls'), la=gv('la'), br=gv('br');
+  const go=gv('go'), gc=gv('gc'), gs=gv('gs'), gf=gv('gf');
+  const tcx=gv('tcp-x'),tcy=gv('tcp-y'),tcz=gv('tcp-z'),tcrx=gv('tcp-rx'),tcry=gv('tcp-ry'),tcrz=gv('tcp-rz');
+  const plw=gv('pl-w'),plx=gv('pl-x'),ply=gv('pl-y'),plz=gv('pl-z');
+  const L=[];
+  const isTCPSet = tcx||tcy||tcz||tcrx||tcry||tcrz;
 
   L.push('# =================================================================');
-  L.push('# UR3e Program — Generated by UR3e Program Builder V3');
+  L.push('# UR3e Program — Generated by UR3e Program Builder');
   L.push('# =================================================================');
   L.push('');
-  
-  if (variables.length > 0) {
-    L.push('# Global Variables');
-    variables.forEach(v => L.push(`global ${v.name} = ${v.val || '0'}`));
-    L.push('');
-  }
-
   L.push('# Motion parameters');
-  L.push(`JOINT_SPEED = ${jspeed}`);
-  L.push(`JOINT_ACCEL = ${jaccel}`);
+  L.push(`JOINT_SPEED  = ${js}   # rad/s`);
+  L.push(`JOINT_ACCEL  = ${ja}   # rad/s²`);
+  L.push(`LINEAR_SPEED = ${ls}   # m/s`);
+  L.push(`LINEAR_ACCEL = ${la}   # m/s²`);
+  L.push(`BLEND_RADIUS = ${br}   # m`);
   L.push('');
   L.push('# Gripper parameters');
-  L.push(`GRIPPER_SPEED    = ${g('cfg-gspeed')}`);
-  L.push(`GRIPPER_FORCE    = ${g('cfg-gforce')}`);
-  L.push(`GRIPPER_OPEN_MM  = ${g('cfg-gopen')}`);
-  L.push(`GRIPPER_CLOSE_MM = ${g('cfg-gclose')}`);
+  L.push(`GRIPPER_SPEED    = ${gs}`);
+  L.push(`GRIPPER_FORCE    = ${gf}`);
+  L.push(`GRIPPER_OPEN_MM  = ${go}`);
+  L.push(`GRIPPER_CLOSE_MM = ${gc}`);
   L.push('');
-  
-  if (positions.length > 0) {
-    L.push('# Positions (radians)');
-    positions.forEach(pos => { const vals = pos.j.map(v => v.toFixed(4)).join(', '); L.push(`${pos.name} = [${vals}]`); });
-    L.push('');
-  }
-
+  L.push('# Positions');
+  positions.forEach(pos=>{
+    L.push(`${pos.name} = ${poseStr(pos)}   # ${pos.type}`);
+  });
+  L.push('');
   L.push('# =================================================================');
-  L.push('# Gripper functions');
+  L.push('# Setup');
   L.push('# =================================================================');
   L.push('');
-  L.push('def activate_gripper():\n  textmsg("Activating gripper...")\n  rq_activate_and_wait()\nend\n');
-  L.push('def open_gripper():\n  rq_set_speed_norm(GRIPPER_SPEED)\n  rq_set_force_norm(GRIPPER_FORCE)\n  rq_move_and_wait_norm(GRIPPER_OPEN_MM)\nend\n');
-  L.push('def close_gripper():\n  rq_set_speed_norm(GRIPPER_SPEED)\n  rq_set_force_norm(GRIPPER_FORCE)\n  rq_move_and_wait_norm(GRIPPER_CLOSE_MM)\nend\n');
+  L.push('def setup():');
+  if(isTCPSet) L.push(`${T}set_tcp(p[${tcx},${tcy},${tcz},${tcrx},${tcry},${tcrz}])`);
+  L.push(`${T}set_payload(${plw}, [${plx}, ${ply}, ${plz}])`);
+  L.push('end');
+  L.push('');
   L.push('# =================================================================');
-  L.push('# Main program');
+  L.push('# Gripper');
+  L.push('# =================================================================');
+  L.push('');
+  L.push('def activate_gripper():');
+  L.push(`${T}textmsg("Activating gripper...")`);
+  L.push(`${T}rq_activate_and_wait()`);
+  L.push(`${T}textmsg("Gripper ready")`);
+  L.push('end');
+  L.push('');
+  L.push('def open_gripper():');
+  L.push(`${T}rq_set_speed_norm(GRIPPER_SPEED)`);
+  L.push(`${T}rq_set_force_norm(GRIPPER_FORCE)`);
+  L.push(`${T}rq_move_and_wait_norm(GRIPPER_OPEN_MM)`);
+  L.push(`${T}sleep(0.5)`);
+  L.push('end');
+  L.push('');
+  L.push('def close_gripper():');
+  L.push(`${T}rq_set_speed_norm(GRIPPER_SPEED)`);
+  L.push(`${T}rq_set_force_norm(GRIPPER_FORCE)`);
+  L.push(`${T}rq_move_and_wait_norm(GRIPPER_CLOSE_MM)`);
+  L.push(`${T}sleep(0.5)`);
+  L.push('end');
+  L.push('');
+  L.push('# =================================================================');
+  L.push('# Main');
   L.push('# =================================================================');
   L.push('');
   L.push('def main():');
-  
-  let indent = 1;
-  let blockStack = [];
-  let loopCounter = 0;
 
-  const getP = (pid) => { const p = positions.find(x => x.id === pid); return p ? p.name : 'UNKNOWN_POS'; };
-  const getV = (vid) => { const v = variables.find(x => x.id === vid); return v ? v.name : 'unknown_var'; };
+  // Walk steps with indent tracking
+  let ind = 1;
+  let loopCounters = {};
+  let loopIdx = 0;
 
-  if (steps.length === 0) {
-    L.push(`${T}# No program steps defined.`);
-    L.push(`${T}pass`);
-  }
-
-  steps.forEach(s => {
-    const iT = T.repeat(indent);
-    if (s.type === 'movej') { L.push(`${iT}movej(${getP(s.pid)}, a=JOINT_ACCEL, v=JOINT_SPEED)`); }
-    else if (s.type === 'movel') { L.push(`${iT}movel(${getP(s.pid)}, a=JOINT_ACCEL, v=JOINT_SPEED)`); }
-    else if (s.type === 'movec') { L.push(`${iT}movec(${getP(s.pid)}, ${getP(s.pid2)}, a=JOINT_ACCEL, v=JOINT_SPEED)`); }
-    else if (s.type === 'set_payload') { L.push(`${iT}set_payload(${s.mass})`); }
-    else if (s.type === 'open_gripper')  { L.push(`${iT}open_gripper()`); }
-    else if (s.type === 'close_gripper') { L.push(`${iT}close_gripper()`); }
-    else if (s.type === 'activate_gripper'){ L.push(`${iT}activate_gripper()`); }
-    else if (s.type === 'sleep')         { L.push(`${iT}sleep(${s.sec})`); }
-    else if (s.type === 'comment')       { L.push(`${iT}# ${s.msg ?? ''}`); }
-    else if (s.type === 'textmsg')       { L.push(`${iT}textmsg("${s.msg ?? ''}")`); }
-    else if (s.type === 'popup')         { L.push(`${iT}popup("${s.msg ?? ''}")`); }
-    else if (s.type === 'wait_di')       { L.push(`${iT}while (get_standard_digital_in(${s.pin}) != ${s.state}):\n${iT}${T}sync()\n${iT}end`); }
-    else if (s.type === 'set_do')        { L.push(`${iT}set_standard_digital_out(${s.pin}, ${s.state})`); }
-    else if (s.type === 'assign_var')    { L.push(`${iT}${getV(s.varId)} = ${s.expr || '0'}`); }
-    else if (s.type === 'loop_start') {
-      loopCounter++; const v = 'loop_' + loopCounter;
-      L.push(`${iT}${v} = 0\n${iT}while (${v} < ${s.iters}):`);
-      indent++; blockStack.push({ type: 'loop', var: v });
-    }
-    else if (s.type === 'if_di') {
-      L.push(`${iT}if (get_standard_digital_in(${s.pin}) == ${s.state}):`);
-      indent++; blockStack.push({ type: 'if' });
-    }
-    else if (s.type === 'end_block') {
-      const b = blockStack.pop();
-      if (b && b.type === 'loop') { L.push(`${iT}${b.var} = ${b.var} + 1`); }
-      indent = Math.max(1, indent - 1);
-      L.push(`${T.repeat(indent)}end`);
+  steps.forEach(s=>{
+    const tab = T.repeat(ind);
+    switch(s.type) {
+      case 'movej': {
+        const pos=positions.find(p=>p.id===s.pid);
+        L.push(`${tab}movej(${pos?pos.name:'UNKNOWN'}, a=JOINT_ACCEL, v=JOINT_SPEED, r=BLEND_RADIUS)`);
+        break;
+      }
+      case 'movel': {
+        const pos=positions.find(p=>p.id===s.pid);
+        L.push(`${tab}movel(${pos?pos.name:'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED, r=BLEND_RADIUS)`);
+        break;
+      }
+      case 'movec': {
+        const via=positions.find(p=>p.id===s.via), to=positions.find(p=>p.id===s.to);
+        L.push(`${tab}movec(${via?via.name:'UNKNOWN'}, ${to?to.name:'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED)`);
+        break;
+      }
+      case 'open_gripper':     L.push(`${tab}open_gripper()`);     break;
+      case 'close_gripper':    L.push(`${tab}close_gripper()`);    break;
+      case 'activate_gripper': L.push(`${tab}activate_gripper()`); break;
+      case 'sleep':            L.push(`${tab}sleep(${s.sec??1})`); break;
+      case 'textmsg':          L.push(`${tab}textmsg("${s.msg??''}")`); break;
+      case 'popup':            L.push(`${tab}popup("${s.msg??''}", title="Program", blocking=True)`); break;
+      case 'set_digital_out':  L.push(`${tab}set_digital_out(${s.port??0}, ${s.val!==false?'True':'False'})`); break;
+      case 'set_payload':      L.push(`${tab}set_payload(${s.weight??0})`); break;
+      case 'set_tcp':          L.push(`${tab}set_tcp(p[${s.pose??'0,0,0,0,0,0'}])`); break;
+      case 'loop_n': {
+        const cvar = `_i${loopIdx++}`;
+        loopCounters[s.id] = cvar;
+        L.push(`${tab}${cvar} = 0`);
+        L.push(`${tab}while ${cvar} < ${s.count??5}:`);
+        ind++;
+        break;
+      }
+      case 'loop_forever':
+        L.push(`${tab}while True:`);
+        ind++;
+        break;
+      case 'loop_while':
+        L.push(`${tab}while get_digital_in(${s.port??0}) == ${s.val!==false?'True':'False'}:`);
+        ind++;
+        break;
+      case 'if_din':
+        L.push(`${tab}if get_digital_in(${s.port??0}) == ${s.val!==false?'True':'False'}:`);
+        ind++;
+        break;
+      case 'else_block':
+        L.push(`${T.repeat(Math.max(1,ind-1))}else:`);
+        break;
+      case 'block_end': {
+        ind = Math.max(1, ind-1);
+        // If it was a loop_n, emit the counter increment before end
+        const loopN = steps.find(s2=>s2.type==='loop_n' && loopCounters[s2.id]);
+        // Find the matching loop_n by tracking depth
+        const cvar = findMatchingLoopCounter(s);
+        if(cvar) L.push(`${T.repeat(ind)}${cvar} = ${cvar} + 1`);
+        L.push(`${T.repeat(ind)}end`);
+        break;
+      }
     }
   });
 
-  while (indent > 1) {
-    const b = blockStack.pop();
-    if (b && b.type === 'loop') { L.push(`${T.repeat(indent)}${b.var} = ${b.var} + 1`); }
-    indent--; L.push(`${T.repeat(indent)}end`);
-  }
-
-  L.push('end\n\nmain()');
+  L.push(`${T}textmsg("=== Program Complete ===")`);
+  L.push('end');
+  L.push('');
+  L.push('setup()');
+  L.push('main()');
   return L.join('\n');
 }
 
-// ── Syntax highlighter ──────────────────────────────────
-const KW  = /\b(def|end|if|else|while|global|pass|return|True|False|not|and|or)\b/g;
-const FNS = /\b(movej|movel|movec|sleep|sync|textmsg|popup|set_payload|get_standard_digital_in|set_standard_digital_out|rq_activate_and_wait|rq_set_speed_norm|rq_set_force_norm|rq_move_and_wait_norm|rq_move_and_wait|open_gripper|close_gripper|activate_gripper|main)\b/g;
-const NUM = /\b(\d+\.?\d*)\b/g;
+function findMatchingLoopCounter(endStep) {
+  // Find which loop_n this block_end closes
+  const ei = steps.indexOf(endStep);
+  let depth = 0;
+  for(let i=ei; i>=0; i--) {
+    const s=steps[i];
+    if(s.type==='block_end' && i!==ei) depth++;
+    else if(OPENERS.includes(s.type)) {
+      if(depth===0) {
+        if(s.type==='loop_n') {
+          // find its counter var by counting loop_n steps before it
+          let n=0;
+          for(let j=0;j<i;j++) if(steps[j].type==='loop_n') n++;
+          return `_i${n}`;
+        }
+        return null;
+      }
+      depth--;
+    }
+  }
+  return null;
+}
 
-function highlight(code) {
-  return code.split('\n').map(line => {
-    const e = esc(line);
-    if (/^\s*#/.test(e)) return `<span class="c-cm">${e}</span>`;
-    let code2 = e, comment = '';
-    const ci = e.indexOf('#');
-    if (ci > 0) { code2 = e.slice(0, ci); comment = e.slice(ci); }
-    
-    const strMap = {}; let si = 0;
-    code2 = code2.replace(/"([^"]*)"/g, (_, inner) => {
-      const key = `\x00S${si++}\x00`; strMap[key] = `<span class="c-str">"${inner}"</span>`; return key;
-    });
+// ─── Syntax highlight ───────────────────────────────────────
+const KW  = /\b(def|end|if|else|elif|while|return|True|False|not|and|or)\b/g;
+const FNS = /\b(movej|movel|movec|sleep|textmsg|popup|set_tcp|set_payload|set_digital_out|get_digital_in|rq_activate_and_wait|rq_set_speed_norm|rq_set_force_norm|rq_move_and_wait_norm|open_gripper|close_gripper|activate_gripper|setup|main)\b/g;
+const NUM = /(?<!["\w])(-?\d+\.?\d*)\b/g;
 
-    code2 = code2.replace(NUM, (m, n) => `<span class="c-num">${n}</span>`)
-                 .replace(KW,  m => `<span class="c-kw">${m}</span>`)
-                 .replace(FNS, m => `<span class="c-fn">${m}</span>`);
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-    Object.entries(strMap).forEach(([k, v]) => { code2 = code2.replace(k, v); });
-    if (comment) code2 += `<span class="c-cm">${comment}</span>`;
-    return code2;
+function highlight(code){
+  return code.split('\n').map(line=>{
+    const e=esc(line);
+    if(/^\s*#/.test(e)) return `<span class="c-cm">${e}</span>`;
+    let c=e, cm='';
+    const ci=e.indexOf('#'); if(ci>0){c=e.slice(0,ci);cm=e.slice(ci);}
+    const sm={};let si=0;
+    c=c.replace(/"([^"]*)"/g,(_,inner)=>{const k=`\x00${si++}\x00`;sm[k]=`<span class="c-str">"${inner}"</span>`;return k;});
+    c=c.replace(NUM,m=>`<span class="c-num">${m}</span>`)
+       .replace(KW, m=>`<span class="c-kw">${m}</span>`)
+       .replace(FNS,m=>`<span class="c-fn">${m}</span>`);
+    Object.entries(sm).forEach(([k,v])=>{c=c.replace(k,v);});
+    if(cm) c+=`<span class="c-cm">${esc(cm)}</span>`;
+    return c;
   }).join('\n');
 }
 
-function refreshCode() {
-  const plain = buildCode();
-  document.getElementById('code-out').innerHTML = highlight(plain);
-  document.getElementById('code-lines').textContent = plain.split('\n').length + ' lines';
+function refreshCode(){
+  const plain=buildCode();
+  document.getElementById('code-out').innerHTML=highlight(plain);
+  document.getElementById('code-lines').textContent=plain.split('\n').length+' lines';
 }
 
-function copyCode() {
-  navigator.clipboard.writeText(buildCode()).then(() => {
-    const b = document.querySelector('.hdr .btn');
-    const orig = b.textContent; b.textContent = '✓ Copied!'; setTimeout(() => b.textContent = orig, 1800);
+// ─── Copy / Download ───────────────────────────────────────
+function copyCode(){
+  navigator.clipboard.writeText(buildCode()).then(()=>{
+    const b=document.querySelector('.hdr .btn');
+    const o=b.textContent; b.textContent='✓ Copied!';
+    setTimeout(()=>b.textContent=o,1800);
   });
 }
-
-function downloadCode() {
-  const blob = new Blob([buildCode()], { type: 'text/plain' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = 'ur3e_program.script'; a.click(); URL.revokeObjectURL(a.href);
+function downloadCode(){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([buildCode()],{type:'text/plain'}));
+  a.download='ur3e_program.script'; a.click();
 }
 
-// ══ BOOT ════════════════════════════════════════════════
-renderPositions(); renderVariables(); renderSteps(); refreshCode();
+// ═══════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════
+initSteps();
+renderPositions();
+renderSteps();
+refreshCode();
 </script>
 </body>
 </html>
