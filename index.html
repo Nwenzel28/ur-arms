@@ -3,796 +3,722 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>UR3e Studio</title>
-<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<title>UR3e Program Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-/* ── TOKENS ─────────────────────────────────────────────────────────── */
-:root{
-  --bg:      #080810;
-  --sf:      #0f0f1a;
-  --sf2:     #161625;
-  --sf3:     #1e1e30;
-  --bd:      #252538;
-  --bd2:     #32324a;
-  --tx:      #ddddf0;
-  --tx2:     #7878a8;
-  --tx3:     #3a3a58;
-  --ac:      #f97316;
-  --ac2:     #fb923c;
-  --gn:      #22c55e;
-  --bl:      #60a5fa;
-  --pu:      #a78bfa;
-  --rd:      #f43f5e;
-  --yl:      #f59e0b;
-  --cy:      #06b6d4;
-  --sans:    'DM Sans', sans-serif;
-  --mono:    'Space Mono', monospace;
-  --r:       4px;
-  --rl:      8px;
-}
+:root{--bg:#0e0e10;--sf:#17171a;--sf2:#1f1f24;--bd:#2a2a30;--bd2:#3a3a44;--tx:#e8e8ec;--tx2:#8888a0;--tx3:#55556a;--ac:#f97316;--aclo:#f9731622;--ac2:#fb923c;--gn:#22c55e;--gnlo:#22c55e18;--rd:#ef4444;--rdlo:#ef444418;--bl:#60a5fa;--bllo:#60a5fa18;--pu:#a78bfa;--pulo:#a78bfa18;--r:6px;--rl:10px;--sans:'IBM Plex Sans',sans-serif;--mono:'JetBrains Mono',monospace}
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font:14px/1.5 var(--sans)}
-::-webkit-scrollbar{width:4px;height:4px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:2px}
-
-/* ── BUTTONS ────────────────────────────────────────────────────────── */
-.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;font:500 12px var(--sans);border-radius:var(--r);border:1px solid var(--bd2);background:var(--sf2);color:var(--tx);cursor:pointer;transition:.15s;white-space:nowrap;letter-spacing:.01em}
-.btn:hover{background:var(--sf3);border-color:var(--bd2)}
-.btn:disabled{opacity:.3;cursor:default}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font:13px/1.5 var(--sans)}
+/* Header */
+.hdr{background:var(--sf);border-bottom:1px solid var(--bd);padding:0 16px;height:52px;display:flex;align-items:center;gap:10px;flex-shrink:0;z-index:200}
+.brand-title{font:600 13px/1 var(--mono);color:var(--ac);letter-spacing:.02em}
+.brand-sub{font-size:10px;color:var(--tx3);letter-spacing:.05em;text-transform:uppercase}
+.hsep{width:1px;height:24px;background:var(--bd);flex-shrink:0}
+.hspace{flex:1}
+.seg{display:flex;border:1px solid var(--bd2);border-radius:var(--r);overflow:hidden}
+.seg-btn{padding:5px 13px;font:500 11px var(--mono);border:none;background:none;color:var(--tx2);cursor:pointer;transition:.15s}
+.seg-btn.on{background:var(--ac);color:#fff}
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;font:500 12px var(--sans);border-radius:var(--r);border:1px solid var(--bd2);background:var(--sf2);color:var(--tx);cursor:pointer;transition:.15s;white-space:nowrap}
+.btn:hover{background:var(--bd)}
+.btn:disabled{opacity:.35;cursor:default}
 .btn-ac{background:var(--ac);border-color:var(--ac);color:#fff}
 .btn-ac:hover{background:var(--ac2);border-color:var(--ac2)}
-.btn-sm{padding:4px 10px;font-size:11px}
-.btn-xs{padding:3px 7px;font-size:10px;border-radius:3px}
-.btn-ghost{background:none;border-color:transparent;color:var(--tx2)}
-.btn-ghost:hover{background:var(--sf2);color:var(--tx);border-color:transparent}
-.btn-del{background:none;border-color:transparent;color:var(--tx3)}
-.btn-del:hover{background:#f43f5e18;color:var(--rd);border-color:transparent}
-.btn-icon{padding:5px;line-height:1;background:none;border:none;color:var(--tx3);cursor:pointer;border-radius:3px;font-size:14px}
-.btn-icon:hover{background:var(--sf2);color:var(--tx)}
-
-/* ── SEGMENT CONTROL ────────────────────────────────────────────────── */
-.seg{display:flex;border:1px solid var(--bd2);border-radius:var(--r);overflow:hidden}
-.seg-btn{padding:4px 12px;font:700 10px var(--mono);border:none;background:none;color:var(--tx3);cursor:pointer;transition:.15s;letter-spacing:.06em}
-.seg-btn.on{background:var(--ac);color:#fff}
-
-/* ── MODAL ──────────────────────────────────────────────────────────── */
-.overlay{position:fixed;inset:0;background:#00000088;z-index:1000;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
-.overlay.hidden{display:none}
-.modal{background:var(--sf);border:1px solid var(--bd2);border-radius:var(--rl);width:680px;max-width:95vw;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 64px #00000080}
-.modal-hdr{display:flex;align-items:center;padding:18px 20px 14px;border-bottom:1px solid var(--bd)}
-.modal-title{font:700 15px var(--mono);color:var(--tx);letter-spacing:.03em;flex:1}
-.modal-body{padding:20px;overflow-y:auto;flex:1}
-.modal-ftr{padding:14px 20px;border-top:1px solid var(--bd);display:flex;gap:8px;justify-content:flex-end}
-
-/* ── WIZARD ─────────────────────────────────────────────────────────── */
-.wiz-step{display:none}
-.wiz-step.on{display:block}
-.wiz-label{font:700 10px var(--mono);color:var(--tx3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px}
-.wiz-title{font:600 18px var(--sans);color:var(--tx);margin-bottom:4px}
-.wiz-sub{font-size:13px;color:var(--tx2);margin-bottom:20px}
-.task-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
-.task-card{border:1px solid var(--bd2);border-radius:var(--rl);padding:18px 16px;cursor:pointer;transition:.15s;background:var(--sf2)}
-.task-card:hover{border-color:var(--bd2);background:var(--sf3)}
-.task-card.on{border-color:var(--ac);background:#f9731610}
-.task-icon{font-size:28px;margin-bottom:8px}
-.task-name{font:600 14px var(--sans);margin-bottom:3px}
-.task-desc{font-size:12px;color:var(--tx2)}
-.cfg-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
-.cfg-field{display:flex;flex-direction:column;gap:5px}
-.cfg-label{font:700 10px var(--mono);color:var(--tx3);letter-spacing:.08em;text-transform:uppercase}
-.cfg-input{padding:8px 10px;border:1px solid var(--bd2);border-radius:var(--r);font:12px var(--mono);background:var(--bg);color:var(--tx)}
-.cfg-input:focus{outline:none;border-color:var(--ac)}
-.num-btns{display:flex;gap:4px;flex-wrap:wrap}
-.num-btn{padding:5px 12px;font:700 11px var(--mono);border:1px solid var(--bd2);border-radius:var(--r);background:var(--sf2);color:var(--tx2);cursor:pointer;transition:.15s}
-.num-btn.on{background:var(--ac);border-color:var(--ac);color:#fff}
-.toggle-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--bd2);border-radius:var(--r);background:var(--sf2);cursor:pointer;transition:.15s}
-.toggle-row:hover{border-color:var(--bd2);background:var(--sf3)}
-.toggle{width:34px;height:20px;border-radius:10px;background:var(--bd2);position:relative;transition:.2s;flex-shrink:0}
-.toggle.on{background:var(--ac)}
-.toggle::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;top:3px;left:3px;transition:.2s}
-.toggle.on::after{left:17px}
-.toggle-label{font-size:13px;color:var(--tx);flex:1}
-.preview-box{background:var(--bg);border:1px solid var(--bd2);border-radius:var(--r);padding:12px;font:11px/1.7 var(--mono);color:var(--tx2);max-height:200px;overflow-y:auto}
-.preview-pos{color:var(--ac)}
-.preview-step{color:var(--bl)}
-
-/* ── SETTINGS ───────────────────────────────────────────────────────── */
-.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.settings-section{grid-column:1/-1;font:700 10px var(--mono);color:var(--tx3);letter-spacing:.1em;text-transform:uppercase;padding-top:14px;border-top:1px solid var(--bd);margin-top:4px}
-.settings-section:first-child{border-top:none;padding-top:0;margin-top:0}
-
-/* ── HEADER ─────────────────────────────────────────────────────────── */
-.hdr{height:48px;background:var(--sf);border-bottom:1px solid var(--bd);padding:0 16px;display:flex;align-items:center;gap:10px;flex-shrink:0}
-.logo{font:700 13px var(--mono);color:var(--ac);letter-spacing:.05em}
-.logo-sub{font:400 10px var(--mono);color:var(--tx3);letter-spacing:.05em}
-.hsep{width:1px;height:22px;background:var(--bd);margin:0 4px}
-.hdr-prog-name{font:400 12px var(--mono);color:var(--tx2);border:none;background:none;outline:none;min-width:120px}
-.hdr-prog-name:focus{color:var(--tx)}
-.hspace{flex:1}
-
-/* ── WORKSPACE ──────────────────────────────────────────────────────── */
-.workspace{display:grid;grid-template-columns:360px 1fr 320px;height:calc(100vh - 48px);overflow:hidden}
-
-/* ── LEFT PANEL ─────────────────────────────────────────────────────── */
-.panel-left{border-right:1px solid var(--bd);display:flex;flex-direction:column;overflow:hidden;background:var(--sf)}
-.map-section{flex-shrink:0;border-bottom:1px solid var(--bd);background:var(--bg)}
-.map-hdr{display:flex;align-items:center;gap:6px;padding:7px 12px;background:var(--sf2);border-bottom:1px solid var(--bd)}
-.panel-label{font:700 9px var(--mono);color:var(--tx3);letter-spacing:.12em;text-transform:uppercase;flex:1}
-#map-svg{display:block;width:100%;height:auto;cursor:crosshair;touch-action:none}
-.map-hint{font:400 9px var(--mono);color:var(--tx3);text-align:center;padding:3px 0;letter-spacing:.04em}
-.pos-section{flex:1;display:flex;flex-direction:column;min-height:0;overflow:hidden}
-.pos-hdr{display:flex;align-items:center;gap:6px;padding:7px 12px;background:var(--sf2);border-bottom:1px solid var(--bd);flex-shrink:0}
-.pos-list{flex:1;overflow-y:auto;padding:8px}
-.pos-add-bar{display:flex;gap:6px;padding:8px;border-top:1px solid var(--bd);flex-shrink:0}
-.pos-add-bar .btn{flex:1;justify-content:center}
-
-/* ── POSITION CARD ──────────────────────────────────────────────────── */
-.pc{border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;margin-bottom:6px;transition:border-color .15s}
-.pc:hover{border-color:var(--bd2)}
-.pc.sel{border-color:var(--ac)!important}
-.pc-hdr{display:flex;align-items:center;gap:6px;padding:6px 8px;background:var(--sf2);cursor:pointer}
-.pc-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.pc-name{font:700 11px var(--mono);flex:1;background:none;border:none;outline:none;color:var(--tx);letter-spacing:.03em;padding:0;text-transform:uppercase}
-.pc-name:focus{color:var(--ac)}
-.pc-type{font:700 8px var(--mono);padding:2px 5px;border-radius:2px;background:var(--sf3);color:var(--tx3);letter-spacing:.06em;text-transform:uppercase}
-.pc-body{padding:8px;border-top:1px solid var(--bd);display:none}
-.pc-body.open{display:block}
-.j-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
-.jc{display:flex;flex-direction:column;gap:2px}
-.jl{font:400 8px var(--mono);color:var(--tx3);letter-spacing:.05em;text-align:center}
-.ji{width:100%;text-align:center;font:11px var(--mono);padding:4px 2px;border:1px solid var(--bd);border-radius:3px;background:var(--bg);color:var(--tx);transition:.15s}
-.ji:focus{outline:none;border-color:var(--ac)}
-.ji.set{border-color:#22c55e44;color:var(--gn)}
-
-/* ── CENTER PANEL ───────────────────────────────────────────────────── */
-.panel-center{display:flex;flex-direction:column;overflow:hidden}
-.center-hdr{display:flex;align-items:center;gap:8px;padding:7px 12px;background:var(--sf);border-bottom:1px solid var(--bd);flex-shrink:0}
-.warn-pill{font:400 10px var(--mono);padding:2px 8px;border-radius:10px;background:#f43f5e18;color:var(--rd);border:1px solid #f43f5e30;display:none}
-.warn-pill.show{display:inline-flex;align-items:center;gap:4px}
-.flow-area{flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:0}
-.add-step-bar{display:flex;gap:6px;padding:8px 12px;border-top:1px solid var(--bd);flex-shrink:0;background:var(--sf)}
-.add-step-bar select{flex:1;font:11px var(--mono);background:var(--bg);border:1px solid var(--bd2);border-radius:var(--r);color:var(--tx);padding:6px 8px}
-.add-step-bar select:focus{outline:none;border-color:var(--ac)}
-
-/* ── STEP CARDS ─────────────────────────────────────────────────────── */
-.step-row{display:flex;align-items:stretch;position:relative}
-.step-indent{flex-shrink:0;width:0}
-.step-bracket{width:14px;border-left:2px solid var(--bd2);border-bottom:2px solid var(--bd2);margin:0 0 0 6px;border-radius:0 0 0 4px;flex-shrink:0}
-.step-card{flex:1;display:flex;align-items:center;gap:6px;padding:7px 8px;background:var(--sf2);border:1px solid var(--bd);border-radius:var(--r);margin-bottom:4px;border-left-width:3px;cursor:default;min-width:0;transition:border-color .15s,background .15s}
-.step-card:hover{background:var(--sf3)}
-.step-card.drag-over{border-top:2px solid var(--ac)}
-.step-card.dragging{opacity:.4}
-.step-card[data-group="move"]{border-left-color:var(--ac)}
-.step-card[data-group="grip"]{border-left-color:var(--gn)}
-.step-card[data-group="flow"]{border-left-color:var(--bl)}
-.step-card[data-group="end"]{border-left-color:var(--bd2)}
-.step-card[data-group="util"]{border-left-color:var(--tx3)}
-.step-card[data-group="else"]{border-left-color:var(--pu)}
-.drag-handle{color:var(--tx3);cursor:grab;font-size:12px;flex-shrink:0;padding:0 2px;line-height:1;user-select:none}
-.drag-handle:active{cursor:grabbing}
-.step-badge{font:700 9px var(--mono);padding:2px 6px;border-radius:2px;flex-shrink:0;letter-spacing:.05em}
-.badge-move{background:#f9731620;color:var(--ac)}
-.badge-grip{background:#22c55e20;color:var(--gn)}
-.badge-flow{background:#60a5fa20;color:var(--bl)}
-.badge-else{background:#a78bfa20;color:var(--pu)}
-.badge-end{background:var(--sf3);color:var(--tx3)}
-.badge-util{background:var(--sf3);color:var(--tx2)}
-.step-main{flex:1;display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
-.step-sel,.step-inp{font:11px var(--mono);background:var(--sf3);border:1px solid var(--bd2);border-radius:3px;color:var(--tx);padding:3px 6px}
+.btn-sm{padding:4px 9px;font-size:11px}
+.btn-ghost{background:none;border-color:transparent;color:var(--tx2);padding:4px 7px}
+.btn-ghost:hover{background:var(--sf2);color:var(--tx)}
+.btn-del{background:none;border-color:transparent;color:var(--tx3);padding:4px 7px}
+.btn-del:hover{background:var(--rdlo);color:var(--rd)}
+/* Robot connection */
+.robot-bar{display:flex;align-items:center;gap:6px}
+.robot-dot{width:7px;height:7px;border-radius:50%;background:var(--tx3);flex-shrink:0;transition:background .3s,box-shadow .3s}
+.robot-ip{font:11px var(--mono);background:var(--sf2);border:1px solid var(--bd2);border-radius:var(--r);color:var(--tx);padding:4px 8px;width:124px}
+.robot-ip:focus{outline:none;border-color:var(--ac)}
+.btn-send{background:#22c55e;border-color:#22c55e;color:#fff}
+.btn-send:hover{background:#16a34a;border-color:#16a34a}
+.btn-send:disabled{background:var(--sf2);border-color:var(--bd2);color:var(--tx3)}
+/* Layout */
+.page{display:flex;flex-direction:column;height:calc(100vh - 52px);overflow:hidden}
+.app{display:grid;grid-template-columns:400px 1fr;gap:12px;padding:12px 16px;flex:1;min-height:0;overflow:hidden}
+/* Card */
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:var(--rl);overflow:hidden;display:flex;flex-direction:column;min-height:0}
+.card-hdr{display:flex;align-items:center;gap:8px;padding:9px 13px;border-bottom:1px solid var(--bd);background:var(--sf2)}
+.card-title{font:600 11px/1 var(--mono);color:var(--tx2);letter-spacing:.08em;text-transform:uppercase;flex:1}
+/* Position cards */
+.pos-card{border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;margin-bottom:8px}
+.pos-hdr{display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--sf2);border-bottom:1px solid var(--bd)}
+.pos-dot{width:7px;height:7px;border-radius:50%;background:var(--bd2);flex-shrink:0;transition:.2s}
+.pos-dot.full{background:var(--gn);box-shadow:0 0 6px var(--gn)}
+.pos-name{font:600 12px var(--mono);color:var(--ac);background:transparent;border:1px solid transparent;border-radius:4px;padding:2px 5px;flex:1;text-transform:uppercase;letter-spacing:.04em}
+.pos-name:focus{outline:none;border-color:var(--ac);background:var(--bg)}
+.type-seg{display:flex;border:1px solid var(--bd2);border-radius:4px;overflow:hidden;flex-shrink:0}
+.type-btn{padding:2px 8px;font:500 9px var(--mono);border:none;background:none;color:var(--tx3);cursor:pointer;transition:.15s;letter-spacing:.04em}
+.type-btn.on{background:var(--bl);color:#fff}
+.joints{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;padding:8px 10px}
+.jcell{display:flex;flex-direction:column;gap:3px}
+.jlabel{font-size:9px;color:var(--tx3);text-align:center;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em;line-height:1.3}
+.jinput{width:100%;text-align:center;font:11px var(--mono);padding:5px 2px;border:1px solid var(--bd);border-radius:4px;background:var(--bg);color:var(--tx);transition:.15s}
+.jinput:focus{outline:none;border-color:var(--ac)}
+.jinput.filled{border-color:#22c55e55;color:var(--gn)}
+/* Settings */
+.sg-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px}
+.sg{display:flex;flex-direction:column;gap:4px}
+.sg label{font-size:10px;color:var(--tx3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em}
+.sg input,.sg select{padding:6px 8px;border:1px solid var(--bd);border-radius:var(--r);font:12px var(--mono);background:var(--bg);color:var(--tx)}
+.sg input:focus,.sg select:focus{outline:none;border-color:var(--ac)}
+.sg-section{padding:6px 12px 2px;font-size:9px;color:var(--tx3);font-family:var(--mono);text-transform:uppercase;letter-spacing:.1em;border-top:1px solid var(--bd)}
+/* Right column */
+.right-col{display:flex;flex-direction:column;gap:10px;min-height:0;height:100%}
+.right-col .settings-card{flex-shrink:0}
+.right-col .program-card{flex:1;min-height:0;display:flex;flex-direction:column}
+/* Steps */
+.steps-body{padding:8px;display:flex;flex-direction:column;gap:4px;flex:1;overflow-y:auto;min-height:0}
+.step-row{display:flex;align-items:stretch;gap:0}
+.step-indent{flex-shrink:0;display:flex}
+.step-indent-line{width:20px;border-right:1px solid var(--bd);margin:0 0 0 10px;flex-shrink:0}
+.step{display:flex;align-items:center;gap:5px;padding:6px 9px;border:1px solid var(--bd);border-radius:var(--r);background:var(--bg);transition:.15s;flex:1;min-width:0}
+.step:hover{border-color:var(--bd2)}
+.step.block-open{border-left:2px solid var(--bl)}
+.step.block-end-row{border-left:2px solid var(--bd2);opacity:.8}
+.step.else-row{border-left:2px solid var(--pu)}
+.step-n{font:11px var(--mono);color:var(--tx3);min-width:18px;text-align:right;flex-shrink:0}
+.step-tag{font:10px var(--mono);padding:2px 6px;border-radius:3px;flex-shrink:0;letter-spacing:.03em}
+.tag-move{background:var(--aclo);color:var(--ac);border:1px solid #f9731640}
+.tag-grip{background:var(--gnlo);color:var(--gn);border:1px solid #22c55e40}
+.tag-flow{background:var(--bllo);color:var(--bl);border:1px solid #60a5fa40}
+.tag-util{background:var(--sf2);color:var(--tx2);border:1px solid var(--bd)}
+.step-sel,.step-inp{font:11px var(--mono);background:var(--sf2);border:1px solid var(--bd);border-radius:4px;color:var(--tx);padding:3px 6px;cursor:pointer;flex-shrink:0}
 .step-sel:focus,.step-inp:focus{outline:none;border-color:var(--ac)}
-.step-inp-sm{width:54px}
-.step-inp-md{width:110px}
-.step-note{font:400 10px var(--mono);color:var(--tx3);margin-left:2px}
-.step-actions{display:flex;gap:2px;flex-shrink:0}
-
-/* ── RIGHT PANEL ────────────────────────────────────────────────────── */
-.panel-right{border-left:1px solid var(--bd);display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
-.code-hdr{display:flex;align-items:center;gap:6px;padding:7px 10px;background:var(--sf2);border-bottom:1px solid var(--bd);flex-shrink:0}
-.code-block{flex:1;overflow:auto;padding:12px 14px;font:11px/1.8 var(--mono);color:#b0b0d0;white-space:pre}
+.step-spacer{flex:1}
+.step-controls{display:flex;gap:2px;flex-shrink:0}
+/* Add step bar */
+.add-bar{display:flex;gap:6px;padding:10px;border-top:1px solid var(--bd);align-items:center;flex-wrap:wrap;flex-shrink:0}
+.add-bar select{font:11px var(--mono);background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);color:var(--tx);padding:6px 8px;flex:1;min-width:160px}
+.add-bar select:focus{outline:none;border-color:var(--ac)}
+/* Warnings */
+.warn-box{margin:8px 10px;padding:8px 10px;background:var(--rdlo);border:1px solid #ef444440;border-radius:var(--r);font-size:11px;color:var(--rd);display:none;flex-shrink:0}
+.warn-box.show{display:block}
+/* Code panel */
+.code-wrap{padding:0 16px 12px;flex-shrink:0;height:220px;display:flex;flex-direction:column;min-height:0}
+.code-wrap .card{flex:1;min-height:0}
+.code-block{font:12px/1.8 var(--mono);padding:12px 16px;background:#07070a;color:#c8c8d8;overflow:auto;white-space:pre;flex:1;min-height:0}
+.code-block::-webkit-scrollbar{width:5px;height:5px}
+.code-block::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:3px}
 /* Syntax */
-.c-cm{color:#3a3a5c;font-style:italic}.c-kw{color:#c792ea}.c-fn{color:#82aaff}.c-str{color:#c3e88d}.c-num{color:#f78c6c}.c-const{color:var(--ac)}
-
-/* ── MAP ELEMENTS (inline SVG styles via JS) ────────────────────────── */
-.map-tooltip{position:absolute;background:var(--sf);border:1px solid var(--bd2);border-radius:3px;font:10px var(--mono);color:var(--tx);padding:3px 7px;pointer-events:none;white-space:nowrap;z-index:10}
+.c-cm{color:#4a4a64;font-style:italic}.c-kw{color:#c792ea}.c-fn{color:#82aaff}.c-str{color:#c3e88d}.c-num{color:#f78c6c}
+/* Left column */
+.left-col{display:flex;flex-direction:column;min-height:0;height:100%}
+.left-col .card{flex:1;min-height:0}
+.pos-list{padding:10px;overflow-y:auto;flex:1;min-height:0}
+.pos-list::-webkit-scrollbar{width:4px}
+.pos-list::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:2px}
+.cfg-body{display:flex;flex-direction:column;flex-shrink:0}
+.settings-card{flex-shrink:0}
+.program-card{flex:1;min-height:0;display:flex;flex-direction:column}
+.program-card .warn-box{flex-shrink:0}
+.steps-body::-webkit-scrollbar{width:4px}
+.steps-body::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:2px}
+/* Tabs */
+.tab-bar{display:flex;border-bottom:1px solid var(--bd);background:var(--sf2);flex-shrink:0}
+.tab{padding:8px 14px;font:500 11px var(--mono);color:var(--tx3);cursor:pointer;border-bottom:2px solid transparent;transition:.15s;text-transform:uppercase;letter-spacing:.06em}
+.tab:hover{color:var(--tx2)}
+.tab.on{color:var(--ac);border-bottom-color:var(--ac)}
+.tab-pane{display:none}
+.tab-pane.on{display:block}
 </style>
 </head>
 <body>
 
-<!-- ── WIZARD ────────────────────────────────────────────────────────── -->
-<div class="overlay" id="wizard-overlay">
-<div class="modal" style="width:720px">
-  <div class="modal-hdr">
-    <span class="modal-title" id="wiz-title">UR3e Studio</span>
-    <span style="font:400 11px var(--mono);color:var(--tx3)" id="wiz-step-label"></span>
-  </div>
-  <div class="modal-body">
-
-    <!-- Step 0: Welcome / Task Type -->
-    <div class="wiz-step on" id="ws-0">
-      <div class="wiz-label">New Program</div>
-      <div class="wiz-title">What do you want to build?</div>
-      <div class="wiz-sub">Choose a starting point. You can customise everything after.</div>
-      <div class="task-grid">
-        <div class="task-card" onclick="selectTask('pickplace',this)">
-          <div class="task-icon">🤏</div>
-          <div class="task-name">Pick &amp; Place</div>
-          <div class="task-desc">Move objects from one position to another with a gripper</div>
-        </div>
-        <div class="task-card" onclick="selectTask('pallet',this)">
-          <div class="task-icon">📦</div>
-          <div class="task-name">Palletizing</div>
-          <div class="task-desc">Place objects in a grid pattern, row by row</div>
-        </div>
-        <div class="task-card" onclick="selectTask('inspect',this)">
-          <div class="task-icon">🔍</div>
-          <div class="task-name">Inspection Path</div>
-          <div class="task-desc">Visit a sequence of positions for camera or sensor inspection</div>
-        </div>
-        <div class="task-card" onclick="selectTask('blank',this)">
-          <div class="task-icon">✦</div>
-          <div class="task-name">Blank Program</div>
-          <div class="task-desc">Start from scratch with an empty program</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Step 1: Config -->
-    <div class="wiz-step" id="ws-1">
-      <div class="wiz-label" id="cfg-task-label"></div>
-      <div class="wiz-title" id="cfg-title"></div>
-      <div class="wiz-sub" id="cfg-sub"></div>
-      <div id="cfg-fields"></div>
-    </div>
-
-    <!-- Step 2: Preview -->
-    <div class="wiz-step" id="ws-2">
-      <div class="wiz-label">Preview</div>
-      <div class="wiz-title">Ready to generate</div>
-      <div class="wiz-sub" style="margin-bottom:12px">Here's what will be created. You can edit everything inside the builder.</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-        <div>
-          <div style="font:700 10px var(--mono);color:var(--tx3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">Positions</div>
-          <div class="preview-box" id="preview-pos"></div>
-        </div>
-        <div>
-          <div style="font:700 10px var(--mono);color:var(--tx3);letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px">Program Steps</div>
-          <div class="preview-box" id="preview-steps"></div>
-        </div>
-      </div>
-    </div>
-
-  </div>
-  <div class="modal-ftr">
-    <button class="btn" id="wiz-back" onclick="wizNav(-1)" style="display:none">Back</button>
-    <div style="flex:1"></div>
-    <button class="btn" onclick="closeWizard()">Cancel</button>
-    <button class="btn btn-ac" id="wiz-next" onclick="wizNav(1)" disabled>Next →</button>
-  </div>
-</div>
-</div>
-
-<!-- ── SETTINGS ───────────────────────────────────────────────────────── -->
-<div class="overlay hidden" id="settings-overlay">
-<div class="modal">
-  <div class="modal-hdr">
-    <span class="modal-title">Settings</span>
-    <button class="btn-icon" onclick="closeSettings()">✕</button>
-  </div>
-  <div class="modal-body">
-    <div class="settings-grid">
-      <div class="settings-section">Motion</div>
-      <div class="cfg-field"><div class="cfg-label">Joint Speed (rad/s)</div><input class="cfg-input" type="number" step="0.01" id="s-js" value="1.05" oninput="refreshCode()"></div>
-      <div class="cfg-field"><div class="cfg-label">Joint Accel (rad/s²)</div><input class="cfg-input" type="number" step="0.01" id="s-ja" value="1.4"  oninput="refreshCode()"></div>
-      <div class="cfg-field"><div class="cfg-label">Linear Speed (m/s)</div><input class="cfg-input" type="number" step="0.01" id="s-ls" value="0.25"  oninput="refreshCode()"></div>
-      <div class="cfg-field"><div class="cfg-label">Linear Accel (m/s²)</div><input class="cfg-input" type="number" step="0.01" id="s-la" value="1.2"  oninput="refreshCode()"></div>
-      <div class="cfg-field"><div class="cfg-label">Blend Radius (m)</div><input class="cfg-input" type="number" step="0.001" id="s-br" value="0"  oninput="refreshCode()"></div>
-      <div class="settings-section">Gripper</div>
-      <div class="cfg-field"><div class="cfg-label">Open Position (mm)</div><input class="cfg-input" type="number" step="1" id="s-go" value="60" oninput="refreshCode()"></div>
-      <div class="cfg-field"><div class="cfg-label">Close Position (mm)</div><input class="cfg-input" type="number" step="1" id="s-gc" value="20" oninput="refreshCode()"></div>
-      <div class="cfg-field"><div class="cfg-label">Speed (0–100)</div><input class="cfg-input" type="number" min="0" max="100" id="s-gs" value="100" oninput="refreshCode()"></div>
-      <div class="cfg-field"><div class="cfg-label">Force (0–100)</div><input class="cfg-input" type="number" min="0" max="100" id="s-gf" value="100" oninput="refreshCode()"></div>
-      <div class="settings-section">TCP Offset</div>
-      <div class="cfg-field"><div class="cfg-label">X (m)</div><input class="cfg-input" type="number" step="0.001" id="s-tx" value="0" oninput="refreshCode()"></div>
-      <div class="cfg-field"><div class="cfg-label">Y (m)</div><input class="cfg-input" type="number" step="0.001" id="s-ty" value="0" oninput="refreshCode()"></div>
-      <div class="cfg-field"><div class="cfg-label">Z (m)</div><input class="cfg-input" type="number" step="0.001" id="s-tz" value="0" oninput="refreshCode()"></div>
-      <div class="cfg-field"><div class="cfg-label">RX (rad)</div><input class="cfg-input" type="number" step="0.001" id="s-trx" value="0" oninput="refreshCode()"></div>
-      <div class="cfg-field"><div class="cfg-label">RY (rad)</div><input class="cfg-input" type="number" step="0.001" id="s-try" value="0" oninput="refreshCode()"></div>
-      <div class="cfg-field"><div class="cfg-label">RZ (rad)</div><input class="cfg-input" type="number" step="0.001" id="s-trz" value="0" oninput="refreshCode()"></div>
-      <div class="settings-section">Payload</div>
-      <div class="cfg-field"><div class="cfg-label">Weight (kg)</div><input class="cfg-input" type="number" step="0.1" id="s-pw" value="0.5" oninput="refreshCode()"></div>
-      <div class="cfg-field"><div class="cfg-label">CoG X (m)</div><input class="cfg-input" type="number" step="0.001" id="s-px" value="0" oninput="refreshCode()"></div>
-      <div class="cfg-field"><div class="cfg-label">CoG Y (m)</div><input class="cfg-input" type="number" step="0.001" id="s-py" value="0" oninput="refreshCode()"></div>
-      <div class="cfg-field"><div class="cfg-label">CoG Z (m)</div><input class="cfg-input" type="number" step="0.001" id="s-pz" value="0" oninput="refreshCode()"></div>
-    </div>
-  </div>
-  <div class="modal-ftr"><button class="btn btn-ac" onclick="closeSettings()">Done</button></div>
-</div>
-</div>
-
-<!-- ── HEADER ─────────────────────────────────────────────────────────── -->
 <header class="hdr">
-  <span class="logo">UR3e</span><span class="logo-sub" style="margin-left:4px">STUDIO</span>
+  <div>
+    <div class="brand-title">UR3e Program Builder</div>
+    <div class="brand-sub">Robotiq 2F-85 · Phase 1</div>
+  </div>
   <div class="hsep"></div>
-  <input class="hdr-prog-name" id="prog-name" value="Untitled Program" placeholder="Program name">
-  <div class="hspace"></div>
   <div class="seg">
     <button class="seg-btn on" id="btn-deg" onclick="setMode('deg')">DEG</button>
     <button class="seg-btn"   id="btn-rad" onclick="setMode('rad')">RAD</button>
   </div>
-  <div class="hsep"></div>
-  <!-- Robot connection -->
-  <div style="display:flex;align-items:center;gap:6px">
-    <div id="robot-dot" style="width:7px;height:7px;border-radius:50%;background:var(--tx3);flex-shrink:0;transition:.3s"></div>
-    <input id="robot-ip" type="text" value="192.168.1.100" placeholder="Robot IP"
-      style="font:11px var(--mono);background:var(--sf2);border:1px solid var(--bd2);border-radius:var(--r);color:var(--tx);padding:4px 8px;width:128px"
+  <div class="hspace"></div>
+
+  <!-- ── Robot connection ── -->
+  <div class="robot-bar">
+    <div class="robot-dot" id="robot-dot"></div>
+    <input class="robot-ip" id="robot-ip" type="text" value="192.168.1.100"
+      placeholder="Robot IP"
       onkeydown="if(event.key==='Enter')pingRobot()">
     <button class="btn btn-sm" id="ping-btn" onclick="pingRobot()">Ping</button>
-    <button class="btn btn-sm" id="send-btn" onclick="sendToRobot()"
-      style="background:#22c55e;border-color:#22c55e;color:#fff;gap:6px" disabled>
-      <span id="send-icon">▶</span> Send to Robot
-    </button>
+    <button class="btn btn-sm btn-send" id="send-btn" onclick="sendToRobot()" disabled>▶ Send to Robot</button>
   </div>
+
   <div class="hsep"></div>
-  <button class="btn btn-sm" onclick="openWizard()">✦ Wizard</button>
-  <button class="btn btn-sm" onclick="openSettings()">⚙ Settings</button>
-  <button class="btn btn-sm btn-ac" onclick="downloadCode()">↓ Export .script</button>
+  <button class="btn btn-sm" onclick="copyCode()">Copy</button>
+  <button class="btn btn-sm btn-ac" onclick="downloadCode()">↓ Download</button>
 </header>
 
-<!-- ── WORKSPACE ──────────────────────────────────────────────────────── -->
-<div class="workspace">
+<div class="page">
+<div class="app">
+  <!-- LEFT: Positions -->
+  <div class="left-col">
+  <div class="card">
+    <div class="card-hdr">
+      <span class="card-title">Positions</span>
+      <button class="btn btn-sm" onclick="addPos('joint')">+ Joint</button>
+      <button class="btn btn-sm" onclick="addPos('cart')">+ Cartesian</button>
+    </div>
+    <div class="pos-list" id="pos-list"></div>
+  </div>
+  </div>
 
-  <!-- LEFT: Map + Positions -->
-  <aside class="panel-left">
-    <div class="map-section">
-      <div class="map-hdr">
-        <span class="panel-label">Workspace — UR3e 500mm reach</span>
-        <span id="map-mode-label" style="font:400 9px var(--mono);color:var(--tx3)">click to place</span>
+  <!-- RIGHT -->
+  <div class="right-col">
+    <!-- Settings -->
+    <div class="card settings-card">
+      <div class="card-hdr">
+        <span class="card-title">Settings</span>
+        <button class="btn btn-sm" id="cfg-tog" onclick="toggleCfg()">▼ collapse</button>
       </div>
-      <svg id="map-svg" viewBox="-310 -310 620 620"></svg>
-      <div class="map-hint" id="map-hint">Click empty space to place a Cartesian position</div>
+      <div id="cfg-body" class="cfg-body">
+        <div class="tab-bar">
+          <div class="tab on" onclick="showTab('motion')">Motion</div>
+          <div class="tab" onclick="showTab('gripper')">Gripper</div>
+          <div class="tab" onclick="showTab('tcp')">TCP</div>
+          <div class="tab" onclick="showTab('payload')">Payload</div>
+        </div>
+        <div id="tab-motion" class="tab-pane on">
+          <div class="sg-grid">
+            <div class="sg"><label>Joint speed (rad/s)</label><input type="number" step="0.01" id="js" value="1.05" oninput="refreshCode()"></div>
+            <div class="sg"><label>Joint accel (rad/s²)</label><input type="number" step="0.01" id="ja" value="1.4"  oninput="refreshCode()"></div>
+            <div class="sg"><label>Linear speed (m/s)</label><input type="number" step="0.01" id="ls" value="0.25"  oninput="refreshCode()"></div>
+            <div class="sg"><label>Linear accel (m/s²)</label><input type="number" step="0.01" id="la" value="1.2"  oninput="refreshCode()"></div>
+            <div class="sg"><label>Blend radius (m)</label><input type="number" step="0.001" id="br" value="0.0"  oninput="refreshCode()"></div>
+          </div>
+        </div>
+        <div id="tab-gripper" class="tab-pane">
+          <div class="sg-grid">
+            <div class="sg"><label>Open position (mm)</label><input type="number" step="1" id="go" value="60" oninput="refreshCode()"></div>
+            <div class="sg"><label>Close position (mm)</label><input type="number" step="1" id="gc" value="20" oninput="refreshCode()"></div>
+            <div class="sg"><label>Speed (0–100)</label><input type="number" step="1" min="0" max="100" id="gs" value="100" oninput="refreshCode()"></div>
+            <div class="sg"><label>Force (0–100)</label><input type="number" step="1" min="0" max="100" id="gf" value="100" oninput="refreshCode()"></div>
+          </div>
+        </div>
+        <div id="tab-tcp" class="tab-pane">
+          <div class="sg-grid">
+            <div class="sg"><label>X (m)</label><input type="number" step="0.001" id="tcp-x" value="0" oninput="refreshCode()"></div>
+            <div class="sg"><label>Y (m)</label><input type="number" step="0.001" id="tcp-y" value="0" oninput="refreshCode()"></div>
+            <div class="sg"><label>Z (m)</label><input type="number" step="0.001" id="tcp-z" value="0" oninput="refreshCode()"></div>
+            <div class="sg"><label>RX (rad)</label><input type="number" step="0.001" id="tcp-rx" value="0" oninput="refreshCode()"></div>
+            <div class="sg"><label>RY (rad)</label><input type="number" step="0.001" id="tcp-ry" value="0" oninput="refreshCode()"></div>
+            <div class="sg"><label>RZ (rad)</label><input type="number" step="0.001" id="tcp-rz" value="0" oninput="refreshCode()"></div>
+          </div>
+        </div>
+        <div id="tab-payload" class="tab-pane">
+          <div class="sg-grid">
+            <div class="sg"><label>Weight (kg)</label><input type="number" step="0.1" id="pl-w" value="0.5" oninput="refreshCode()"></div>
+            <div class="sg"><label>CoG X (m)</label><input type="number" step="0.001" id="pl-x" value="0" oninput="refreshCode()"></div>
+            <div class="sg"><label>CoG Y (m)</label><input type="number" step="0.001" id="pl-y" value="0" oninput="refreshCode()"></div>
+            <div class="sg"><label>CoG Z (m)</label><input type="number" step="0.001" id="pl-z" value="0" oninput="refreshCode()"></div>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="pos-section">
-      <div class="pos-hdr">
-        <span class="panel-label">Positions</span>
-        <span id="pos-count" style="font:400 9px var(--mono);color:var(--tx3)"></span>
-      </div>
-      <div class="pos-list" id="pos-list"></div>
-      <div class="pos-add-bar">
-        <button class="btn btn-sm" onclick="addPos('joint')">+ Joint</button>
-        <button class="btn btn-sm" onclick="addPos('cart')">+ Cartesian</button>
-      </div>
-    </div>
-  </aside>
 
-  <!-- CENTER: Program Flow -->
-  <main class="panel-center">
-    <div class="center-hdr">
-      <span class="panel-label">Program</span>
-      <span id="step-count" style="font:400 10px var(--mono);color:var(--tx3)"></span>
-      <span class="warn-pill" id="warn-pill">⚠ <span id="warn-text"></span></span>
-      <div style="flex:1"></div>
-      <button class="btn btn-xs btn-ghost" onclick="clearSteps()">Clear</button>
+    <!-- Program -->
+    <div class="card program-card">
+      <div class="card-hdr">
+        <span class="card-title">Program</span>
+        <span style="font-size:10px;color:var(--tx3)" id="step-count"></span>
+      </div>
+      <div class="warn-box" id="warn-box"></div>
+      <div class="steps-body" id="steps-list"></div>
+      <div class="add-bar">
+        <select id="new-type">
+          <optgroup label="Motion">
+            <option value="movej">movej — Joint move</option>
+            <option value="movel">movel — Linear move</option>
+            <option value="movec">movec — Circular arc</option>
+          </optgroup>
+          <optgroup label="Gripper">
+            <option value="activate_gripper">Activate gripper</option>
+            <option value="open_gripper">Open gripper</option>
+            <option value="close_gripper">Close gripper</option>
+          </optgroup>
+          <optgroup label="Flow Control">
+            <option value="loop_n">Repeat N times</option>
+            <option value="loop_forever">Loop forever</option>
+            <option value="loop_while">While digital input</option>
+            <option value="if_din">If digital input</option>
+            <option value="else_block">Else</option>
+            <option value="block_end">End block</option>
+          </optgroup>
+          <optgroup label="Utilities">
+            <option value="sleep">Sleep</option>
+            <option value="textmsg">Log message</option>
+            <option value="popup">Popup (pendant)</option>
+            <option value="set_digital_out">Set digital output</option>
+            <option value="set_payload">Set payload</option>
+            <option value="set_tcp">Set TCP</option>
+          </optgroup>
+        </select>
+        <button class="btn btn-ac" onclick="addStep()">+ Add step</button>
+      </div>
     </div>
-    <div class="flow-area" id="flow-area"></div>
-    <div class="add-step-bar">
-      <select id="new-type">
-        <optgroup label="── Motion">
-          <option value="movej">movej  — joint move</option>
-          <option value="movel">movel  — linear move (Cartesian)</option>
-          <option value="movec">movec  — circular arc</option>
-        </optgroup>
-        <optgroup label="── Gripper">
-          <option value="activate_gripper">activate gripper</option>
-          <option value="open_gripper">open gripper</option>
-          <option value="close_gripper">close gripper</option>
-        </optgroup>
-        <optgroup label="── Flow Control">
-          <option value="loop_n">repeat N times</option>
-          <option value="loop_forever">loop forever</option>
-          <option value="loop_while">while digital input</option>
-          <option value="if_din">if digital input</option>
-          <option value="else_block">else</option>
-          <option value="block_end">end block</option>
-        </optgroup>
-        <optgroup label="── Utilities">
-          <option value="sleep">sleep / wait</option>
-          <option value="textmsg">log message</option>
-          <option value="popup">popup (pendant)</option>
-          <option value="set_digital_out">set digital output</option>
-          <option value="set_payload">set payload</option>
-          <option value="set_tcp">set TCP</option>
-        </optgroup>
-      </select>
-      <button class="btn btn-sm btn-ac" onclick="addStep()">+ Add Step</button>
-    </div>
-  </main>
+  </div>
+</div>
 
-  <!-- RIGHT: Code -->
-  <aside class="panel-right">
-    <div class="code-hdr">
-      <span class="panel-label">URScript Output</span>
-      <span id="code-lines" style="font:400 9px var(--mono);color:var(--tx3)"></span>
-      <div style="flex:1"></div>
-      <button class="btn btn-xs btn-ghost" onclick="copyCode()" id="copy-btn">Copy</button>
+<!-- Code output -->
+<div class="code-wrap">
+  <div class="card">
+    <div class="card-hdr" style="background:#0a0a0c">
+      <span class="card-title" style="color:var(--ac)">Generated URScript</span>
+      <span style="font-size:10px;color:var(--tx3)" id="code-lines"></span>
+      <button class="btn btn-sm" onclick="copyCode()">Copy</button>
+      <button class="btn btn-sm btn-ac" onclick="downloadCode()">↓ Download</button>
     </div>
     <div class="code-block" id="code-out"></div>
-  </aside>
-
+  </div>
+</div>
 </div>
 
 <script>
-// ═══════════════════════════════════════════════════════════════════════
-// CONSTANTS & STATE
-// ═══════════════════════════════════════════════════════════════════════
-const COLORS = ['#f97316','#22c55e','#60a5fa','#a78bfa','#f59e0b','#06b6d4','#ec4899','#84cc16'];
-const OPENERS = ['loop_n','loop_forever','loop_while','if_din'];
-const STEP_META = {
-  movej:            {badge:'MOVEJ',  bc:'badge-move', group:'move'},
-  movel:            {badge:'MOVEL',  bc:'badge-move', group:'move'},
-  movec:            {badge:'MOVEC',  bc:'badge-move', group:'move'},
-  open_gripper:     {badge:'OPEN',   bc:'badge-grip', group:'grip'},
-  close_gripper:    {badge:'CLOSE',  bc:'badge-grip', group:'grip'},
-  activate_gripper: {badge:'ACTIV',  bc:'badge-grip', group:'grip'},
-  loop_n:           {badge:'LOOP',   bc:'badge-flow', group:'flow'},
-  loop_forever:     {badge:'LOOP∞',  bc:'badge-flow', group:'flow'},
-  loop_while:       {badge:'WHILE',  bc:'badge-flow', group:'flow'},
-  if_din:           {badge:'IF',     bc:'badge-flow', group:'flow'},
-  else_block:       {badge:'ELSE',   bc:'badge-else', group:'else'},
-  block_end:        {badge:'END',    bc:'badge-end',  group:'end'},
-  sleep:            {badge:'WAIT',   bc:'badge-util', group:'util'},
-  textmsg:          {badge:'LOG',    bc:'badge-util', group:'util'},
-  popup:            {badge:'POPUP',  bc:'badge-util', group:'util'},
-  set_digital_out:  {badge:'DOUT',   bc:'badge-util', group:'util'},
-  set_payload:      {badge:'LOAD',   bc:'badge-util', group:'util'},
-  set_tcp:          {badge:'TCP',    bc:'badge-util', group:'util'},
-};
-
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
 let mode = 'deg';
-let wizardTask = null;
-let wizardConfig = {};
-let wizardStepN = 0;
-let selPosId = null;
-let mapDragId = null;
-let mapDragStart = null;
-let dragStepId = null;
+let cfgOpen = true;
 let _uid = 0;
 const uid = () => 'u' + (_uid++);
 
-let positions = [];
+let positions = [
+  {id:uid(), name:'HOME',     type:'joint', j:[0,-1.5708,0,-1.5708,0,0]},
+  {id:uid(), name:'APPROACH', type:'joint', j:[0,-1.5708,0,-1.5708,0,0]},
+  {id:uid(), name:'PICK',     type:'joint', j:[0,-1.5708,0,-1.5708,0,0]},
+  {id:uid(), name:'PLACE',    type:'joint', j:[0,-1.5708,0,-1.5708,0,0]},
+];
+
 let steps = [];
 
-// ═══════════════════════════════════════════════════════════════════════
-// UTILITIES
-// ═══════════════════════════════════════════════════════════════════════
-function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function sv(id){ return parseFloat(document.getElementById(id)?.value)||0; }
-function getPosColor(idx){ return COLORS[idx % COLORS.length]; }
-function posIdx(pid){ return positions.findIndex(p=>p.id===pid); }
-
-function toDisp(rad, isAngle=true){
-  if(!isAngle) return +rad.toFixed(4);
-  return mode==='deg' ? +(rad*180/Math.PI).toFixed(2) : +rad.toFixed(4);
-}
-function fromDisp(v, isAngle=true){
-  const n=parseFloat(v); if(isNaN(n)) return 0;
-  return (isAngle && mode==='deg') ? n*Math.PI/180 : n;
-}
-
-// UR3e approximate forward kinematics (2D, top-down XY only)
-function fkXY(q){
-  const L1=0.24365, L2=0.21325;
-  const r = L1*Math.cos(q[1]) + L2*Math.cos(q[1]+q[2]);
-  return [r*Math.cos(q[0]), r*Math.sin(q[0])];
+function initSteps() {
+  const [home,approach,pick,place] = positions.map(p=>p.id);
+  steps = [
+    {id:uid(), type:'activate_gripper'},
+    {id:uid(), type:'movej', pid:home},
+    {id:uid(), type:'open_gripper'},
+    {id:uid(), type:'movej', pid:approach},
+    {id:uid(), type:'movej', pid:pick},
+    {id:uid(), type:'close_gripper'},
+    {id:uid(), type:'movej', pid:approach},
+    {id:uid(), type:'movej', pid:place},
+    {id:uid(), type:'open_gripper'},
+    {id:uid(), type:'movej', pid:home},
+  ];
 }
 
-// Get SVG XY for a position (mm)
-function posToSVGxy(pos){
-  if(pos.type==='cart'){
-    return {x: pos.j[0]*1000, y: -pos.j[1]*1000};
-  } else {
-    const [x,y] = fkXY(pos.j);
-    return {x: x*1000, y: -y*1000};
-  }
-}
+// ═══════════════════════════════════════════════════════════
+// ROBOT CONNECTION
+// ═══════════════════════════════════════════════════════════
+const RELAY = 'http://localhost:5678';
 
-// Convert screen click to SVG coords (mm)
-function screenToSVG(e){
-  const svg = document.getElementById('map-svg');
-  const rect = svg.getBoundingClientRect();
-  const vb = 620; // viewBox size
-  const scale = vb / rect.width;
-  return {
-    x: (e.clientX - rect.left)*scale - 310,
-    y: (e.clientY - rect.top)*scale - 310
+function setDot(state) {
+  const dot = document.getElementById('robot-dot');
+  const sendBtn = document.getElementById('send-btn');
+  const map = {
+    idle:    {bg:'var(--tx3)',  shadow:'none',              send:false},
+    pinging: {bg:'var(--yl,#f59e0b)', shadow:'none',       send:false},
+    ok:      {bg:'var(--gn)',   shadow:'0 0 7px var(--gn)', send:true},
+    err:     {bg:'var(--rd)',   shadow:'none',              send:false},
+    sending: {bg:'var(--bl)',   shadow:'0 0 7px var(--bl)', send:false},
   };
+  const cfg = map[state] || map.idle;
+  dot.style.background  = cfg.bg;
+  dot.style.boxShadow   = cfg.shadow;
+  sendBtn.disabled      = !cfg.send;
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// MAP RENDERING
-// ═══════════════════════════════════════════════════════════════════════
-function renderMap(){
-  const svg = document.getElementById('map-svg');
-  const rings = [100,200,300,400,500];
-  let html = '';
-
-  // Defs (arrow markers)
-  html += `<defs>
-    <marker id="arr-j" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
-      <path d="M0,0 L0,5 L5,2.5z" fill="#f9731660"/>
-    </marker>
-    <marker id="arr-l" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
-      <path d="M0,0 L0,5 L5,2.5z" fill="#60a5fa80"/>
-    </marker>
-    <radialGradient id="rg-base" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#f97316"/>
-      <stop offset="100%" stop-color="#c2410c"/>
-    </radialGradient>
-    <filter id="glow"><feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter>
-  </defs>`;
-
-  // Background
-  html += `<rect x="-310" y="-310" width="620" height="620" fill="#05050e"/>`;
-
-  // Grid lines
-  for(let i=-300;i<=300;i+=50){
-    html += `<line x1="${i}" y1="-310" x2="${i}" y2="310" stroke="#0e0e20" stroke-width="0.5"/>`;
-    html += `<line x1="-310" y1="${i}" x2="310" y2="${i}" stroke="#0e0e20" stroke-width="0.5"/>`;
-  }
-
-  // Reach rings
-  rings.forEach((r,i)=>{
-    const active = i===rings.length-1;
-    html += `<circle cx="0" cy="0" r="${r}" fill="none"
-      stroke="${active?'#f97316':'#1a1a30'}"
-      stroke-width="${active?1:0.5}"
-      stroke-dasharray="${active?'':'4,4'}"/>`;
-    if(r<500) html += `<text x="${r+4}" y="-4" fill="#252540" font-size="9" font-family="Space Mono">${r}mm</text>`;
-  });
-
-  // Axis indicators
-  html += `<line x1="0" y1="-305" x2="0" y2="305" stroke="#14142a" stroke-width="0.5"/>`;
-  html += `<line x1="-305" y1="0" x2="305" y2="0" stroke="#14142a" stroke-width="0.5"/>`;
-  html += `<text x="295" y="-8" fill="#1e1e3a" font-size="8" font-family="Space Mono" text-anchor="end">X+</text>`;
-  html += `<text x="8" y="-295" fill="#1e1e3a" font-size="8" font-family="Space Mono">Y+</text>`;
-
-  // Path segments between consecutive move steps
-  const pathSegs = getPathSegments();
-  pathSegs.forEach(seg=>{
-    const a = posToSVGxy(seg.from), b = posToSVGxy(seg.to);
-    const isLinear = seg.type==='movel';
-    const color = isLinear ? '#60a5fa' : '#f97316';
-    const dash = isLinear ? '' : 'stroke-dasharray="6,3"';
-    const marker = isLinear ? 'url(#arr-l)' : 'url(#arr-j)';
-    // Slightly shorten line to not overlap dot
-    const dx=b.x-a.x, dy=b.y-a.y, len=Math.sqrt(dx*dx+dy*dy)||1;
-    const nx=dx/len, ny=dy/len;
-    const x2=b.x-nx*14, y2=b.y-ny*14;
-    html += `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}"
-      stroke="${color}44" stroke-width="1.5" ${dash} marker-end="${marker}"/>`;
-  });
-
-  // Dead zone
-  html += `<circle cx="0" cy="0" r="80" fill="#f97316" fill-opacity="0.04" stroke="#f9731630" stroke-width="0.5" stroke-dasharray="3,3"/>`;
-
-  // Robot base
-  html += `<circle cx="0" cy="0" r="18" fill="url(#rg-base)" filter="url(#glow)"/>`;
-  html += `<circle cx="0" cy="0" r="8" fill="#0a0a10"/>`;
-  html += `<line x1="-25" y1="0" x2="25" y2="0" stroke="#f97316" stroke-width="0.5" stroke-opacity="0.4"/>`;
-  html += `<line x1="0" y1="-25" x2="0" y2="25" stroke="#f97316" stroke-width="0.5" stroke-opacity="0.4"/>`;
-
-  // Position dots
-  positions.forEach((pos,i)=>{
-    const {x,y} = posToSVGxy(pos);
-    const col = getPosColor(i);
-    const isSel = pos.id === selPosId;
-    const r = isSel ? 14 : 11;
-    html += `<g data-pos-id="${pos.id}" style="cursor:grab">`;
-    if(isSel) html += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="20" fill="${col}" fill-opacity="0.12"/>`;
-    html += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="${col}" fill-opacity="0.25" stroke="${col}" stroke-width="1.5"/>`;
-    html += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="${col}"/>`;
-    // Label
-    const ly = y < 250 ? y+22 : y-14;
-    html += `<text x="${x.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="middle" fill="${col}" font-size="8" font-family="Space Mono" font-weight="700">${pos.name}</text>`;
-    html += `</g>`;
-  });
-
-  svg.innerHTML = html;
-
-  // Attach events to position dots
-  svg.querySelectorAll('[data-pos-id]').forEach(el=>{
-    el.addEventListener('pointerdown', onDotPointerDown);
-  });
-
-  // Map click (background)
-  svg.addEventListener('click', onMapClick);
-}
-
-function getPathSegments(){
-  const segs = [];
-  let lastPos = null;
-  steps.forEach(s=>{
-    if(s.type==='movej'||s.type==='movel'){
-      const pos = positions.find(p=>p.id===s.pid);
-      if(pos && lastPos && lastPos.id!==pos.id) segs.push({from:lastPos, to:pos, type:s.type});
-      if(pos) lastPos = pos;
+async function pingRobot() {
+  const btn = document.getElementById('ping-btn');
+  const ip  = document.getElementById('robot-ip').value.trim();
+  if (!ip) { alert('Enter the robot IP address first.'); return; }
+  btn.textContent = '…';
+  btn.disabled = true;
+  setDot('pinging');
+  try {
+    const res  = await fetch(RELAY, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ip, code:'# ping\n'})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      setDot('ok');
+      btn.textContent = '✓ Connected';
+      btn.style.color = 'var(--gn)';
+    } else {
+      throw new Error(data.error || 'Robot refused connection');
     }
-  });
-  return segs;
-}
-
-function onMapClick(e){
-  // Only fire if clicking background (not a dot)
-  if(e.target.closest('[data-pos-id]')) return;
-  if(mapDragId) return; // ignore if was dragging
-  const {x,y} = screenToSVG(e);
-  const dist = Math.sqrt(x*x+y*y);
-  if(dist > 520) return; // outside reasonable area
-  // Create new Cartesian position
-  const pos = {
-    id: uid(),
-    name: 'POS_' + (positions.length+1),
-    type: 'cart',
-    j: [x/1000, -y/1000, 0.15, 0, 3.1416, 0],
-    expanded: true
-  };
-  positions.push(pos);
-  selPosId = pos.id;
-  renderAll();
-}
-
-function onDotPointerDown(e){
-  e.stopPropagation();
-  const pid = e.currentTarget.dataset.posId;
-  selPosId = pid;
-  mapDragId = pid;
-  mapDragStart = screenToSVG(e);
-  const svg = document.getElementById('map-svg');
-  svg.setPointerCapture(e.pointerId);
-  svg.addEventListener('pointermove', onMapPointerMove);
-  svg.addEventListener('pointerup', onMapPointerUp);
-  e.preventDefault();
-}
-
-function onMapPointerMove(e){
-  if(!mapDragId) return;
-  const {x,y} = screenToSVG(e);
-  const pos = positions.find(p=>p.id===mapDragId);
-  if(!pos) return;
-  if(pos.type==='cart'){
-    pos.j[0] = x/1000;
-    pos.j[1] = -y/1000;
+  } catch(e) {
+    setDot('err');
+    btn.textContent = 'Failed';
+    btn.style.color = 'var(--rd)';
+    const isRelay = e.message.includes('fetch') || e.message.includes('Failed to fetch');
+    setTimeout(() => alert(
+      isRelay
+        ? 'Cannot reach the relay server.\n\nMake sure it is still running:\n  python3 relay.py'
+        : `Could not connect to robot at ${ip}.\n\nCheck:\n• Robot is powered on\n• IP address is correct\n• Robot is in Remote mode (pendant top-right)\n• Mac and robot are on the same network\n\nError: ${e.message}`
+    ), 50);
+  } finally {
+    btn.disabled = false;
+    setTimeout(() => { btn.textContent = 'Ping'; btn.style.color = ''; }, 3000);
   }
-  renderMap();
+}
+
+async function sendToRobot() {
+  const ip = document.getElementById('robot-ip').value.trim();
+  if (!ip) { alert('Enter the robot IP address.'); return; }
+
+  // Warn on any validation issues
+  const warns = [];
+  steps.forEach((s,i) => {
+    if ((s.type==='movej'||s.type==='movel') && !s.pid) warns.push(`Step ${i+1} has no position set`);
+  });
+  if (warns.length && !confirm(`Warning:\n${warns.join('\n')}\n\nSend anyway?`)) return;
+
+  const sendBtn = document.getElementById('send-btn');
+  const origText = sendBtn.textContent;
+  sendBtn.disabled = true;
+  sendBtn.textContent = '⏳ Sending…';
+  setDot('sending');
+
+  try {
+    const res  = await fetch(RELAY, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ip, code: buildCode()})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      setDot('ok');
+      sendBtn.textContent = '✓ Sent!';
+      sendBtn.style.background   = 'var(--gn)';
+      sendBtn.style.borderColor  = 'var(--gn)';
+      setTimeout(() => {
+        sendBtn.textContent = origText;
+        sendBtn.style.background  = '';
+        sendBtn.style.borderColor = '';
+        sendBtn.disabled = false;
+      }, 2500);
+    } else {
+      throw new Error(data.error || 'Robot rejected the script');
+    }
+  } catch(e) {
+    setDot('err');
+    sendBtn.textContent = '✕ Failed';
+    sendBtn.style.background  = 'var(--rd)';
+    sendBtn.style.borderColor = 'var(--rd)';
+    const isRelay = e.message.includes('fetch') || e.message.includes('Failed to fetch');
+    setTimeout(() => alert(
+      isRelay
+        ? 'Relay server not reachable.\n\nMake sure relay.py is still running:\n  python3 relay.py'
+        : `Failed to send script:\n${e.message}\n\nCheck the robot is still in Remote mode.`
+    ), 50);
+    setTimeout(() => {
+      sendBtn.textContent = origText;
+      sendBtn.style.background  = '';
+      sendBtn.style.borderColor = '';
+      sendBtn.disabled = false;
+    }, 2500);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// TABS / SETTINGS
+// ═══════════════════════════════════════════════════════════
+function showTab(name) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.getElementById('tab-'+name).classList.add('on');
+  event.target.classList.add('on');
+}
+
+function toggleCfg() {
+  cfgOpen = !cfgOpen;
+  document.getElementById('cfg-body').style.display = cfgOpen ? '' : 'none';
+  document.getElementById('cfg-tog').textContent = cfgOpen ? '▼ collapse' : '▶ expand';
+}
+
+// ═══════════════════════════════════════════════════════════
+// UNITS
+// ═══════════════════════════════════════════════════════════
+function setMode(m) {
+  mode = m;
+  document.getElementById('btn-deg').classList.toggle('on', m==='deg');
+  document.getElementById('btn-rad').classList.toggle('on', m==='rad');
   renderPositions();
   refreshCode();
 }
 
-function onMapPointerUp(e){
-  mapDragId = null;
-  mapDragStart = null;
-  const svg = document.getElementById('map-svg');
-  svg.removeEventListener('pointermove', onMapPointerMove);
-  svg.removeEventListener('pointerup', onMapPointerUp);
-  renderAll();
+function toDisp(rad, isAngle=true) {
+  if (!isAngle) return +rad.toFixed(4);
+  return mode==='deg' ? +(rad*180/Math.PI).toFixed(2) : +rad.toFixed(4);
+}
+function fromDisp(v, isAngle=true) {
+  const n = parseFloat(v); if (isNaN(n)) return 0;
+  if (!isAngle) return n;
+  return mode==='deg' ? n*Math.PI/180 : n;
 }
 
-// ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
 // POSITIONS
-// ═══════════════════════════════════════════════════════════════════════
-const JNT_LABELS = ['B','SH','EL','W1','W2','W3'];
-const CART_LABELS = ['X','Y','Z','RX','RY','RZ'];
+// ═══════════════════════════════════════════════════════════
+const JOINT_LABELS = ['Base','Shldr','Elbow','Wrst1','Wrst2','Wrst3'];
+const CART_LABELS  = ['X(m)','Y(m)','Z(m)','RX','RY','RZ'];
 
-function addPos(type, name, jVals){
-  const pos = {
-    id: uid(),
-    name: name || (type==='joint'?'JOINT_':'CART_')+(positions.length+1),
-    type,
-    j: jVals || [0,0,0,0,0,0],
-    expanded: true
-  };
-  positions.push(pos);
-  selPosId = pos.id;
-  renderAll();
+function isAngleCol(type, col) {
+  if (type === 'joint') return true;
+  return col >= 3;
 }
 
-function deletePos(pid){
-  if(positions.length<=1){alert('Cannot delete the last position.');return;}
-  positions = positions.filter(p=>p.id!==pid);
-  steps = steps.map(s=>{
-    if((s.type==='movej'||s.type==='movel')&&s.pid===pid) return {...s,pid:null};
-    if(s.type==='movec'&&(s.via===pid||s.to===pid)) return {...s,via:s.via===pid?null:s.via, to:s.to===pid?null:s.to};
-    return s;
-  });
-  if(selPosId===pid) selPosId = positions[0]?.id||null;
-  renderAll();
-}
-
-function renamePos(pid, val){
-  const pos = positions.find(p=>p.id===pid); if(!pos) return;
-  const safe = val.toUpperCase().replace(/\s+/g,'_').replace(/[^A-Z0-9_]/g,'')||pos.name;
-  pos.name = safe;
-  refreshCode(); renderFlow(); renderMap();
-}
-
-function setJoint(pid, ji, rawVal, isAngle){
-  const pos = positions.find(p=>p.id===pid); if(!pos) return;
-  pos.j[ji] = fromDisp(rawVal, isAngle);
-  renderMap(); refreshCode();
-}
-
-function togglePosExpand(pid){
-  const pos = positions.find(p=>p.id===pid); if(!pos) return;
-  pos.expanded = !pos.expanded;
-  renderPositions();
-}
-
-function selectPos(pid){
-  selPosId = pid;
-  renderMap(); renderPositions();
-}
-
-function renderPositions(){
+function renderPositions() {
   const el = document.getElementById('pos-list');
-  const unit = mode==='deg'?'°':'r';
-  el.innerHTML = positions.map((pos,i)=>{
-    const col = getPosColor(i);
-    const labels = pos.type==='joint' ? JNT_LABELS : CART_LABELS;
-    const isSel = pos.id === selPosId;
-    // For cart: j[0,1,2] = meters, j[3,4,5] = angles
-    // For joint: all angles
-    const inputs = labels.map((lbl,ji)=>{
-      const isAng = pos.type==='joint' || ji>=3;
-      const unit2 = pos.type==='cart' ? (ji<3?'m':unit) : unit;
-      const val = toDisp(pos.j[ji], isAng);
-      const hasVal = pos.j[ji] !== 0;
-      return `<div class="jc">
-        <div class="jl">${lbl}<br>${unit2}</div>
-        <input class="ji ${hasVal?'set':''}" type="number"
-          step="${isAng&&mode==='deg'?'0.1':isAng?'0.001':'0.001'}"
-          value="${val}"
-          onchange="setJoint('${pos.id}',${ji},this.value,${isAng})"
-          oninput="this.classList.toggle('set',this.value!==''&&this.value!=='0');setJoint('${pos.id}',${ji},this.value,${isAng})"/>
-      </div>`;
-    }).join('');
-    return `<div class="pc ${isSel?'sel':''}" id="pc-${pos.id}">
-      <div class="pc-hdr" onclick="selectPos('${pos.id}');togglePosExpand('${pos.id}')">
-        <div class="pc-dot" style="background:${col}"></div>
-        <input class="pc-name" value="${esc(pos.name)}"
-          onclick="event.stopPropagation()"
+  el.innerHTML = positions.map(pos => {
+    const labels = pos.type==='joint' ? JOINT_LABELS : CART_LABELS;
+    const unit = pos.type==='joint' ? (mode==='deg'?'°':'r') : '';
+    return `
+    <div class="pos-card" id="pc-${pos.id}">
+      <div class="pos-hdr">
+        <div class="pos-dot ${posComplete(pos)?'full':''}" id="dot-${pos.id}"></div>
+        <input class="pos-name" value="${pos.name}"
           onchange="renamePos('${pos.id}',this.value)"
           onblur="renamePos('${pos.id}',this.value)"/>
-        <span class="pc-type">${pos.type}</span>
-        <button class="btn-icon" style="margin-left:2px" onclick="event.stopPropagation();deletePos('${pos.id}')">✕</button>
+        <div class="type-seg">
+          <button class="type-btn ${pos.type==='joint'?'on':''}" onclick="setPosType('${pos.id}','joint')">JOINT</button>
+          <button class="type-btn ${pos.type==='cart'?'on':''}"  onclick="setPosType('${pos.id}','cart')">CART</button>
+        </div>
+        <button class="btn-del btn btn-sm" onclick="deletePos('${pos.id}')">✕</button>
       </div>
-      <div class="pc-body ${pos.expanded?'open':''}">
-        <div class="j-grid">${inputs}</div>
+      <div class="joints">
+        ${labels.map((name,ji)=>{
+          const isAng = isAngleCol(pos.type,ji);
+          const disp = toDisp(pos.j[ji], isAng);
+          const unitStr = pos.type==='cart' ? (ji<3?'m':(mode==='deg'?'°':'r')) : unit;
+          return `<div class="jcell">
+            <div class="jlabel">${name}<br>${unitStr}</div>
+            <input class="jinput ${pos.j[ji]!==0?'filled':''}" type="number"
+              step="${isAng&&mode==='deg'?'0.1':'0.0001'}"
+              value="${disp}"
+              oninput="liveJoint(this,'${pos.id}',${ji},${isAng})"/>
+          </div>`;
+        }).join('')}
       </div>
     </div>`;
   }).join('');
-  document.getElementById('pos-count').textContent = positions.length + ' pos';
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// FLOW — STEP CARDS
-// ═══════════════════════════════════════════════════════════════════════
-function computeDepths(){
-  const depths=[]; let d=0;
+function posComplete(pos) { return pos.j.some(v=>v!==0); }
+
+function liveJoint(el, pid, ji, isAngle) {
+  el.classList.toggle('filled', el.value!==''&&el.value!=='0');
+  const pos = positions.find(p=>p.id===pid); if(!pos) return;
+  pos.j[ji] = fromDisp(el.value, isAngle);
+  document.getElementById('dot-'+pid).className = 'pos-dot'+(posComplete(pos)?' full':'');
+  refreshCode();
+}
+
+function renamePos(pid, val) {
+  const pos = positions.find(p=>p.id===pid); if(!pos) return;
+  pos.name = val.toUpperCase().replace(/\s+/g,'_').replace(/[^A-Z0-9_]/g,'') || pos.name;
+  refreshCode(); renderSteps();
+}
+
+function setPosType(pid, type) {
+  const pos = positions.find(p=>p.id===pid); if(!pos) return;
+  pos.type = type;
+  renderPositions(); refreshCode(); renderSteps();
+}
+
+function addPos(type) {
+  positions.push({id:uid(), name:'POS_'+(positions.length+1), type, j:[0,0,0,0,0,0]});
+  renderPositions(); renderSteps(); refreshCode();
+}
+
+function deletePos(pid) {
+  if(positions.length<=1) return;
+  positions = positions.filter(p=>p.id!==pid);
+  steps = steps.map(s=>{
+    if((s.type==='movej'||s.type==='movel')&&s.pid===pid) return {...s,pid:null};
+    if(s.type==='movec'&&s.via===pid) return {...s,via:null};
+    if(s.type==='movec'&&s.to===pid) return {...s,to:null};
+    return s;
+  });
+  renderPositions(); renderSteps(); refreshCode();
+}
+
+// ═══════════════════════════════════════════════════════════
+// STEP DEPTHS
+// ═══════════════════════════════════════════════════════════
+const OPENERS = ['loop_n','loop_forever','loop_while','if_din'];
+
+function computeDepths() {
+  const depths=[], opens=[];
   steps.forEach(s=>{
-    if(s.type==='block_end'){depths.push(Math.max(0,d-1));d=Math.max(0,d-1);}
-    else if(s.type==='else_block'){depths.push(Math.max(0,d-1));}
-    else{depths.push(d);if(OPENERS.includes(s.type))d++;}
+    if(s.type==='block_end'){
+      opens.pop();
+      depths.push(opens.length);
+    } else if(s.type==='else_block'){
+      depths.push(opens.length>0 ? opens.length-1 : 0);
+    } else {
+      depths.push(opens.length);
+      if(OPENERS.includes(s.type)) opens.push(opens.length);
+    }
   });
   return depths;
 }
 
-function defaultStep(type){
+// ═══════════════════════════════════════════════════════════
+// STEP RENDERING
+// ═══════════════════════════════════════════════════════════
+const TAG_INFO = {
+  movej:            ['MOVEJ','tag-move'],
+  movel:            ['MOVEL','tag-move'],
+  movec:            ['MOVEC','tag-move'],
+  open_gripper:     ['GRIP', 'tag-grip'],
+  close_gripper:    ['GRIP', 'tag-grip'],
+  activate_gripper: ['GRIP', 'tag-grip'],
+  loop_n:           ['LOOP', 'tag-flow'],
+  loop_forever:     ['LOOP∞','tag-flow'],
+  loop_while:       ['WHILE','tag-flow'],
+  if_din:           ['IF',   'tag-flow'],
+  else_block:       ['ELSE', 'tag-flow'],
+  block_end:        ['END',  'tag-util'],
+  sleep:            ['WAIT', 'tag-util'],
+  textmsg:          ['LOG',  'tag-util'],
+  popup:            ['POP',  'tag-util'],
+  set_digital_out:  ['DOUT', 'tag-util'],
+  set_payload:      ['LOAD', 'tag-util'],
+  set_tcp:          ['TCP',  'tag-util'],
+};
+
+function stepParams(s) {
+  const si = `'${s.id}'`;
+  switch(s.type) {
+    case 'movej': return `<select class="step-sel" onchange="upd(${si},'pid',this.value)">${
+      positions.map(p=>`<option value="${p.id}" ${s.pid===p.id?'selected':''}>${p.name}</option>`).join('')
+    }</select>`;
+    case 'movel': {
+      const cp = positions.filter(p=>p.type==='cart');
+      return `<select class="step-sel" onchange="upd(${si},'pid',this.value)">${
+        cp.length ? cp.map(p=>`<option value="${p.id}" ${s.pid===p.id?'selected':''}>${p.name}</option>`).join('')
+                  : `<option value="">— add Cartesian pos —</option>`
+      }</select>`;
+    }
+    case 'movec': {
+      const cp = positions.filter(p=>p.type==='cart');
+      const mk = sel => cp.map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>${p.name}</option>`).join('');
+      return `<span style="font-size:10px;color:var(--tx3)">via</span>
+        <select class="step-sel" onchange="upd(${si},'via',this.value)">${mk(s.via)}</select>
+        <span style="font-size:10px;color:var(--tx3)">to</span>
+        <select class="step-sel" onchange="upd(${si},'to',this.value)">${mk(s.to)}</select>`;
+    }
+    case 'loop_n':
+      return `<input class="step-inp" type="number" min="1" value="${s.count??5}" style="width:60px" oninput="upd(${si},'count',+this.value)">
+              <span style="font-size:10px;color:var(--tx3)">times</span>`;
+    case 'loop_while':
+    case 'if_din':
+      return `<span style="font-size:10px;color:var(--tx3)">D.IN</span>
+        <input class="step-inp" type="number" min="0" max="15" value="${s.port??0}" style="width:44px" oninput="upd(${si},'port',+this.value)">
+        <select class="step-sel" onchange="upd(${si},'val',this.value==='true')">
+          <option value="true"  ${s.val!==false?'selected':''}>== TRUE</option>
+          <option value="false" ${s.val===false ?'selected':''}>== FALSE</option>
+        </select>`;
+    case 'sleep':
+      return `<input class="step-inp" type="number" min="0" step="0.1" value="${s.sec??1}" style="width:60px" oninput="upd(${si},'sec',+this.value)">
+              <span style="font-size:10px;color:var(--tx3)">sec</span>`;
+    case 'textmsg':
+    case 'popup':
+      return `<input class="step-inp" type="text" value="${esc(s.msg??'')}" style="width:200px"
+        placeholder="${s.type==='popup'?'Pendant message...':'Log message...'}" oninput="upd(${si},'msg',this.value)">`;
+    case 'set_digital_out':
+      return `<span style="font-size:10px;color:var(--tx3)">D.OUT</span>
+        <input class="step-inp" type="number" min="0" max="15" value="${s.port??0}" style="width:44px" oninput="upd(${si},'port',+this.value)">
+        <select class="step-sel" onchange="upd(${si},'val',this.value==='true')">
+          <option value="true"  ${s.val!==false?'selected':''}>HIGH</option>
+          <option value="false" ${s.val===false ?'selected':''}>LOW</option>
+        </select>`;
+    case 'set_payload':
+      return `<input class="step-inp" type="number" step="0.1" min="0" value="${s.weight??0}" style="width:60px" oninput="upd(${si},'weight',+this.value)">
+              <span style="font-size:10px;color:var(--tx3)">kg</span>`;
+    case 'set_tcp':
+      return `<input class="step-inp" type="text" value="${s.pose??'0,0,0,0,0,0'}" style="width:160px"
+        placeholder="x,y,z,rx,ry,rz" oninput="upd(${si},'pose',this.value)">`;
+    default: return '';
+  }
+}
+
+function renderSteps() {
+  const depths = computeDepths();
+  const list = document.getElementById('steps-list');
+  list.innerHTML = steps.map((s,si)=>{
+    const [tag,tagCls] = TAG_INFO[s.type] || ['?','tag-util'];
+    const depth = depths[si];
+    const indent = Array(depth).fill('<div class="step-indent-line"></div>').join('');
+    const extraCls = OPENERS.includes(s.type)?'block-open'
+      : s.type==='block_end'?'block-end-row'
+      : s.type==='else_block'?'else-row':'';
+    return `<div class="step-row">
+      <div class="step-indent">${indent}</div>
+      <div class="step ${extraCls}" id="st-${s.id}">
+        <span class="step-n">${si+1}</span>
+        <span class="step-tag ${tagCls}">${tag}</span>
+        <select class="step-sel" onchange="changeType('${s.id}',this.value)" style="font-size:10px;max-width:100px">
+          ${Object.entries(TAG_INFO).map(([v])=>`<option value="${v}" ${s.type===v?'selected':''}>${v}</option>`).join('')}
+        </select>
+        ${stepParams(s)}
+        <span class="step-spacer"></span>
+        <div class="step-controls">
+          <button class="btn-ghost btn btn-sm" onclick="moveStep('${s.id}',-1)" ${si===0?'disabled':''}>↑</button>
+          <button class="btn-ghost btn btn-sm" onclick="moveStep('${s.id}',1)" ${si===steps.length-1?'disabled':''}>↓</button>
+          <button class="btn-del btn btn-sm" onclick="deleteStep('${s.id}')">✕</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('step-count').textContent = steps.length+' step'+(steps.length!==1?'s':'');
+  validateSteps();
+}
+
+function validateSteps() {
+  const warns = [];
+  steps.forEach((s,i)=>{
+    if(s.type==='movel'){
+      const pos=positions.find(p=>p.id===s.pid);
+      if(!pos) warns.push(`Step ${i+1}: movel has no position set`);
+      else if(pos.type!=='cart') warns.push(`Step ${i+1}: movel requires Cartesian — "${pos.name}" is JOINT`);
+    }
+    if(s.type==='movec'){
+      const via=positions.find(p=>p.id===s.via), to=positions.find(p=>p.id===s.to);
+      if(!via||!to) warns.push(`Step ${i+1}: movec needs Via and To positions`);
+    }
+    if(s.type==='movej'&&!s.pid) warns.push(`Step ${i+1}: movej has no position set`);
+  });
+  let depth=0;
+  steps.forEach((s,i)=>{
+    if(OPENERS.includes(s.type)) depth++;
+    else if(s.type==='block_end'){depth--;if(depth<0){warns.push(`Step ${i+1}: END has no matching opener`);depth=0;}}
+  });
+  if(depth>0) warns.push(`${depth} block(s) not closed — add End block`);
+  const wb=document.getElementById('warn-box');
+  if(warns.length){wb.className='warn-box show';wb.innerHTML='⚠ '+warns.join('<br>⚠ ');}
+  else wb.className='warn-box';
+}
+
+// ═══════════════════════════════════════════════════════════
+// STEP MUTATIONS
+// ═══════════════════════════════════════════════════════════
+function defaultStep(type) {
   const s={id:uid(),type};
-  if(type==='movej') s.pid=positions.find(p=>p.type==='joint')?.id||positions[0]?.id||null;
-  if(type==='movel') s.pid=positions.find(p=>p.type==='cart')?.id||null;
-  if(type==='movec'){s.via=positions.find(p=>p.type==='cart')?.id||null;s.to=s.via;}
+  if(type==='movej') s.pid=positions.find(p=>p.type==='joint')?.id??positions[0]?.id??null;
+  if(type==='movel') s.pid=positions.find(p=>p.type==='cart')?.id??null;
+  if(type==='movec'){s.via=positions.find(p=>p.type==='cart')?.id??null;s.to=s.via;}
   if(type==='loop_n') s.count=5;
   if(type==='loop_while'||type==='if_din'){s.port=0;s.val=true;}
   if(type==='sleep') s.sec=1;
@@ -803,195 +729,63 @@ function defaultStep(type){
   return s;
 }
 
-function addStep(){
-  steps.push(defaultStep(document.getElementById('new-type').value));
-  renderFlow(); refreshCode();
-}
+function addStep(){steps.push(defaultStep(document.getElementById('new-type').value));renderSteps();refreshCode();}
+function deleteStep(sid){steps=steps.filter(s=>s.id!==sid);renderSteps();refreshCode();}
+function moveStep(sid,dir){const i=steps.findIndex(s=>s.id===sid),j=i+dir;if(j<0||j>=steps.length)return;[steps[i],steps[j]]=[steps[j],steps[i]];renderSteps();refreshCode();}
+function changeType(sid,type){const i=steps.findIndex(s=>s.id===sid);if(i<0)return;steps[i]={...defaultStep(type),id:sid};renderSteps();refreshCode();}
+function upd(sid,key,val){const s=steps.find(x=>x.id===sid);if(s){s[key]=val;refreshCode();validateSteps();}}
 
-function deleteStep(sid){
-  steps=steps.filter(s=>s.id!==sid);
-  renderFlow(); refreshCode();
-}
-
-function clearSteps(){
-  if(!confirm('Clear all steps?')) return;
-  steps=[];
-  renderFlow(); refreshCode();
-}
-
-function moveStep(sid,dir){
-  const i=steps.findIndex(s=>s.id===sid),j=i+dir;
-  if(j<0||j>=steps.length)return;
-  [steps[i],steps[j]]=[steps[j],steps[i]];
-  renderFlow(); refreshCode();
-}
-
-function changeStepType(sid,type){
-  const i=steps.findIndex(s=>s.id===sid);if(i<0)return;
-  steps[i]={...defaultStep(type),id:sid};
-  renderFlow(); refreshCode();
-}
-
-function upd(sid,key,val){ const s=steps.find(x=>x.id===sid);if(s){s[key]=val;refreshCode();validateSteps();} }
-
-function stepParamHTML(s){
-  const si=`'${s.id}'`;
-  const posOpts = (filter)=>positions.filter(p=>!filter||p.type===filter).map(p=>`<option value="${p.id}" ${s.pid===p.id?'selected':''}>${esc(p.name)}</option>`).join('');
-  switch(s.type){
-    case 'movej': return `<select class="step-sel" onchange="upd(${si},'pid',this.value)">${posOpts(null)}</select>`;
-    case 'movel': return `<select class="step-sel" onchange="upd(${si},'pid',this.value)">${posOpts('cart')||'<option>— add Cartesian pos —</option>'}</select>`;
-    case 'movec':{
-      const cp=positions.filter(p=>p.type==='cart');
-      const mk=(sel)=>cp.map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>${esc(p.name)}</option>`).join('');
-      return `<span class="step-note">via</span><select class="step-sel" onchange="upd(${si},'via',this.value)">${mk(s.via)}</select><span class="step-note">→</span><select class="step-sel" onchange="upd(${si},'to',this.value)">${mk(s.to)}</select>`;
-    }
-    case 'loop_n': return `<input class="step-inp step-inp-sm" type="number" min="1" value="${s.count||5}" oninput="upd(${si},'count',+this.value)"><span class="step-note">×</span>`;
-    case 'loop_while':case 'if_din':
-      return `<span class="step-note">DIN</span><input class="step-inp step-inp-sm" type="number" min="0" max="15" value="${s.port||0}" oninput="upd(${si},'port',+this.value)">
-        <select class="step-sel" onchange="upd(${si},'val',this.value==='true')"><option value="true" ${s.val!==false?'selected':''}>= HIGH</option><option value="false" ${s.val===false?'selected':''}>= LOW</option></select>`;
-    case 'sleep': return `<input class="step-inp step-inp-sm" type="number" min="0" step="0.1" value="${s.sec||1}" oninput="upd(${si},'sec',+this.value)"><span class="step-note">sec</span>`;
-    case 'textmsg':case 'popup':
-      return `<input class="step-inp step-inp-md" type="text" value="${esc(s.msg||'')}" placeholder="${s.type==='popup'?'pendant message':'log message'}..." oninput="upd(${si},'msg',this.value)">`;
-    case 'set_digital_out':
-      return `<span class="step-note">DOUT</span><input class="step-inp step-inp-sm" type="number" min="0" max="15" value="${s.port||0}" oninput="upd(${si},'port',+this.value)">
-        <select class="step-sel" onchange="upd(${si},'val',this.value==='true')"><option value="true" ${s.val!==false?'selected':''}>HIGH</option><option value="false" ${s.val===false?'selected':''}>LOW</option></select>`;
-    case 'set_payload': return `<input class="step-inp step-inp-sm" type="number" step="0.1" value="${s.weight||0}" oninput="upd(${si},'weight',+this.value)"><span class="step-note">kg</span>`;
-    case 'set_tcp': return `<input class="step-inp step-inp-md" type="text" value="${esc(s.pose||'0,0,0,0,0,0')}" placeholder="x,y,z,rx,ry,rz" oninput="upd(${si},'pose',this.value)">`;
-    default: return '';
-  }
-}
-
-function renderFlow(){
-  const depths = computeDepths();
-  const area = document.getElementById('flow-area');
-  const typeOpts = Object.keys(STEP_META).map(v=>`<option value="${v}">${v}</option>`).join('');
-
-  area.innerHTML = steps.map((s,si)=>{
-    const {badge,bc,group} = STEP_META[s.type]||{badge:'?',bc:'badge-util',group:'util'};
-    const depth = depths[si];
-    const indent = depth * 18;
-    const params = stepParamHTML(s);
-
-    return `<div class="step-row">
-      <div style="width:${indent}px;flex-shrink:0"></div>
-      <div class="step-card" data-group="${group}" data-sid="${s.id}"
-        draggable="true"
-        ondragstart="onDragStart(event,'${s.id}')"
-        ondragover="onDragOver(event)"
-        ondrop="onDrop(event,'${s.id}')"
-        ondragleave="onDragLeave(event)">
-        <span class="drag-handle">⋮⋮</span>
-        <span class="step-badge ${bc}">${badge}</span>
-        <select class="step-sel" style="font-size:10px" onchange="changeStepType('${s.id}',this.value)">
-          ${Object.keys(STEP_META).map(v=>`<option value="${v}" ${s.type===v?'selected':''}>${v}</option>`).join('')}
-        </select>
-        <div class="step-main">${params}</div>
-        <div class="step-actions">
-          <button class="btn-icon" onclick="moveStep('${s.id}',-1)" ${si===0?'disabled':''}>↑</button>
-          <button class="btn-icon" onclick="moveStep('${s.id}',1)" ${si===steps.length-1?'disabled':''}>↓</button>
-          <button class="btn-icon" style="color:var(--tx3)" onmouseover="this.style.color='var(--rd)'" onmouseout="this.style.color='var(--tx3)'" onclick="deleteStep('${s.id}')">✕</button>
-        </div>
-      </div>
-    </div>`;
-  }).join('');
-
-  document.getElementById('step-count').textContent = steps.length + ' step' + (steps.length!==1?'s':'');
-  validateSteps();
-}
-
-// Drag and drop
-function onDragStart(e,sid){ dragStepId=sid; e.currentTarget.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; }
-function onDragOver(e){ e.preventDefault(); e.currentTarget.classList.add('drag-over'); }
-function onDragLeave(e){ e.currentTarget.classList.remove('drag-over'); }
-function onDrop(e,targetSid){
-  e.preventDefault();
-  e.currentTarget.classList.remove('drag-over');
-  if(!dragStepId||dragStepId===targetSid)return;
-  const fi=steps.findIndex(s=>s.id===dragStepId), ti=steps.findIndex(s=>s.id===targetSid);
-  if(fi<0||ti<0)return;
-  const [moved]=steps.splice(fi,1);
-  const newTi=steps.findIndex(s=>s.id===targetSid);
-  steps.splice(newTi,0,moved);
-  dragStepId=null;
-  renderFlow(); renderMap(); refreshCode();
-}
-document.addEventListener('dragend',()=>{ dragStepId=null; document.querySelectorAll('.dragging').forEach(el=>el.classList.remove('dragging')); document.querySelectorAll('.drag-over').forEach(el=>el.classList.remove('drag-over')); });
-
-function validateSteps(){
-  const warns=[];
-  steps.forEach((s,i)=>{
-    if((s.type==='movej'||s.type==='movel')&&!s.pid) warns.push(`Step ${i+1}: no position set`);
-    if(s.type==='movel'){const p=positions.find(x=>x.id===s.pid);if(p&&p.type!=='cart') warns.push(`Step ${i+1}: movel needs Cartesian pos`);}
-    if(s.type==='movec'&&(!s.via||!s.to)) warns.push(`Step ${i+1}: movec needs via+to`);
-  });
-  let d=0;
-  steps.forEach((s,i)=>{
-    if(OPENERS.includes(s.type))d++;
-    else if(s.type==='block_end'){d--;if(d<0){warns.push(`Step ${i+1}: unmatched END`);d=0;}}
-  });
-  if(d>0) warns.push(`${d} block(s) not closed`);
-  const pill=document.getElementById('warn-pill');
-  const txt=document.getElementById('warn-text');
-  if(warns.length){pill.className='warn-pill show';txt.textContent=warns[0]+(warns.length>1?` (+${warns.length-1})`:'');}
-  else{pill.className='warn-pill';}
-}
-
-// ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
 // CODE GENERATION
-// ═══════════════════════════════════════════════════════════════════════
-function buildCode(){
-  const T='    ';
-  const js=sv('s-js'),ja=sv('s-ja'),ls=sv('s-ls'),la=sv('s-la'),br=sv('s-br');
-  const go=sv('s-go'),gc=sv('s-gc'),gs=sv('s-gs'),gf=sv('s-gf');
-  const tx=sv('s-tx'),ty=sv('s-ty'),tz=sv('s-tz'),trx=sv('s-trx'),tr_y=sv('s-try'),trz=sv('s-trz');
-  const pw=sv('s-pw'),px=sv('s-px'),py=sv('s-py'),pz=sv('s-pz');
-  const name=document.getElementById('prog-name')?.value||'Untitled';
-  const hasTCP=tx||ty||tz||trx||tr_y||trz;
-  const L=[];
+// ═══════════════════════════════════════════════════════════
+function gv(id){return parseFloat(document.getElementById(id)?.value)||0;}
+function poseStr(pos){return pos.type==='joint'?`[${pos.j.map(v=>v.toFixed(4)).join(', ')}]`:`p[${pos.j.map(v=>v.toFixed(4)).join(', ')}]`;}
 
-  L.push(`# ${'='.repeat(65)}`);
-  L.push(`# Program : ${name}`);
-  L.push(`# Robot   : UR3e`);
-  L.push(`# Gripper : Robotiq 2F-85`);
-  L.push(`# Generated by UR3e Studio`);
-  L.push(`# ${'='.repeat(65)}`);
+function buildCode() {
+  const T='    ';
+  const js=gv('js'),ja=gv('ja'),ls=gv('ls'),la=gv('la'),br=gv('br');
+  const go=gv('go'),gc=gv('gc'),gs=gv('gs'),gf=gv('gf');
+  const tcx=gv('tcp-x'),tcy=gv('tcp-y'),tcz=gv('tcp-z'),tcrx=gv('tcp-rx'),tcry=gv('tcp-ry'),tcrz=gv('tcp-rz');
+  const plw=gv('pl-w'),plx=gv('pl-x'),ply=gv('pl-y'),plz=gv('pl-z');
+  const isTCPSet=tcx||tcy||tcz||tcrx||tcry||tcrz;
+  const L=[];
+  L.push('# =================================================================');
+  L.push('# UR3e Program — Generated by UR3e Program Builder');
+  L.push('# =================================================================');
   L.push('');
-  L.push('# Motion');
-  L.push(`JOINT_SPEED  = ${js}    # rad/s`);
-  L.push(`JOINT_ACCEL  = ${ja}    # rad/s²`);
-  L.push(`LINEAR_SPEED = ${ls}    # m/s`);
-  L.push(`LINEAR_ACCEL = ${la}    # m/s²`);
-  L.push(`BLEND_RADIUS = ${br}    # m`);
+  L.push('# Motion parameters');
+  L.push(`JOINT_SPEED  = ${js}   # rad/s`);
+  L.push(`JOINT_ACCEL  = ${ja}   # rad/s²`);
+  L.push(`LINEAR_SPEED = ${ls}   # m/s`);
+  L.push(`LINEAR_ACCEL = ${la}   # m/s²`);
+  L.push(`BLEND_RADIUS = ${br}   # m`);
   L.push('');
-  L.push('# Gripper');
+  L.push('# Gripper parameters');
   L.push(`GRIPPER_SPEED    = ${gs}`);
   L.push(`GRIPPER_FORCE    = ${gf}`);
   L.push(`GRIPPER_OPEN_MM  = ${go}`);
   L.push(`GRIPPER_CLOSE_MM = ${gc}`);
   L.push('');
   L.push('# Positions');
-  positions.forEach(pos=>{
-    const vals=pos.j.map(v=>v.toFixed(4)).join(', ');
-    const prefix=pos.type==='cart'?'p':'';
-    L.push(`${pos.name} = ${prefix}[${vals}]`);
-  });
+  positions.forEach(pos=>L.push(`${pos.name} = ${poseStr(pos)}   # ${pos.type}`));
   L.push('');
-  L.push(`# ${'='.repeat(65)}`);
+  L.push('# =================================================================');
   L.push('# Setup');
-  L.push(`# ${'='.repeat(65)}`);
+  L.push('# =================================================================');
   L.push('');
   L.push('def setup():');
-  if(hasTCP) L.push(`${T}set_tcp(p[${tx},${ty},${tz},${trx},${tr_y},${trz}])`);
-  L.push(`${T}set_payload(${pw}, [${px}, ${py}, ${pz}])`);
+  if(isTCPSet) L.push(`${T}set_tcp(p[${tcx},${tcy},${tcz},${tcrx},${tcry},${tcrz}])`);
+  L.push(`${T}set_payload(${plw}, [${plx}, ${ply}, ${plz}])`);
   L.push('end');
   L.push('');
-  L.push(`# ${'='.repeat(65)}`);
+  L.push('# =================================================================');
   L.push('# Gripper');
-  L.push(`# ${'='.repeat(65)}`);
+  L.push('# =================================================================');
   L.push('');
   L.push('def activate_gripper():');
-  L.push(`${T}textmsg("Activating gripper")`);
+  L.push(`${T}textmsg("Activating gripper...")`);
   L.push(`${T}rq_activate_and_wait()`);
+  L.push(`${T}textmsg("Gripper ready")`);
   L.push('end');
   L.push('');
   L.push('def open_gripper():');
@@ -1008,39 +802,42 @@ function buildCode(){
   L.push(`${T}sleep(0.5)`);
   L.push('end');
   L.push('');
-  L.push(`# ${'='.repeat(65)}`);
+  L.push('# =================================================================');
   L.push('# Main');
-  L.push(`# ${'='.repeat(65)}`);
+  L.push('# =================================================================');
   L.push('');
   L.push('def main():');
-  L.push(`${T}textmsg("=== ${name} : Start ===")`);
-
-  let ind=1; let lc=0;
+  let ind=1, loopIdx=0;
   steps.forEach(s=>{
     const tab=T.repeat(ind);
     switch(s.type){
       case 'movej':{const p=positions.find(x=>x.id===s.pid);L.push(`${tab}movej(${p?p.name:'UNKNOWN'}, a=JOINT_ACCEL, v=JOINT_SPEED, r=BLEND_RADIUS)`);break;}
       case 'movel':{const p=positions.find(x=>x.id===s.pid);L.push(`${tab}movel(${p?p.name:'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED, r=BLEND_RADIUS)`);break;}
       case 'movec':{const v=positions.find(x=>x.id===s.via),t=positions.find(x=>x.id===s.to);L.push(`${tab}movec(${v?v.name:'UNKNOWN'}, ${t?t.name:'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED)`);break;}
-      case 'open_gripper':    L.push(`${tab}open_gripper()`);break;
-      case 'close_gripper':   L.push(`${tab}close_gripper()`);break;
-      case 'activate_gripper':L.push(`${tab}activate_gripper()`);break;
-      case 'sleep':           L.push(`${tab}sleep(${s.sec||1})`);break;
-      case 'textmsg':         L.push(`${tab}textmsg("${s.msg||''}")`);break;
-      case 'popup':           L.push(`${tab}popup("${s.msg||''}", title="UR3e Studio", blocking=True)`);break;
-      case 'set_digital_out': L.push(`${tab}set_digital_out(${s.port||0}, ${s.val!==false?'True':'False'})`);break;
-      case 'set_payload':     L.push(`${tab}set_payload(${s.weight||0})`);break;
-      case 'set_tcp':         L.push(`${tab}set_tcp(p[${s.pose||'0,0,0,0,0,0'}])`);break;
-      case 'loop_n':{const cv=`_i${lc++}`;L.push(`${tab}${cv} = 0`);L.push(`${tab}while ${cv} < ${s.count||5}:`);ind++;break;}
-      case 'loop_forever':    L.push(`${tab}while True:`);ind++;break;
-      case 'loop_while':      L.push(`${tab}while get_digital_in(${s.port||0}) == ${s.val!==false?'True':'False'}:`);ind++;break;
-      case 'if_din':          L.push(`${tab}if get_digital_in(${s.port||0}) == ${s.val!==false?'True':'False'}:`);ind++;break;
-      case 'else_block':      L.push(`${T.repeat(Math.max(1,ind-1))}else:`);break;
-      case 'block_end':       ind=Math.max(1,ind-1);L.push(`${T.repeat(ind)}end`);break;
+      case 'open_gripper':     L.push(`${tab}open_gripper()`);break;
+      case 'close_gripper':    L.push(`${tab}close_gripper()`);break;
+      case 'activate_gripper': L.push(`${tab}activate_gripper()`);break;
+      case 'sleep':            L.push(`${tab}sleep(${s.sec??1})`);break;
+      case 'textmsg':          L.push(`${tab}textmsg("${s.msg??''}")`);break;
+      case 'popup':            L.push(`${tab}popup("${s.msg??''}", title="Program", blocking=True)`);break;
+      case 'set_digital_out':  L.push(`${tab}set_digital_out(${s.port??0}, ${s.val!==false?'True':'False'})`);break;
+      case 'set_payload':      L.push(`${tab}set_payload(${s.weight??0})`);break;
+      case 'set_tcp':          L.push(`${tab}set_tcp(p[${s.pose??'0,0,0,0,0,0'}])`);break;
+      case 'loop_n':{const cv=`_i${loopIdx++}`;L.push(`${tab}${cv} = 0`);L.push(`${tab}while ${cv} < ${s.count??5}:`);ind++;break;}
+      case 'loop_forever':  L.push(`${tab}while True:`);ind++;break;
+      case 'loop_while':    L.push(`${tab}while get_digital_in(${s.port??0}) == ${s.val!==false?'True':'False'}:`);ind++;break;
+      case 'if_din':        L.push(`${tab}if get_digital_in(${s.port??0}) == ${s.val!==false?'True':'False'}:`);ind++;break;
+      case 'else_block':    L.push(`${T.repeat(Math.max(1,ind-1))}else:`);break;
+      case 'block_end':{
+        ind=Math.max(1,ind-1);
+        const cvar=findMatchingLoopCounter(s);
+        if(cvar) L.push(`${T.repeat(ind)}${cvar} = ${cvar} + 1`);
+        L.push(`${T.repeat(ind)}end`);
+        break;
+      }
     }
   });
-
-  L.push(`${T}textmsg("=== ${name} : Complete ===")`);
+  L.push(`${T}textmsg("=== Program Complete ===")`);
   L.push('end');
   L.push('');
   L.push('setup()');
@@ -1048,24 +845,41 @@ function buildCode(){
   return L.join('\n');
 }
 
-// Syntax highlighting
+function findMatchingLoopCounter(endStep) {
+  const ei=steps.indexOf(endStep);
+  let depth=0;
+  for(let i=ei;i>=0;i--){
+    const s=steps[i];
+    if(s.type==='block_end'&&i!==ei) depth++;
+    else if(OPENERS.includes(s.type)){
+      if(depth===0){
+        if(s.type==='loop_n'){let n=0;for(let j=0;j<i;j++)if(steps[j].type==='loop_n')n++;return `_i${n}`;}
+        return null;
+      }
+      depth--;
+    }
+  }
+  return null;
+}
+
+// ─── Syntax highlight ──────────────────────────────────────
+const KW  = /\b(def|end|if|else|elif|while|return|True|False|not|and|or)\b/g;
+const FNS = /\b(movej|movel|movec|sleep|textmsg|popup|set_tcp|set_payload|set_digital_out|get_digital_in|rq_activate_and_wait|rq_set_speed_norm|rq_set_force_norm|rq_move_and_wait_norm|open_gripper|close_gripper|activate_gripper|setup|main)\b/g;
+const NUM = /(?<!["\w])(-?\d+\.?\d*)\b/g;
+
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
 function highlight(code){
-  const KW=/\b(def|end|if|else|elif|while|return|True|False|not|and|or)\b/g;
-  const FN=/\b(movej|movel|movec|sleep|textmsg|popup|set_tcp|set_payload|set_digital_out|get_digital_in|rq_activate_and_wait|rq_set_speed_norm|rq_set_force_norm|rq_move_and_wait_norm|open_gripper|close_gripper|activate_gripper|setup|main)\b/g;
-  const NUM=/(?<!["\w])(-?\d+\.?\d*)\b/g;
-  const CONST=/\b(JOINT_SPEED|JOINT_ACCEL|LINEAR_SPEED|LINEAR_ACCEL|BLEND_RADIUS|GRIPPER_SPEED|GRIPPER_FORCE|GRIPPER_OPEN_MM|GRIPPER_CLOSE_MM)\b/g;
   return code.split('\n').map(line=>{
     const e=esc(line);
     if(/^\s*#/.test(e)) return `<span class="c-cm">${e}</span>`;
     let c=e,cm='';
-    const ci=e.indexOf('#');
-    if(ci>0){c=e.slice(0,ci);cm=e.slice(ci);}
+    const ci=e.indexOf('#');if(ci>0){c=e.slice(0,ci);cm=e.slice(ci);}
     const sm={};let si=0;
     c=c.replace(/"([^"]*)"/g,(_,inner)=>{const k=`\x00${si++}\x00`;sm[k]=`<span class="c-str">"${inner}"</span>`;return k;});
-    c=c.replace(CONST,m=>`<span class="c-const">${m}</span>`)
-       .replace(NUM,m=>`<span class="c-num">${m}</span>`)
-       .replace(KW,m=>`<span class="c-kw">${m}</span>`)
-       .replace(FN,m=>`<span class="c-fn">${m}</span>`);
+    c=c.replace(NUM,m=>`<span class="c-num">${m}</span>`)
+       .replace(KW, m=>`<span class="c-kw">${m}</span>`)
+       .replace(FNS,m=>`<span class="c-fn">${m}</span>`);
     Object.entries(sm).forEach(([k,v])=>{c=c.replace(k,v);});
     if(cm) c+=`<span class="c-cm">${esc(cm)}</span>`;
     return c;
@@ -1080,336 +894,23 @@ function refreshCode(){
 
 function copyCode(){
   navigator.clipboard.writeText(buildCode()).then(()=>{
-    const b=document.getElementById('copy-btn');
-    b.textContent='✓ Copied'; setTimeout(()=>b.textContent='Copy',1600);
+    const b=document.querySelector('.hdr .btn');
+    const o=b.textContent;b.textContent='✓ Copied!';setTimeout(()=>b.textContent=o,1800);
   });
 }
 function downloadCode(){
-  const name=(document.getElementById('prog-name')?.value||'program').replace(/\s+/g,'_');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([buildCode()],{type:'text/plain'}));
-  a.download=name+'.script'; a.click();
+  a.download='ur3e_program.script';a.click();
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// WIZARD
-// ═══════════════════════════════════════════════════════════════════════
-function openWizard(){ wizardStepN=0; wizardTask=null; wizardConfig={}; renderWizardStep(); document.getElementById('wizard-overlay').classList.remove('hidden'); }
-function closeWizard(){ document.getElementById('wizard-overlay').classList.add('hidden'); }
-
-function selectTask(task, el){
-  wizardTask=task;
-  document.querySelectorAll('.task-card').forEach(c=>c.classList.remove('on'));
-  el.classList.add('on');
-  document.getElementById('wiz-next').disabled=false;
-}
-
-function renderWizardStep(){
-  document.querySelectorAll('.wiz-step').forEach((el,i)=>el.classList.toggle('on',i===wizardStepN));
-  document.getElementById('wiz-step-label').textContent=`Step ${wizardStepN+1} of 3`;
-  document.getElementById('wiz-back').style.display=wizardStepN>0?'':'none';
-  const nextBtn=document.getElementById('wiz-next');
-  nextBtn.disabled=(wizardStepN===0&&!wizardTask);
-  nextBtn.textContent=wizardStepN<2?'Next →':'✓ Generate Program';
-  if(wizardStepN===1) renderWizardConfig();
-  if(wizardStepN===2) renderWizardPreview();
-}
-
-function wizNav(dir){
-  if(dir===1&&wizardStepN===2){applyWizard();closeWizard();return;}
-  wizardStepN=Math.max(0,Math.min(2,wizardStepN+dir));
-  renderWizardStep();
-}
-
-function renderWizardConfig(){
-  const labels={pickplace:'Pick & Place',pallet:'Palletizing',inspect:'Inspection',blank:'Blank'};
-  const descs={pickplace:'Configure your pick and place task.',pallet:'Define the palletizing grid.',inspect:'Configure inspection waypoints.',blank:''};
-  document.getElementById('cfg-task-label').textContent=labels[wizardTask]||'';
-  document.getElementById('cfg-title').textContent='Configure your task';
-  document.getElementById('cfg-sub').textContent=descs[wizardTask]||'';
-  let html='';
-  if(wizardTask==='pickplace'){
-    html+=`<div class="cfg-grid">
-      <div class="cfg-field"><div class="cfg-label">Pick Positions</div>
-        <div class="num-btns">${[1,2,3,4].map(n=>`<div class="num-btn ${(wizardConfig.picks||1)===n?'on':''}" onclick="wcfg('picks',${n},this)">${n}</div>`).join('')}</div>
-      </div>
-      <div class="cfg-field"><div class="cfg-label">Place Positions</div>
-        <div class="num-btns">${[1,2,3,4].map(n=>`<div class="num-btn ${(wizardConfig.places||1)===n?'on':''}" onclick="wcfg('places',${n},this)">${n}</div>`).join('')}</div>
-      </div>
-    </div>
-    <div class="toggle-row" onclick="wToggle('loop')"><div class="toggle ${wizardConfig.loop?'on':''}"></div><span class="toggle-label">Loop continuously</span></div>
-    <div class="toggle-row" style="margin-top:8px" onclick="wToggle('gripper')"><div class="toggle ${wizardConfig.gripper!==false?'on':''}"></div><span class="toggle-label">Use Robotiq gripper</span></div>`;
-    if(!wizardConfig.picks) wizardConfig.picks=1;
-    if(!wizardConfig.places) wizardConfig.places=1;
-    if(wizardConfig.gripper===undefined) wizardConfig.gripper=true;
-  } else if(wizardTask==='pallet'){
-    html+=`<div class="cfg-grid">
-      <div class="cfg-field"><div class="cfg-label">Rows</div>
-        <div class="num-btns">${[2,3,4,5].map(n=>`<div class="num-btn ${(wizardConfig.rows||3)===n?'on':''}" onclick="wcfg('rows',${n},this)">${n}</div>`).join('')}</div>
-      </div>
-      <div class="cfg-field"><div class="cfg-label">Columns</div>
-        <div class="num-btns">${[2,3,4,5].map(n=>`<div class="num-btn ${(wizardConfig.cols||3)===n?'on':''}" onclick="wcfg('cols',${n},this)">${n}</div>`).join('')}</div>
-      </div>
-      <div class="cfg-field"><div class="cfg-label">X Spacing (mm)</div><input class="cfg-input" type="number" value="${wizardConfig.xspacing||100}" oninput="wizardConfig.xspacing=+this.value"></div>
-      <div class="cfg-field"><div class="cfg-label">Y Spacing (mm)</div><input class="cfg-input" type="number" value="${wizardConfig.yspacing||100}" oninput="wizardConfig.yspacing=+this.value"></div>
-    </div>
-    <div class="toggle-row" onclick="wToggle('gripper')"><div class="toggle ${wizardConfig.gripper!==false?'on':''}"></div><span class="toggle-label">Use Robotiq gripper</span></div>`;
-    if(!wizardConfig.rows) wizardConfig.rows=3;
-    if(!wizardConfig.cols) wizardConfig.cols=3;
-    if(!wizardConfig.xspacing) wizardConfig.xspacing=100;
-    if(!wizardConfig.yspacing) wizardConfig.yspacing=100;
-    if(wizardConfig.gripper===undefined) wizardConfig.gripper=true;
-  } else if(wizardTask==='inspect'){
-    html+=`<div class="cfg-grid">
-      <div class="cfg-field"><div class="cfg-label">Inspection Points</div>
-        <div class="num-btns">${[2,3,4,5,6].map(n=>`<div class="num-btn ${(wizardConfig.points||3)===n?'on':''}" onclick="wcfg('points',${n},this)">${n}</div>`).join('')}</div>
-      </div>
-    </div>
-    <div class="toggle-row" onclick="wToggle('loop')"><div class="toggle ${wizardConfig.loop?'on':''}"></div><span class="toggle-label">Loop continuously</span></div>`;
-    if(!wizardConfig.points) wizardConfig.points=3;
-  } else {
-    html='<p style="color:var(--tx2);font-size:13px">A blank program will be created with a HOME position.</p>';
-  }
-  document.getElementById('cfg-fields').innerHTML=html;
-}
-
-function wcfg(key,val,el){
-  wizardConfig[key]=val;
-  el.closest('.num-btns').querySelectorAll('.num-btn').forEach(b=>b.classList.remove('on'));
-  el.classList.add('on');
-}
-function wToggle(key){
-  wizardConfig[key]=!wizardConfig[key];
-  renderWizardConfig();
-}
-
-function renderWizardPreview(){
-  const {newPositions,newSteps} = generateFromWizard();
-  document.getElementById('preview-pos').innerHTML=newPositions.map(p=>`<div class="preview-pos">${p.name} <span style="color:var(--tx3)">[${p.type}]</span></div>`).join('');
-  document.getElementById('preview-steps').innerHTML=newSteps.map(s=>{
-    const {badge}=STEP_META[s.type]||{badge:s.type};
-    const detail=s.pid?` → ${newPositions.find(p=>p.id===s.pid)?.name||'?'}`:s.count?` × ${s.count}`:'';
-    return `<div class="preview-step">${badge}${detail}</div>`;
-  }).join('');
-}
-
-function generateFromWizard(){
-  const newPositions=[], newSteps=[];
-  const mkPos=(name,type,j)=>{const p={id:uid(),name,type,j:j||[0,0,0,0,0,0],expanded:false};newPositions.push(p);return p;};
-  const mkStep=(type,extra)=>{const s={id:uid(),type,...extra};newSteps.push(s);return s;};
-
-  if(wizardTask==='pickplace'){
-    const home=mkPos('HOME','joint');
-    const picks=[], places=[];
-    for(let i=0;i<wizardConfig.picks;i++) picks.push(mkPos(`PICK_${i+1}`,'joint'));
-    const appPick=mkPos('APPROACH_PICK','joint');
-    for(let i=0;i<wizardConfig.places;i++) places.push(mkPos(`PLACE_${i+1}`,'joint'));
-    const appPlace=mkPos('APPROACH_PLACE','joint');
-    if(wizardConfig.gripper) mkStep('activate_gripper');
-    mkStep('movej',{pid:home.id});
-    if(wizardConfig.loop) mkStep('loop_forever');
-    if(wizardConfig.gripper) mkStep('open_gripper');
-    mkStep('movej',{pid:appPick.id});
-    picks.forEach(p=>{mkStep('movej',{pid:p.id});if(wizardConfig.gripper)mkStep('close_gripper');mkStep('movej',{pid:appPick.id});});
-    mkStep('movej',{pid:appPlace.id});
-    places.forEach(p=>{mkStep('movej',{pid:p.id});if(wizardConfig.gripper)mkStep('open_gripper');mkStep('movej',{pid:appPlace.id});});
-    mkStep('movej',{pid:home.id});
-    if(wizardConfig.loop) mkStep('block_end');
-  } else if(wizardTask==='pallet'){
-    const home=mkPos('HOME','joint');
-    const pick=mkPos('PICK','joint');
-    const appPick=mkPos('APPROACH_PICK','joint');
-    const palletPositions=[];
-    const rows=wizardConfig.rows||3, cols=wizardConfig.cols||3;
-    const xs=(wizardConfig.xspacing||100)/1000, ys=(wizardConfig.yspacing||100)/1000;
-    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
-      const p=mkPos(`PALLET_${r+1}_${c+1}`,'cart',[0.2+c*xs, 0.1+r*ys, 0.1, 0, 3.1416, 0]);
-      palletPositions.push(p);
-    }
-    if(wizardConfig.gripper) mkStep('activate_gripper');
-    mkStep('movej',{pid:home.id});
-    mkStep('loop_n',{count:rows*cols});
-    mkStep('open_gripper');
-    mkStep('movej',{pid:appPick.id});
-    mkStep('movej',{pid:pick.id});
-    if(wizardConfig.gripper) mkStep('close_gripper');
-    mkStep('movej',{pid:appPick.id});
-    mkStep('movej',{pid:palletPositions[0].id});
-    if(wizardConfig.gripper) mkStep('open_gripper');
-    mkStep('block_end');
-    mkStep('movej',{pid:home.id});
-  } else if(wizardTask==='inspect'){
-    const home=mkPos('HOME','joint');
-    const pts=[];
-    for(let i=0;i<(wizardConfig.points||3);i++) pts.push(mkPos(`INSPECT_${i+1}`,'joint'));
-    mkStep('movej',{pid:home.id});
-    if(wizardConfig.loop) mkStep('loop_forever');
-    pts.forEach(p=>{mkStep('movej',{pid:p.id});mkStep('sleep',{sec:1});});
-    mkStep('movej',{pid:home.id});
-    if(wizardConfig.loop) mkStep('block_end');
-  } else {
-    mkPos('HOME','joint');
-  }
-  return {newPositions, newSteps};
-}
-
-function applyWizard(){
-  const {newPositions,newSteps}=generateFromWizard();
-  positions=newPositions; steps=newSteps;
-  renderAll();
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// SETTINGS
-// ═══════════════════════════════════════════════════════════════════════
-function openSettings(){ document.getElementById('settings-overlay').classList.remove('hidden'); }
-function closeSettings(){ document.getElementById('settings-overlay').classList.add('hidden'); refreshCode(); }
-
-// ═══════════════════════════════════════════════════════════════════════
-// MODE TOGGLE
-// ═══════════════════════════════════════════════════════════════════════
-function setMode(m){
-  mode=m;
-  document.getElementById('btn-deg').classList.toggle('on',m==='deg');
-  document.getElementById('btn-rad').classList.toggle('on',m==='rad');
-  renderPositions(); renderMap();
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// ROBOT CONNECTION
-// ═══════════════════════════════════════════════════════════════════════
-const RELAY = 'http://localhost:5678';
-
-function robotIP(){ return document.getElementById('robot-ip').value.trim(); }
-
-function setDot(state){
-  const dot = document.getElementById('robot-dot');
-  const sendBtn = document.getElementById('send-btn');
-  const colors = {idle:'var(--tx3)', pinging:'var(--yl)', ok:'var(--gn)', err:'var(--rd)', sending:'var(--bl)'};
-  dot.style.background = colors[state] || colors.idle;
-  if(state==='ok'){
-    dot.style.boxShadow = '0 0 6px var(--gn)';
-    sendBtn.disabled = false;
-  } else if(state==='sending'){
-    dot.style.boxShadow = '0 0 6px var(--bl)';
-  } else {
-    dot.style.boxShadow = 'none';
-    if(state!=='ok') sendBtn.disabled = true;
-  }
-}
-
-async function pingRobot(){
-  const btn = document.getElementById('ping-btn');
-  const ip = robotIP();
-  if(!ip){ alert('Enter the robot IP address first.'); return; }
-  btn.textContent = '…';
-  btn.disabled = true;
-  setDot('pinging');
-  try {
-    // Send a no-op script — robot echoes back, relay returns ok
-    const res = await fetch(RELAY, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ip, code:'# ping\n'})
-    });
-    const data = await res.json();
-    if(data.ok){
-      setDot('ok');
-      btn.textContent = '✓ Connected';
-      btn.style.color = 'var(--gn)';
-    } else {
-      throw new Error(data.error||'Unknown error');
-    }
-  } catch(e) {
-    setDot('err');
-    btn.textContent = 'Failed';
-    btn.style.color = 'var(--rd)';
-    const msg = e.message.includes('fetch') || e.message.includes('Failed')
-      ? 'Could not reach the relay server.\n\nMake sure relay.py is running:\n  python3 relay.py'
-      : `Could not connect to robot at ${ip}.\n\nCheck:\n• Robot is powered on\n• IP address is correct\n• Robot is in Remote mode (pendant top-right)\n• Both on same network\n\nError: ${e.message}`;
-    setTimeout(()=>alert(msg), 50);
-  } finally {
-    btn.disabled = false;
-    setTimeout(()=>{ btn.textContent='Ping'; btn.style.color=''; }, 3000);
-  }
-}
-
-async function sendToRobot(){
-  const ip = robotIP();
-  if(!ip){ alert('Enter the robot IP address.'); return; }
-
-  // Validate first
-  const warns = [];
-  steps.forEach((s,i)=>{
-    if((s.type==='movej'||s.type==='movel')&&!s.pid) warns.push(`Step ${i+1} has no position set`);
-  });
-  if(warns.length){
-    if(!confirm(`Warning:\n${warns.join('\n')}\n\nSend anyway?`)) return;
-  }
-
-  const sendBtn = document.getElementById('send-btn');
-  const icon = document.getElementById('send-icon');
-  sendBtn.disabled = true;
-  icon.textContent = '⏳';
-  setDot('sending');
-
-  try {
-    const code = buildCode();
-    const res = await fetch(RELAY, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ip, code})
-    });
-    const data = await res.json();
-    if(data.ok){
-      setDot('ok');
-      icon.textContent = '✓';
-      sendBtn.style.background = 'var(--gn)';
-      sendBtn.style.borderColor = 'var(--gn)';
-      setTimeout(()=>{
-        icon.textContent = '▶';
-        sendBtn.style.background = '';
-        sendBtn.style.borderColor = '';
-        sendBtn.disabled = false;
-      }, 2500);
-    } else {
-      throw new Error(data.error||'Robot rejected the script');
-    }
-  } catch(e) {
-    setDot('err');
-    icon.textContent = '✕';
-    sendBtn.style.background = 'var(--rd)';
-    sendBtn.style.borderColor = 'var(--rd)';
-    const msg = e.message.includes('fetch') || e.message.includes('Failed')
-      ? 'Relay server not reachable.\n\nMake sure relay.py is still running.'
-      : `Failed to send script:\n${e.message}\n\nCheck the robot is in Remote mode.`;
-    setTimeout(()=>alert(msg), 50);
-    setTimeout(()=>{
-      icon.textContent='▶';
-      sendBtn.style.background='';
-      sendBtn.style.borderColor='';
-      sendBtn.disabled=false;
-    }, 2500);
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// RENDER ALL
-// ═══════════════════════════════════════════════════════════════════════
-function renderAll(){
-  renderMap();
-  renderPositions();
-  renderFlow();
-  refreshCode();
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// INIT
-// ═══════════════════════════════════════════════════════════════════════
-window.addEventListener('DOMContentLoaded',()=>{
-  // Start with wizard open
-  openWizard();
-});
+// ═══════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════
+initSteps();
+renderPositions();
+renderSteps();
+refreshCode();
 </script>
 </body>
 </html>
