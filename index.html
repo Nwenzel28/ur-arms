@@ -1011,33 +1011,41 @@ function buildCode() {
       case 'movel':{const p=positions.find(x=>x.id===s.pid);L.push(`${tab}movel(${p?p.name:'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED, r=BLEND_RADIUS)`);break;}
       case 'movec':{const v=positions.find(x=>x.id===s.via),t=positions.find(x=>x.id===s.to);L.push(`${tab}movec(${v?v.name:'UNKNOWN'}, ${t?t.name:'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED)`);break;}
       
-      // Gripper Commands (Send Only Edition + Thread Sync Fix)
+      // Gripper Commands (Fixed URScript Byte 10 Bug)
       case 'activate_gripper':
-        L.push(`${tab}socket_send_string("SET ACT 1\\n", "rq_srv")`);
+        L.push(`${tab}socket_send_string("SET ACT 1", "rq_srv")`);
+        L.push(`${tab}socket_send_byte(10, "rq_srv")`);
         L.push(`${tab}sync()`);
-        L.push(`${tab}socket_send_string("SET GTO 1\\n", "rq_srv")`);
+        L.push(`${tab}socket_send_string("SET GTO 1", "rq_srv")`);
+        L.push(`${tab}socket_send_byte(10, "rq_srv")`);
         L.push(`${tab}sync()`);
         L.push(`${tab}sleep(1.0)`);
         L.push(`${tab}textmsg("GRIPPER:ACTIVATE")`);
         break;
         
       case 'open_gripper':
-        L.push(`${tab}socket_send_string("SET SPE 255\\n", "rq_srv")`);
+        L.push(`${tab}socket_send_string("SET SPE 255", "rq_srv")`);
+        L.push(`${tab}socket_send_byte(10, "rq_srv")`);
         L.push(`${tab}sync()`);
-        L.push(`${tab}socket_send_string("SET FOR 255\\n", "rq_srv")`);
+        L.push(`${tab}socket_send_string("SET FOR 255", "rq_srv")`);
+        L.push(`${tab}socket_send_byte(10, "rq_srv")`);
         L.push(`${tab}sync()`);
-        L.push(`${tab}socket_send_string("SET POS 0\\n", "rq_srv")`);
+        L.push(`${tab}socket_send_string("SET POS 0", "rq_srv")`);
+        L.push(`${tab}socket_send_byte(10, "rq_srv")`);
         L.push(`${tab}sync()`);
         L.push(`${tab}sleep(0.8)`);
         L.push(`${tab}textmsg("GRIPPER:OPEN")`);
         break;
         
       case 'close_gripper':
-        L.push(`${tab}socket_send_string("SET SPE 255\\n", "rq_srv")`);
+        L.push(`${tab}socket_send_string("SET SPE 255", "rq_srv")`);
+        L.push(`${tab}socket_send_byte(10, "rq_srv")`);
         L.push(`${tab}sync()`);
-        L.push(`${tab}socket_send_string("SET FOR 255\\n", "rq_srv")`);
+        L.push(`${tab}socket_send_string("SET FOR 255", "rq_srv")`);
+        L.push(`${tab}socket_send_byte(10, "rq_srv")`);
         L.push(`${tab}sync()`);
-        L.push(`${tab}socket_send_string("SET POS 255\\n", "rq_srv")`);
+        L.push(`${tab}socket_send_string("SET POS 255", "rq_srv")`);
+        L.push(`${tab}socket_send_byte(10, "rq_srv")`);
         L.push(`${tab}sync()`);
         L.push(`${tab}sleep(0.8)`);
         L.push(`${tab}textmsg("GRIPPER:CLOSE")`);
