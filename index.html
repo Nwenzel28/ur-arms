@@ -125,6 +125,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font:
 .tab.on{color:var(--ac);border-bottom-color:var(--ac)}
 .tab-pane{display:none}
 .tab-pane.on{display:block}
+
+/* Freedrive Axis Specific Toggles */
+.fd-mask-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;padding:4px 10px 10px;background:var(--bg);border-bottom:1px solid var(--bd)}
+.fd-ax-btn{border:1px solid var(--bd2);background:var(--sf2);color:var(--tx3);font:600 10px var(--mono);padding:4px 0;text-align:center;border-radius:4px;cursor:pointer;transition:.15s}
+.fd-ax-btn.on{background:var(--aclo);border-color:var(--ac);color:var(--ac)}
 </style>
 </head>
 <body>
@@ -164,6 +169,16 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font:
         <span class="card-title" style="color: var(--ac);">🕹️ Robot Control</span>
         <button class="btn btn-sm" id="btn-freedrive" onclick="toggleFreedrive()" style="border-color:var(--bd2); color:var(--tx2);">✋ Freedrive: OFF</button>
       </div>
+
+      <div class="fd-mask-grid">
+        <button class="fd-ax-btn on" id="fd-ax-0" onclick="toggleFdAxis(0)">X</button>
+        <button class="fd-ax-btn on" id="fd-ax-1" onclick="toggleFdAxis(1)">Y</button>
+        <button class="fd-ax-btn on" id="fd-ax-2" onclick="toggleFdAxis(2)">Z</button>
+        <button class="fd-ax-btn on" id="fd-ax-3" onclick="toggleFdAxis(3)">Rx</button>
+        <button class="fd-ax-btn on" id="fd-ax-4" onclick="toggleFdAxis(4)">Ry</button>
+        <button class="fd-ax-btn on" id="fd-ax-5" onclick="toggleFdAxis(5)">Rz</button>
+      </div>
+
       <div style="padding: 10px; background: var(--bg); border-bottom: 1px solid var(--bd); font-family: var(--mono); font-size: 11px; display: flex; gap: 10px;">
         <div><span style="color:var(--tx3)">X:</span> <span id="live-x">0.000</span>m</div>
         <div><span style="color:var(--tx3)">Y:</span> <span id="live-y">0.000</span>m</div>
@@ -318,7 +333,6 @@ let cfgOpen = true;
 let _uid = 0;
 const uid = () => 'u' + (_uid++);
 
-// FIXED: Singularities removed by setting Wrist2 to -1.5708
 let positions = [
   {id:uid(), name:'HOME',     type:'joint', j:[0,-1.5708,0,-1.5708,-1.5708,0]},
   {id:uid(), name:'APPROACH', type:'joint', j:[0,-1.5708,0,-1.5708,-1.5708,0]},
@@ -330,7 +344,6 @@ let steps = [];
 
 function initSteps() {
   const [home,approach,pick,place] = positions.map(p=>p.id);
-  // Removed gripper steps from default boot to prevent compile crashes
   steps = [
     {id:uid(), type:'movej', pid:home},
     {id:uid(), type:'movej', pid:approach},
@@ -391,7 +404,7 @@ async function pingRobot() {
     setTimeout(() => alert(
       isRelay
         ? 'Cannot reach the relay server.\n\nMake sure it is still running:\n  python3 relay.py'
-        : `Could not connect to robot at ${ip}.\n\nCheck:\n• Robot is powered on\n• IP address is correct\n• Robot is in Remote mode (pendant top-right)\n• Mac and robot are on the same network\n\nError: ${e.message}`
+        : `Could not connect to robot at ${ip}.\n\nCheck:\n• Robot is powered on\n• IP address is correct\n• Robot is in Remote mode\n• Mac and robot are on the same network\n\nError: ${e.message}`
     ), 50);
   } finally {
     btn.disabled = false;
@@ -457,12 +470,15 @@ async function sendToRobot() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// NEW: LIVE JOGGING & STATE
+// LIVE JOGGING & STATE (FIXED: SMOOTHER TIMINGS)
 // ═══════════════════════════════════════════════════════════
+let fdAxes = [1, 1, 1, 1, 1, 1]; // X, Y, Z, Rx, Ry, Rz (1=Free, 0=Locked)
+let isFreedrive = false;
+let jogInterval = null;
+
 async function fetchRobotState() {
   const ip = document.getElementById('robot-ip').value.trim();
   if(!ip) return;
-  
   try {
     const res = await fetch(RELAY, {
       method: 'POST',
@@ -470,7 +486,6 @@ async function fetchRobotState() {
       body: JSON.stringify({ip: ip, action: 'state'})
     });
     const data = await res.json();
-    
     if (data.ok && data.tcp) {
       document.getElementById('live-x').innerText = data.tcp[0].toFixed(3);
       document.getElementById('live-y').innerText = data.tcp[1].toFixed(3);
@@ -491,7 +506,17 @@ function sendDirect(codeStr) {
   });
 }
 
-let isFreedrive = false;
+function toggleFdAxis(index) {
+  fdAxes[index] = fdAxes[index] === 1 ? 0 : 1;
+  const btn = document.getElementById(`fd-ax-${index}`);
+  btn.classList.toggle('on', fdAxes[index] === 1);
+  
+  // If freedrive is already live, update the mask immediately on the robot
+  if (isFreedrive) {
+    sendDirect(`def fd_update():\n  freedrive_mode([${fdAxes.join(',')}], p[0,0,0,0,0,0])\n  sleep(3600)\nend\n`);
+  }
+}
+
 function toggleFreedrive() {
   isFreedrive = !isFreedrive;
   const btn = document.getElementById('btn-freedrive');
@@ -500,7 +525,8 @@ function toggleFreedrive() {
     btn.textContent = "✋ Freedrive: ON";
     btn.style.background = "var(--ac)";
     btn.style.color = "#fff";
-    sendDirect("def fd_on():\n  freedrive_mode()\n  sleep(3600)\nend\n");
+    // Uses the customized axis matrix relative to the base feature frame
+    sendDirect(`def fd_on():\n  freedrive_mode([${fdAxes.join(',')}], p[0,0,0,0,0,0])\n  sleep(3600)\nend\n`);
   } else {
     btn.textContent = "✋ Freedrive: OFF";
     btn.style.background = "transparent";
@@ -509,19 +535,21 @@ function toggleFreedrive() {
   }
 }
 
-let jogInterval = null;
 function startJog(axis, direction) {
+  if (jogInterval) clearInterval(jogInterval);
   let vector = [0,0,0,0,0,0];
-  vector[axis] = direction * (axis < 3 ? 0.05 : 0.2); 
-  const speedlCmd = `def jog():\n  speedl([${vector.join(',')}], a=0.5, t=0.2)\nend\n`;
+  vector[axis] = direction * (axis < 3 ? 0.06 : 0.25); 
+  
+  // FIXED: Lowered step window 't' to 0.10s and loop rate to 50ms for high density updates (smoother motion)
+  const speedlCmd = `def jog():\n  speedl([${vector.join(',')}], a=0.6, t=0.10)\nend\n`;
   sendDirect(speedlCmd); 
-  jogInterval = setInterval(() => { sendDirect(speedlCmd); }, 100);
+  jogInterval = setInterval(() => { sendDirect(speedlCmd); }, 50);
 }
 
 function stopJog() {
   if(jogInterval) clearInterval(jogInterval);
   jogInterval = null;
-  sendDirect("def stop_jog():\n  stopl(2.0)\nend\n");
+  sendDirect("def stop_jog():\n  stopl(2.5)\nend\n");
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -843,7 +871,6 @@ function buildCode() {
   const isTCPSet=tcx||tcy||tcz||tcrx||tcry||tcrz;
   const L=[];
 
-  // 1. OPEN THE MASTER WRAPPER
   L.push('def master_program():');
   
   L.push(`${T}# Motion parameters`);
@@ -871,7 +898,6 @@ function buildCode() {
       case 'movej':{const p=positions.find(x=>x.id===s.pid);L.push(`${tab}movej(${p?p.name:'UNKNOWN'}, a=JOINT_ACCEL, v=JOINT_SPEED, r=BLEND_RADIUS)`);break;}
       case 'movel':{const p=positions.find(x=>x.id===s.pid);L.push(`${tab}movel(${p?p.name:'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED, r=BLEND_RADIUS)`);break;}
       case 'movec':{const v=positions.find(x=>x.id===s.via),t=positions.find(x=>x.id===s.to);L.push(`${tab}movec(${v?v.name:'UNKNOWN'}, ${t?t.name:'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED)`);break;}
-      // FIXED: Gripper steps are commented out so the UI has them, but they don't crash the compiler yet!
       case 'activate_gripper': L.push(`${tab}# rq_activate_and_wait()`);break;
       case 'open_gripper':     L.push(`${tab}# rq_move_and_wait_norm(GRIPPER_OPEN_MM)`);break;
       case 'close_gripper':    L.push(`${tab}# rq_move_and_wait_norm(GRIPPER_CLOSE_MM)`);break;
@@ -897,11 +923,7 @@ function buildCode() {
     }
   });
   L.push(`${T}textmsg("=== Program Complete ===")`);
-  
-  // 2. CLOSE MASTER WRAPPER
   L.push('end');
-  
-  // 3. THE CRITICAL FIX: Append the trailing newline
   return L.join('\n') + '\n';
 }
 
