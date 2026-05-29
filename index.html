@@ -1049,7 +1049,7 @@ function buildCode() {
     }
   });
 
-  L.push(`${tab}socket_close("rq_srv")`);
+  L.push(`${T}socket_close("rq_srv")`);
   L.push(`${T}textmsg("=== Program Complete ===")`);
   L.push('end');
   return L.join('\n') + '\n';
