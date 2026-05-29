@@ -496,6 +496,7 @@ let isFreedrive = false;
 let jogInterval = null;
 let latestJoints = null; // Store the live robot pose
 
+
 async function fetchRobotState() {
   const ip = document.getElementById('robot-ip').value.trim();
   if(!ip) return;
@@ -506,26 +507,35 @@ async function fetchRobotState() {
       body: JSON.stringify({ip: ip, action: 'state'})
     });
     const data = await res.json();
-    if (data.ok && data.tcp && data.joints) {
-      latestJoints = data.joints; // Save raw joints for the Record Live button
-      
-      // Update TCP: X, Y, Z (Forces metric decimals)
-      document.getElementById('live-x').innerText = toDisp(data.tcp[0], false);
-      document.getElementById('live-y').innerText = toDisp(data.tcp[1], false);
-      document.getElementById('live-z').innerText = toDisp(data.tcp[2], false);
-      
-      // Update TCP: Rx, Ry, Rz (Allows Deg/Rad conversion based on your UI toggle)
-      document.getElementById('live-rx').innerText = toDisp(data.tcp[3], true);
-      document.getElementById('live-ry').innerText = toDisp(data.tcp[4], true);
-      document.getElementById('live-rz').innerText = toDisp(data.tcp[5], true);
-
-      // Update Joints (Allows Deg/Rad conversion based on your UI toggle)
-      document.getElementById('live-j0').innerText = toDisp(data.joints[0], true);
-      document.getElementById('live-j1').innerText = toDisp(data.joints[1], true);
-      document.getElementById('live-j2').innerText = toDisp(data.joints[2], true);
-      document.getElementById('live-j3').innerText = toDisp(data.joints[3], true);
-      document.getElementById('live-j4').innerText = toDisp(data.joints[4], true);
-      document.getElementById('live-j5').innerText = toDisp(data.joints[5], true);
+    
+    // 1. THIS WILL SHOW YOU EXACTLY WHAT THE PYTHON RELAY IS SENDING
+    console.log("ROBOT DATA RECEIVED:", data);
+    
+    // 2. Smart fallback logic in case your Python relay uses different keys
+    const tcp = data.tcp || data.actual_TCP_pose || data.pose || data.cartesian;
+    const joints = data.joints || data.actual_joint_positions || data.q_actual || data.q;
+    
+    if (tcp && tcp.length >= 6) {
+      document.getElementById('live-x').innerText = toDisp(tcp[0], false);
+      document.getElementById('live-y').innerText = toDisp(tcp[1], false);
+      document.getElementById('live-z').innerText = toDisp(tcp[2], false);
+      document.getElementById('live-rx').innerText = toDisp(tcp[3], true);
+      document.getElementById('live-ry').innerText = toDisp(tcp[4], true);
+      document.getElementById('live-rz').innerText = toDisp(tcp[5], true);
+    } else {
+      console.warn("Could not find TCP data in the response.");
+    }
+    
+    if (joints && joints.length >= 6) {
+      latestJoints = joints; // Save for the Record Live button
+      document.getElementById('live-j0').innerText = toDisp(joints[0], true);
+      document.getElementById('live-j1').innerText = toDisp(joints[1], true);
+      document.getElementById('live-j2').innerText = toDisp(joints[2], true);
+      document.getElementById('live-j3').innerText = toDisp(joints[3], true);
+      document.getElementById('live-j4').innerText = toDisp(joints[4], true);
+      document.getElementById('live-j5').innerText = toDisp(joints[5], true);
+    } else {
+      console.warn("Could not find Joint data in the response.");
     }
   } catch(e) {
     console.error("Failed to read robot state", e);
