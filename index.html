@@ -744,73 +744,39 @@ function poseStr(pos){return pos.type==='joint'?`[${pos.j.map(v=>v.toFixed(4)).j
 function buildCode() {
   const T = '    ';
   const js=gv('js'),ja=gv('ja'),ls=gv('ls'),la=gv('la'),br=gv('br');
-  const go=gv('go'),gc=gv('gc'),gs=gv('gs'),gf=gv('gf');
   const tcx=gv('tcp-x'),tcy=gv('tcp-y'),tcz=gv('tcp-z'),tcrx=gv('tcp-rx'),tcry=gv('tcp-ry'),tcrz=gv('tcp-rz');
   const plw=gv('pl-w'),plx=gv('pl-x'),ply=gv('pl-y'),plz=gv('pl-z');
   const isTCPSet=tcx||tcy||tcz||tcrx||tcry||tcrz;
   const L=[];
 
-  // 1. OPEN MASTER WRAPPER
+  // 1. OPEN THE MASTER WRAPPER
   L.push('def master_program():');
   
   L.push(`${T}# Motion parameters`);
-  L.push(`${T}global JOINT_SPEED  = ${js}   # rad/s`);
-  L.push(`${T}global JOINT_ACCEL  = ${ja}   # rad/s²`);
-  L.push(`${T}global LINEAR_SPEED = ${ls}   # m/s`);
-  L.push(`${T}global LINEAR_ACCEL = ${la}   # m/s²`);
-  L.push(`${T}global BLEND_RADIUS = ${br}   # m`);
+  L.push(`${T}JOINT_SPEED  = ${js}`);
+  L.push(`${T}JOINT_ACCEL  = ${ja}`);
+  L.push(`${T}LINEAR_SPEED = ${ls}`);
+  L.push(`${T}LINEAR_ACCEL = ${la}`);
+  L.push(`${T}BLEND_RADIUS = ${br}`);
   L.push('');
-  L.push(`${T}# Gripper parameters`);
-  L.push(`${T}global GRIPPER_SPEED    = ${gs}`);
-  L.push(`${T}global GRIPPER_FORCE    = ${gf}`);
-  L.push(`${T}global GRIPPER_OPEN_MM  = ${go}`);
-  L.push(`${T}global GRIPPER_CLOSE_MM = ${gc}`);
-  L.push('');
+  
   L.push(`${T}# Positions`);
-  positions.forEach(pos=>L.push(`${T}global ${pos.name} = ${poseStr(pos)}   # ${pos.type}`));
+  positions.forEach(pos=>L.push(`${T}${pos.name} = ${poseStr(pos)}`));
   L.push('');
   
-  L.push(`${T}def setup():`);
-  if(isTCPSet) L.push(`${T}${T}set_tcp(p[${tcx},${tcy},${tcz},${tcrx},${tcry},${tcrz}])`);
-  L.push(`${T}${T}set_payload(${plw}, [${plx}, ${ply}, ${plz}])`);
-  L.push(`${T}end`);
+  L.push(`${T}# Setup`);
+  if(isTCPSet) L.push(`${T}set_tcp(p[${tcx},${tcy},${tcz},${tcrx},${tcry},${tcrz}])`);
+  L.push(`${T}set_payload(${plw}, [${plx}, ${ply}, ${plz}])`);
   L.push('');
   
-  L.push(`${T}def activate_gripper():`);
-  L.push(`${T}${T}textmsg("Activating gripper...")`);
-  L.push(`${T}${T}rq_activate_and_wait()`);
-  L.push(`${T}${T}textmsg("Gripper ready")`);
-  L.push(`${T}end`);
-  L.push('');
-  
-  L.push(`${T}def open_gripper():`);
-  L.push(`${T}${T}rq_set_speed_norm(GRIPPER_SPEED)`);
-  L.push(`${T}${T}rq_set_force_norm(GRIPPER_FORCE)`);
-  L.push(`${T}${T}rq_move_and_wait_norm(GRIPPER_OPEN_MM)`);
-  L.push(`${T}${T}sleep(0.5)`);
-  L.push(`${T}end`);
-  L.push('');
-  
-  L.push(`${T}def close_gripper():`);
-  L.push(`${T}${T}rq_set_speed_norm(GRIPPER_SPEED)`);
-  L.push(`${T}${T}rq_set_force_norm(GRIPPER_FORCE)`);
-  L.push(`${T}${T}rq_move_and_wait_norm(GRIPPER_CLOSE_MM)`);
-  L.push(`${T}${T}sleep(0.5)`);
-  L.push(`${T}end`);
-  L.push('');
-  
-  L.push(`${T}def main():`);
-  
-  let ind=2, loopIdx=0; 
+  L.push(`${T}# Main Sequence`);
+  let ind=1, loopIdx=0; 
   steps.forEach(s=>{
     const tab=T.repeat(ind);
     switch(s.type){
       case 'movej':{const p=positions.find(x=>x.id===s.pid);L.push(`${tab}movej(${p?p.name:'UNKNOWN'}, a=JOINT_ACCEL, v=JOINT_SPEED, r=BLEND_RADIUS)`);break;}
       case 'movel':{const p=positions.find(x=>x.id===s.pid);L.push(`${tab}movel(${p?p.name:'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED, r=BLEND_RADIUS)`);break;}
       case 'movec':{const v=positions.find(x=>x.id===s.via),t=positions.find(x=>x.id===s.to);L.push(`${tab}movec(${v?v.name:'UNKNOWN'}, ${t?t.name:'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED)`);break;}
-      case 'open_gripper':     L.push(`${tab}open_gripper()`);break;
-      case 'close_gripper':    L.push(`${tab}close_gripper()`);break;
-      case 'activate_gripper': L.push(`${tab}activate_gripper()`);break;
       case 'sleep':            L.push(`${tab}sleep(${s.sec??1})`);break;
       case 'textmsg':          L.push(`${tab}textmsg("${s.msg??''}")`);break;
       case 'popup':            L.push(`${tab}popup("${s.msg??''}", title="Program", blocking=True)`);break;
@@ -821,9 +787,9 @@ function buildCode() {
       case 'loop_forever':  L.push(`${tab}while True:`);ind++;break;
       case 'loop_while':    L.push(`${tab}while get_digital_in(${s.port??0}) == ${s.val!==false?'True':'False'}:`);ind++;break;
       case 'if_din':        L.push(`${tab}if get_digital_in(${s.port??0}) == ${s.val!==false?'True':'False'}:`);ind++;break;
-      case 'else_block':    L.push(`${T.repeat(Math.max(2,ind-1))}else:`);break;
+      case 'else_block':    L.push(`${T.repeat(Math.max(1,ind-1))}else:`);break;
       case 'block_end':{
-        ind=Math.max(2,ind-1);
+        ind=Math.max(1,ind-1);
         const cvar=(typeof findMatchingLoopCounter === 'function') ? findMatchingLoopCounter(s) : null;
         if(cvar) L.push(`${T.repeat(ind)}${cvar} = ${cvar} + 1`);
         L.push(`${T.repeat(ind)}end`);
@@ -831,18 +797,13 @@ function buildCode() {
       }
     }
   });
-  L.push(`${T}${T}textmsg("=== Program Complete ===")`);
-  L.push(`${T}end`);
-  L.push('');
-  L.push(`${T}setup()`);
-  L.push(`${T}main()`);
+  L.push(`${T}textmsg("=== Program Complete ===")`);
   
-  // 2. CLOSE MASTER WRAPPER
+  // 2. CLOSE MASTER WRAPPER & ADD CRITICAL NEWLINE
   L.push('end');
-  
-  // 3. THE CRITICAL FIX: Append the trailing newline
   return L.join('\n') + '\n';
 }
+
 
 function findMatchingLoopCounter(endStep) {
   const ei=steps.indexOf(endStep);
