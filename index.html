@@ -191,6 +191,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font:
           <div><span style="color:var(--tx3)">Rz:</span> <span id="live-rz">0.00</span></div>
           <div style="flex:1"></div>
           <button class="btn btn-sm btn-ghost" onclick="fetchRobotState()" style="margin-top: -12px; margin-bottom: -12px;">↻ Refresh</button>
+          <label style="display: flex; align-items: center; gap: 4px; color: var(--tx2); cursor: pointer; font-size: 10px; margin-top: -12px; margin-bottom: -12px;">
+            <input type="checkbox" onchange="toggleLiveMonitoring(this)" style="accent-color: var(--ac);"> Live Tracker
+          </label>
         </div>
 
         <div style="display: flex; gap: 8px; align-items: center;">
@@ -335,6 +338,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font:
     <div class="card-hdr" style="background:#0a0a0c">
       <span class="card-title" style="color:var(--ac)">Generated URScript</span>
       <span style="font-size:10px;color:var(--tx3)" id="code-lines"></span>
+      <button class="btn btn-sm" onclick="exportProject()">💾 Save Project</button>
+      <label class="btn btn-sm" style="cursor:pointer; margin-right: 4px;">
+        📂 Load Project <input type="file" accept=".json" onchange="importProject(this)" style="display:none;">
+      </label>
+      <div class="hsep"></div>
+
       <button class="btn btn-sm" onclick="copyCode()">Copy</button>
       <button class="btn btn-sm btn-ac" onclick="downloadCode()">↓ Download</button>
     </div>
@@ -495,6 +504,24 @@ let fdAxes = [1, 1, 1, 1, 1, 1];
 let isFreedrive = false;
 let jogInterval = null;
 let latestJoints = null; // Store the live robot pose
+
+let livePollInterval = null;
+
+function toggleLiveMonitoring(checkbox) {
+  if (checkbox.checked) {
+    livePollInterval = setInterval(() => {
+      const ip = document.getElementById('robot-ip').value.trim();
+      // Only fetch if an IP exists and we aren't actively sending a program
+      const dot = document.getElementById('robot-dot').style.background;
+      if (ip && dot !== 'var(--bl)') {
+        fetchRobotState();
+      }
+    }, 250); // Updates 4 times a second
+  } else {
+    clearInterval(livePollInterval);
+    livePollInterval = null;
+  }
+}
 
 
 async function fetchRobotState() {
@@ -1051,6 +1078,51 @@ function downloadCode(){
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([buildCode()],{type:'text/plain'}));
   a.download='ur3e_program.script';a.click();
+}
+
+function exportProject() {
+  const projectData = {
+    positions: positions,
+    steps: steps,
+    settings: {
+      js: document.getElementById('js').value,
+      ja: document.getElementById('ja').value,
+      ls: document.getElementById('ls').value,
+      la: document.getElementById('la').value,
+    }
+  };
+  const blob = new Blob([JSON.stringify(projectData, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'ur3e_project.json';
+  a.click();
+}
+
+function importProject(fileInput) {
+  const file = fileInput.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const projectData = JSON.parse(e.target.result);
+      if (projectData.positions) positions = projectData.positions;
+      if (projectData.steps) steps = projectData.steps;
+      if (projectData.settings) {
+        if(projectData.settings.js) document.getElementById('js').value = projectData.settings.js;
+        if(projectData.settings.ja) document.getElementById('ja').value = projectData.settings.ja;
+        if(projectData.settings.ls) document.getElementById('ls').value = projectData.settings.ls;
+        if(projectData.settings.la) document.getElementById('la').value = projectData.settings.la;
+      }
+      renderPositions();
+      renderSteps();
+      refreshCode();
+      alert("📁 Project loaded successfully!");
+    } catch(err) {
+      alert("Error parsing project file: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+  fileInput.value = ''; // Reset input element
 }
 
 // ═══════════════════════════════════════════════════════════
