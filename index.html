@@ -179,12 +179,29 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font:
         <button class="fd-ax-btn on" id="fd-ax-5" onclick="toggleFdAxis(5)">Rz</button>
       </div>
 
-      <div style="padding: 10px; background: var(--bg); border-bottom: 1px solid var(--bd); font-family: var(--mono); font-size: 11px; display: flex; gap: 10px;">
-        <div><span style="color:var(--tx3)">X:</span> <span id="live-x">0.000</span>m</div>
-        <div><span style="color:var(--tx3)">Y:</span> <span id="live-y">0.000</span>m</div>
-        <div><span style="color:var(--tx3)">Z:</span> <span id="live-z">0.000</span>m</div>
-        <div style="flex:1"></div>
-        <button class="btn btn-sm btn-ghost" onclick="fetchRobotState()">↻ Refresh</button>
+      <div style="padding: 10px; background: var(--bg); border-bottom: 1px solid var(--bd); font-family: var(--mono); font-size: 10px; display: flex; flex-direction: column; gap: 8px;">
+        
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span style="color:var(--tx3); font-weight:bold; width: 24px;">TCP:</span>
+          <div><span style="color:var(--tx3)">X:</span> <span id="live-x">0.0000</span></div>
+          <div><span style="color:var(--tx3)">Y:</span> <span id="live-y">0.0000</span></div>
+          <div><span style="color:var(--tx3)">Z:</span> <span id="live-z">0.0000</span></div>
+          <div><span style="color:var(--tx3)">Rx:</span> <span id="live-rx">0.00</span></div>
+          <div><span style="color:var(--tx3)">Ry:</span> <span id="live-ry">0.00</span></div>
+          <div><span style="color:var(--tx3)">Rz:</span> <span id="live-rz">0.00</span></div>
+          <div style="flex:1"></div>
+          <button class="btn btn-sm btn-ghost" onclick="fetchRobotState()" style="margin-top: -12px; margin-bottom: -12px;">↻ Refresh</button>
+        </div>
+
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span style="color:var(--tx3); font-weight:bold; width: 24px;">JNT:</span>
+          <div><span style="color:var(--tx3)">B:</span> <span id="live-j0">0.00</span></div>
+          <div><span style="color:var(--tx3)">S:</span> <span id="live-j1">0.00</span></div>
+          <div><span style="color:var(--tx3)">E:</span> <span id="live-j2">0.00</span></div>
+          <div><span style="color:var(--tx3)">W1:</span> <span id="live-j3">0.00</span></div>
+          <div><span style="color:var(--tx3)">W2:</span> <span id="live-j4">0.00</span></div>
+          <div><span style="color:var(--tx3)">W3:</span> <span id="live-j5">0.00</span></div>
+        </div>
       </div>
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 10px;">
         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; text-align: center;">
@@ -489,14 +506,26 @@ async function fetchRobotState() {
       body: JSON.stringify({ip: ip, action: 'state'})
     });
     const data = await res.json();
-    if (data.ok && data.tcp) {
-      // Update UI readouts
-      document.getElementById('live-x').innerText = data.tcp[0].toFixed(3);
-      document.getElementById('live-y').innerText = data.tcp[1].toFixed(3);
-      document.getElementById('live-z').innerText = data.tcp[2].toFixed(3);
+    if (data.ok && data.tcp && data.joints) {
+      latestJoints = data.joints; // Save raw joints for the Record Live button
       
-      // Save the underlying joint angles so we can record them
-      if (data.joints) latestJoints = data.joints;
+      // Update TCP: X, Y, Z (Forces metric decimals)
+      document.getElementById('live-x').innerText = toDisp(data.tcp[0], false);
+      document.getElementById('live-y').innerText = toDisp(data.tcp[1], false);
+      document.getElementById('live-z').innerText = toDisp(data.tcp[2], false);
+      
+      // Update TCP: Rx, Ry, Rz (Allows Deg/Rad conversion based on your UI toggle)
+      document.getElementById('live-rx').innerText = toDisp(data.tcp[3], true);
+      document.getElementById('live-ry').innerText = toDisp(data.tcp[4], true);
+      document.getElementById('live-rz').innerText = toDisp(data.tcp[5], true);
+
+      // Update Joints (Allows Deg/Rad conversion based on your UI toggle)
+      document.getElementById('live-j0').innerText = toDisp(data.joints[0], true);
+      document.getElementById('live-j1').innerText = toDisp(data.joints[1], true);
+      document.getElementById('live-j2').innerText = toDisp(data.joints[2], true);
+      document.getElementById('live-j3').innerText = toDisp(data.joints[3], true);
+      document.getElementById('live-j4').innerText = toDisp(data.joints[4], true);
+      document.getElementById('live-j5').innerText = toDisp(data.joints[5], true);
     }
   } catch(e) {
     console.error("Failed to read robot state", e);
