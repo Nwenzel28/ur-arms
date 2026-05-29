@@ -753,15 +753,15 @@ function buildCode() {
   L.push('def master_program():');
   
   L.push(`${T}# Motion parameters`);
-  L.push(`${T}JOINT_SPEED  = ${js}`);
-  L.push(`${T}JOINT_ACCEL  = ${ja}`);
-  L.push(`${T}LINEAR_SPEED = ${ls}`);
-  L.push(`${T}LINEAR_ACCEL = ${la}`);
-  L.push(`${T}BLEND_RADIUS = ${br}`);
+  L.push(`${T}global JOINT_SPEED  = ${js}`);
+  L.push(`${T}global JOINT_ACCEL  = ${ja}`);
+  L.push(`${T}global LINEAR_SPEED = ${ls}`);
+  L.push(`${T}global LINEAR_ACCEL = ${la}`);
+  L.push(`${T}global BLEND_RADIUS = ${br}`);
   L.push('');
   
   L.push(`${T}# Positions`);
-  positions.forEach(pos=>L.push(`${T}${pos.name} = ${poseStr(pos)}`));
+  positions.forEach(pos=>L.push(`${T}global ${pos.name} = ${poseStr(pos)}`));
   L.push('');
   
   L.push(`${T}# Setup`);
@@ -783,7 +783,7 @@ function buildCode() {
       case 'set_digital_out':  L.push(`${tab}set_digital_out(${s.port??0}, ${s.val!==false?'True':'False'})`);break;
       case 'set_payload':      L.push(`${tab}set_payload(${s.weight??0})`);break;
       case 'set_tcp':          L.push(`${tab}set_tcp(p[${s.pose??'0,0,0,0,0,0'}])`);break;
-      case 'loop_n':{const cv=`_i${loopIdx++}`;L.push(`${tab}${cv} = 0`);L.push(`${tab}while ${cv} < ${s.count??5}:`);ind++;break;}
+      case 'loop_n':{const cv=`_i${loopIdx++}`;L.push(`${tab}global ${cv} = 0`);L.push(`${tab}while ${cv} < ${s.count??5}:`);ind++;break;}
       case 'loop_forever':  L.push(`${tab}while True:`);ind++;break;
       case 'loop_while':    L.push(`${tab}while get_digital_in(${s.port??0}) == ${s.val!==false?'True':'False'}:`);ind++;break;
       case 'if_din':        L.push(`${tab}if get_digital_in(${s.port??0}) == ${s.val!==false?'True':'False'}:`);ind++;break;
@@ -803,7 +803,6 @@ function buildCode() {
   L.push('end');
   return L.join('\n') + '\n';
 }
-
 
 function findMatchingLoopCounter(endStep) {
   const ei=steps.indexOf(endStep);
