@@ -5,217 +5,138 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>UR3e Program Builder</title>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-  <header class="hdr">
-    <div>
-      <div class="brand-title">UR3e Program Builder</div>
-      <div class="brand-sub">Robotiq 2F-85 · Phase 2</div>
-    </div>
-    <div class="hsep"></div>
-    <div class="seg">
-      <button class="seg-btn on" id="btn-deg">DEG</button>
-      <button class="seg-btn" id="btn-rad">RAD</button>
-    </div>
-    <div class="hspace"></div>
+  <div class="app">
+    <div class="side">
+      <div class="hdr" style="border-bottom: 1px solid var(--bd);">
+        <div class="title">Robot Control Panel</div>
+      </div>
+      
+      <div style="padding: 12px; border-bottom: 1px solid var(--bd); display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="robot-ip" class="input" placeholder="Robot IP (e.g. 192.168.1.100)" value="192.168.1.50" style="flex:1">
+          <select id="units-select" class="input" style="width: 75px; background: var(--sf2);" onchange="refreshDisplay()">
+            <option value="DEG" selected>DEG</option>
+            <option value="RAD">RAD</option>
+          </select>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button id="btn-fd" class="btn btn-ghost" style="flex:1" onclick="toggleFreedrive()">Enable Freedrive</button>
+        </div>
+      </div>
 
-    <div class="robot-bar">
-      <div class="robot-dot" id="robot-dot"></div>
-      <input class="robot-ip" id="robot-ip" type="text" value="169.254.190.160" placeholder="Robot IP">
-      <button class="btn btn-sm" id="ping-btn">Ping</button>
-      <button class="btn btn-sm btn-send" id="send-btn" disabled>▶ Send to Robot</button>
-    </div>
-
-    <div class="hsep"></div>
-    <button class="btn btn-sm" id="header-copy-btn">Copy</button>
-    <button class="btn btn-sm btn-ac" id="header-download-btn">↓ Download</button>
-  </header>
-
-  <div class="page">
-    <div class="app">
-      <div class="left-col">
+      <div style="padding: 10px; background: var(--bg); border-bottom: 1px solid var(--bd); font-family: var(--mono); font-size: 10px; display: flex; flex-direction: column; gap: 8px;">
         
-        <div class="card robot-control-card">
-          <div class="card-hdr panel-hdr-bg">
-            <span class="card-title panel-accent-title">🕹️ Robot Control</span>
-            <button class="btn btn-sm" id="btn-freedrive">✋ Freedrive: OFF</button>
-          </div>
-
-          <div class="fd-mask-grid">
-            <button class="fd-ax-btn on" id="fd-ax-0">X</button>
-            <button class="fd-ax-btn on" id="fd-ax-1">Y</button>
-            <button class="fd-ax-btn on" id="fd-ax-2">Z</button>
-            <button class="fd-ax-btn on" id="fd-ax-3">Rx</button>
-            <button class="fd-ax-btn on" id="fd-ax-4">Ry</button>
-            <button class="fd-ax-btn on" id="fd-ax-5">Rz</button>
-          </div>
-
-          <div class="live-status-container">
-            <div class="live-data-row">
-              <span class="live-label-width">TCP:</span>
-              <div><span class="dim-label">X:</span> <span id="live-x">0.0000</span></div>
-              <div><span class="dim-label">Y:</span> <span id="live-y">0.0000</span></div>
-              <div><span class="dim-label">Z:</span> <span id="live-z">0.0000</span></div>
-              <div><span class="dim-label">Rx:</span> <span id="live-rx">0.00</span></div>
-              <div><span class="dim-label">Ry:</span> <span id="live-ry">0.00</span></div>
-              <div><span class="dim-label">Rz:</span> <span id="live-rz">0.00</span></div>
-              <div class="hspace"></div>
-              <button class="btn btn-sm btn-ghost negative-margin-btn" id="refresh-state-btn">↻ Refresh</button>
-            </div>
-
-            <div class="live-data-row">
-              <span class="live-label-width">JNT:</span>
-              <div><span class="dim-label">B:</span> <span id="live-j0">0.00</span></div>
-              <div><span class="dim-label">S:</span> <span id="live-j1">0.00</span></div>
-              <div><span class="dim-label">E:</span> <span id="live-j2">0.00</span></div>
-              <div><span class="dim-label">W1:</span> <span id="live-j3">0.00</span></div>
-              <div><span class="dim-label">W2:</span> <span id="live-j4">0.00</span></div>
-              <div><span class="dim-label">W3:</span> <span id="live-j5">0.00</span></div>
-            </div>
-          </div>
-
-          <div class="jog-grid-container">
-            <div class="jog-column-group">
-              <div class="jog-group-header">TCP POSITION</div>
-              <button class="btn btn-sm" data-axis="0" data-dir="1">X+</button>
-              <button class="btn btn-sm" data-axis="1" data-dir="1">Y+</button>
-              <button class="btn btn-sm" data-axis="2" data-dir="1">Z+</button>
-              <button class="btn btn-sm" data-axis="0" data-dir="-1">X-</button>
-              <button class="btn btn-sm" data-axis="1" data-dir="-1">Y-</button>
-              <button class="btn btn-sm" data-axis="2" data-dir="-1">Z-</button>
-            </div>
-            <div class="jog-column-group">
-              <div class="jog-group-header">TCP ORIENTATION</div>
-              <button class="btn btn-sm" data-axis="3" data-dir="1">Rx+</button>
-              <button class="btn btn-sm" data-axis="4" data-dir="1">Ry+</button>
-              <button class="btn btn-sm" data-axis="5" data-dir="1">Rz+</button>
-              <button class="btn btn-sm" data-axis="3" data-dir="-1">Rx-</button>
-              <button class="btn btn-sm" data-axis="4" data-dir="-1">Ry-</button>
-              <button class="btn btn-sm" data-axis="5" data-dir="-1">Rz-</button>
-            </div>
-          </div>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <span style="color:var(--ac); font-weight:bold; width: 28px;">TCP:</span>
+          <div><span style="color:var(--tx2)">X:</span> <span id="live-x">0.0000</span></div>
+          <div><span style="color:var(--tx2)">Y:</span> <span id="live-y">0.0000</span></div>
+          <div><span style="color:var(--tx2)">Z:</span> <span id="live-z">0.0000</span></div>
+          <div><span style="color:var(--tx2)">Rx:</span> <span id="live-rx">0.0000</span></div>
+          <div><span style="color:var(--tx2)">Ry:</span> <span id="live-ry">0.0000</span></div>
+          <div><span style="color:var(--tx2)">Rz:</span> <span id="live-rz">0.0000</span></div>
+          <button class="btn btn-sm btn-ghost" onclick="fetchRobotState()" style="margin-left: auto; padding: 2px 6px;">↻ Refresh</button>
         </div>
 
-        <div class="card">
-          <div class="card-hdr">
-            <span class="card-title">Positions</span>
-            <button class="btn btn-sm btn-ac" id="record-live-btn">📍 Record Live</button>
-            <div class="hsep short-hsep"></div>
-            <button class="btn btn-sm" id="add-pos-joint-btn">+ Joint</button>
-            <button class="btn btn-sm" id="add-pos-cart-btn">+ Cartesian</button>
-          </div>
-          <div class="pos-list" id="pos-list"></div>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <span style="color:var(--ac); font-weight:bold; width: 28px;">JNT:</span>
+          <div><span style="color:var(--tx2)">Base:</span> <span id="live-j0">0.0000</span></div>
+          <div><span style="color:var(--tx2)">Shld:</span> <span id="live-j1">0.0000</span></div>
+          <div><span style="color:var(--tx2)">Elbw:</span> <span id="live-j2">0.0000</span></div>
+          <div><span style="color:var(--tx2)">Wst1:</span> <span id="live-j3">0.0000</span></div>
+          <div><span style="color:var(--tx2)">Wst2:</span> <span id="live-j4">0.0000</span></div>
+          <div><span style="color:var(--tx2)">Wst3:</span> <span id="live-j5">0.0000</span></div>
         </div>
       </div>
 
-      <div class="right-col">
-        <div class="card settings-card">
-          <div class="card-hdr">
-            <span class="card-title">Settings</span>
-            <button class="btn btn-sm" id="cfg-tog">▼ collapse</button>
-          </div>
-          <div id="cfg-body" class="cfg-body">
-            <div class="tab-bar">
-              <div class="tab on" data-tab="motion">Motion</div>
-              <div class="tab" data-tab="gripper">Gripper</div>
-              <div class="tab" data-tab="tcp">TCP</div>
-              <div class="tab" data-tab="payload">Payload</div>
-            </div>
-            
-            <div id="tab-motion" class="tab-pane on">
-              <div class="sg-grid">
-                <div class="sg"><label>Joint speed (rad/s)</label><input type="number" step="0.01" id="js" value="1.05"></div>
-                <div class="sg"><label>Joint accel (rad/s²)</label><input type="number" step="0.01" id="ja" value="1.4"></div>
-                <div class="sg"><label>Linear speed (m/s)</label><input type="number" step="0.01" id="ls" value="0.25"></div>
-                <div class="sg"><label>Linear accel (m/s²)</label><input type="number" step="0.01" id="la" value="1.2"></div>
-                <div class="sg"><label>Blend radius (m)</label><input type="number" step="0.001" id="br" value="0.0"></div>
-              </div>
-            </div>
-            
-            <div id="tab-gripper" class="tab-pane">
-              <div class="sg-grid">
-                <div class="sg"><label>Open position (mm)</label><input type="number" step="1" id="go" value="60"></div>
-                <div class="sg"><label>Close position (mm)</label><input type="number" step="1" id="gc" value="20"></div>
-                <div class="sg"><label>Speed (0–100)</label><input type="number" step="1" min="0" max="100" id="gs" value="100"></div>
-                <div class="sg"><label>Force (0–100)</label><input type="number" step="1" min="0" max="100" id="gf" value="100"></div>
-              </div>
-            </div>
-            
-            <div id="tab-tcp" class="tab-pane">
-              <div class="sg-grid">
-                <div class="sg"><label>X (m)</label><input type="number" step="0.001" id="tcp-x" value="0"></div>
-                <div class="sg"><label>Y (m)</label><input type="number" step="0.001" id="tcp-y" value="0"></div>
-                <div class="sg"><label>Z (m)</label><input type="number" step="0.001" id="tcp-z" value="0"></div>
-                <div class="sg"><label>RX (rad)</label><input type="number" step="0.001" id="tcp-rx" value="0"></div>
-                <div class="sg"><label>RY (rad)</label><input type="number" step="0.001" id="tcp-ry" value="0"></div>
-                <div class="sg"><label>RZ (rad)</label><input type="number" step="0.001" id="tcp-rz" value="0"></div>
-              </div>
-            </div>
-            
-            <div id="tab-payload" class="tab-pane">
-              <div class="sg-grid">
-                <div class="sg"><label>Weight (kg)</label><input type="number" step="0.1" id="pl-w" value="0.5"></div>
-                <div class="sg"><label>CoG X (m)</label><input type="number" step="0.001" id="pl-x" value="0"></div>
-                <div class="sg"><label>CoG Y (m)</label><input type="number" step="0.001" id="pl-y" value="0"></div>
-                <div class="sg"><label>CoG Z (m)</label><input type="number" step="0.001" id="pl-z" value="0"></div>
-              </div>
-            </div>
+      <div style="padding: 12px; border-bottom: 1px solid var(--bd); background: #131316;">
+        <div style="font-size: 11px; font-weight: 500; color: var(--tx2); margin-bottom: 8px; display:flex; justify-content:space-between; align-items:center;">
+          <span>MANUAL JOGGING (TCP SPACE)</span>
+          <div style="display:flex; align-items:center; gap:4px;">
+            <span style="font-size:10px;">Step:</span>
+            <input type="number" id="jog-step" class="input" value="10" style="width:50px; padding:2px 4px; height:20px; font-size:10px; text-align:center;">
+            <span style="font-size:10px; color:var(--tx3)">mm</span>
           </div>
         </div>
+        
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 6px;">
+          <button class="btn btn-sm btn-ghost" onclick="jog('X', 1)">X +</button>
+          <button class="btn btn-sm btn-ghost" onclick="jog('Y', 1)">Y +</button>
+          <button class="btn btn-sm btn-ghost" onclick="jog('Z', 1)">Z +</button>
+          <button class="btn btn-sm btn-ghost" onclick="jog('X', -1)">X -</button>
+          <button class="btn btn-sm btn-ghost" onclick="jog('Y', -1)">Y -</button>
+          <button class="btn btn-sm btn-ghost" onclick="jog('Z', -1)">Z -</button>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+          <button class="btn btn-sm btn-ghost" style="color:var(--pu)" onclick="jog('Rx', 1)">Rx +</button>
+          <button class="btn btn-sm btn-ghost" style="color:var(--pu)" onclick="jog('Ry', 1)">Ry +</button>
+          <button class="btn btn-sm btn-ghost" style="color:var(--pu)" onclick="jog('Rz', 1)">Rz +</button>
+          <button class="btn btn-sm btn-ghost" style="color:var(--pu)" onclick="jog('Rx', -1)">Rx -</button>
+          <button class="btn btn-sm btn-ghost" style="color:var(--pu)" onclick="jog('Ry', -1)">Ry -</button>
+          <button class="btn btn-sm btn-ghost" style="color:var(--pu)" onclick="jog('Rz', -1)">Rz -</button>
+        </div>
+      </div>
 
-        <div class="card program-card">
-          <div class="card-hdr">
-            <span class="card-title">Program</span>
-            <span id="step-count" class="step-count-label"></span>
-          </div>
-          <div class="warn-box" id="warn-box"></div>
-          <div class="steps-body" id="steps-list"></div>
-          <div class="add-bar">
-            <select id="new-type">
-              <optgroup label="Motion">
-                <option value="movej">movej — Joint move</option>
-                <option value="movel">movel — Linear move</option>
-                <option value="movec">movec — Circular arc</option>
-              </optgroup>
-              <optgroup label="Gripper">
-                <option value="activate_gripper">Activate gripper</option>
-                <option value="open_gripper">Open gripper</option>
-                <option value="close_gripper">Close gripper</option>
-              </optgroup>
-              <optgroup label="Flow Control">
-                <option value="loop_n">Repeat N times</option>
-                <option value="loop_forever">Loop forever</option>
-                <option value="loop_while">While digital input</option>
-                <option value="if_din">If digital input</option>
-                <option value="else_block">Else</option>
-                <option value="block_end">End block</option>
-              </optgroup>
-              <optgroup label="Utilities">
-                <option value="sleep">Sleep</option>
-                <option value="textmsg">Log message</option>
-                <option value="popup">Popup (pendant)</option>
-                <option value="set_digital_out">Set digital output</option>
-                <option value="set_payload">Set payload</option>
-                <option value="set_tcp">Set TCP</option>
-              </optgroup>
+      <div style="padding: 12px; border-bottom: 1px solid var(--bd); background: var(--sf); display: flex; flex-direction: column; gap: 10px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div>
+            <label class="lbl">Movement Profile</label>
+            <select id="param-type" class="input">
+              <option value="movej" selected>MoveJ (Joint-space)</option>
+              <option value="movel">MoveL (Linear-space)</option>
             </select>
-            <button class="btn btn-ac" id="add-step-btn">+ Add step</button>
+          </div>
+          <div>
+            <label class="lbl">Target Blend Radius</label>
+            <div style="display: flex; align-items: center; position: relative;">
+              <input type="number" id="param-blend" class="input" value="0" step="5">
+              <span style="position: absolute; right: 8px; font-size: 11px; color: var(--tx3); pointer-events: none;">mm</span>
+            </div>
           </div>
         </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div>
+            <label class="lbl">Tool Joint Speed</label>
+            <div style="display: flex; align-items: center; position: relative;">
+              <input type="number" id="param-speed" class="input" value="1.0" step="0.1">
+              <span id="unit-speed" class="position-unit">rad/s</span>
+            </div>
+          </div>
+          <div>
+            <label class="lbl">Tool Acceleration</label>
+            <div style="display: flex; align-items: center; position: relative;">
+              <input type="number" id="param-accel" class="input" value="1.4" step="0.1">
+              <span id="unit-accel" class="position-unit">rad/s²</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px;">
+          <button class="btn btn-ghost" onclick="recordLivePosition()" style="border-color: var(--bl); color: var(--bl);">➕ Record Live</button>
+          <button class="btn" onclick="addWaypoint()">Add Custom</button>
+        </div>
       </div>
+
+      <div class="pos-list" id="pos-list"></div>
     </div>
 
-    <div class="code-wrap">
-      <div class="card">
-        <div class="card-hdr console-hdr-bg">
-          <span class="card-title panel-accent-title">Generated URScript</span>
-          <span id="code-lines" class="step-count-label"></span>
-          <button class="btn btn-sm" id="footer-copy-btn">Copy</button>
-          <button class="btn btn-sm btn-ac" id="footer-download-btn">↓ Download</button>
+    <div class="main">
+      <div class="hdr" style="border-bottom: 1px solid var(--bd);">
+        <div class="title">Generated URScript Code Output</div>
+        <div id="code-lines" style="font-size: 11px; color: var(--tx3); font-family: var(--mono);">0 lines</div>
+        <div style="flex:1"></div>
+        <button class="btn btn-ghost" style="padding: 4px 10px; font-size: 11px;" onclick="copyCode()">Copy Code</button>
+        <button class="btn" style="padding: 4px 12px; font-size: 11px; background: var(--gn); border-color: var(--gn);" onclick="runProgram()">🚀 Run on Robot</button>
+      </div>
+      <div class="editor-wrap">
+        <div class="editor-scroller">
+          <pre id="code-out" class="code-block"></pre>
         </div>
-        <div class="code-block" id="code-out"></div>
       </div>
     </div>
   </div>
