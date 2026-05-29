@@ -211,6 +211,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font:
     <div class="card">
       <div class="card-hdr">
         <span class="card-title">Positions</span>
+        <button class="btn btn-sm btn-ac" onclick="recordLivePosition()">📍 Record Live</button>
+        <div class="hsep" style="height: 16px;"></div>
         <button class="btn btn-sm" onclick="addPos('joint')">+ Joint</button>
         <button class="btn btn-sm" onclick="addPos('cart')">+ Cartesian</button>
       </div>
@@ -470,11 +472,12 @@ async function sendToRobot() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// LIVE JOGGING & STATE (FIXED: SMOOTHER TIMINGS)
+// LIVE JOGGING & STATE (FIXED: SMOOTHER TIMINGS & RECORDING)
 // ═══════════════════════════════════════════════════════════
-let fdAxes = [1, 1, 1, 1, 1, 1]; // X, Y, Z, Rx, Ry, Rz (1=Free, 0=Locked)
+let fdAxes = [1, 1, 1, 1, 1, 1]; 
 let isFreedrive = false;
 let jogInterval = null;
+let latestJoints = null; // Store the live robot pose
 
 async function fetchRobotState() {
   const ip = document.getElementById('robot-ip').value.trim();
@@ -487,13 +490,36 @@ async function fetchRobotState() {
     });
     const data = await res.json();
     if (data.ok && data.tcp) {
+      // Update UI readouts
       document.getElementById('live-x').innerText = data.tcp[0].toFixed(3);
       document.getElementById('live-y').innerText = data.tcp[1].toFixed(3);
       document.getElementById('live-z').innerText = data.tcp[2].toFixed(3);
+      
+      // Save the underlying joint angles so we can record them
+      if (data.joints) latestJoints = data.joints;
     }
   } catch(e) {
     console.error("Failed to read robot state", e);
   }
+}
+
+function recordLivePosition() {
+  if (!latestJoints) {
+    alert("Please click '↻ Refresh' on the Robot Control panel first to get the latest coordinates!");
+    return;
+  }
+  
+  // Push a new Joint position using the live data from the robot
+  positions.push({
+    id: uid(), 
+    name: 'POS_' + (positions.length + 1), 
+    type: 'joint', 
+    j: [...latestJoints] 
+  });
+  
+  renderPositions(); 
+  renderSteps(); 
+  refreshCode();
 }
 
 function sendDirect(codeStr) {
@@ -511,7 +537,6 @@ function toggleFdAxis(index) {
   const btn = document.getElementById(`fd-ax-${index}`);
   btn.classList.toggle('on', fdAxes[index] === 1);
   
-  // If freedrive is already live, update the mask immediately on the robot
   if (isFreedrive) {
     sendDirect(`def fd_update():\n  freedrive_mode([${fdAxes.join(',')}], p[0,0,0,0,0,0])\n  sleep(3600)\nend\n`);
   }
@@ -525,7 +550,6 @@ function toggleFreedrive() {
     btn.textContent = "✋ Freedrive: ON";
     btn.style.background = "var(--ac)";
     btn.style.color = "#fff";
-    // Uses the customized axis matrix relative to the base feature frame
     sendDirect(`def fd_on():\n  freedrive_mode([${fdAxes.join(',')}], p[0,0,0,0,0,0])\n  sleep(3600)\nend\n`);
   } else {
     btn.textContent = "✋ Freedrive: OFF";
@@ -538,17 +562,21 @@ function toggleFreedrive() {
 function startJog(axis, direction) {
   if (jogInterval) clearInterval(jogInterval);
   let vector = [0,0,0,0,0,0];
-  vector[axis] = direction * (axis < 3 ? 0.06 : 0.25); 
+  vector[axis] = direction * (axis < 3 ? 0.05 : 0.25); 
   
-  // FIXED: Lowered step window 't' to 0.10s and loop rate to 50ms for high density updates (smoother motion)
-  const speedlCmd = `def jog():\n  speedl([${vector.join(',')}], a=0.6, t=0.10)\nend\n`;
+  // FIX: We tell the robot to move smoothly for 1.0 seconds. 
+  const speedlCmd = `def jog():\n  speedl([${vector.join(',')}], a=0.3, t=1.0)\nend\n`;
   sendDirect(speedlCmd); 
-  jogInterval = setInterval(() => { sendDirect(speedlCmd); }, 50);
+  
+  // To keep it moving without stuttering, we only refresh the command every 800ms.
+  // This maintains a safety watchdog (it stops if browser crashes) without interrupting the compiler constantly.
+  jogInterval = setInterval(() => { sendDirect(speedlCmd); }, 800);
 }
 
 function stopJog() {
   if(jogInterval) clearInterval(jogInterval);
   jogInterval = null;
+  // This instantly interrupts the running 1.0s speedl command and forces a safe, soft stop
   sendDirect("def stop_jog():\n  stopl(2.5)\nend\n");
 }
 
