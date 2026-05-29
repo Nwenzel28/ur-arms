@@ -158,6 +158,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font:
   <div class="hsep"></div>
   <button class="btn btn-sm" onclick="copyCode()">Copy</button>
   <button class="btn btn-sm btn-ac" onclick="downloadCode()">↓ Download</button>
+  <div class="hsep"></div>
+  <button class="btn btn-sm" style="background: var(--rd); color: white; font-weight: bold; padding: 4px 16px;" onclick="emergencyStop()"> E-STOP</button>
 </header>
 
 <div class="page">
@@ -166,8 +168,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font:
     
     <div class="card" style="margin-bottom: 12px; flex-shrink: 0;">
       <div class="card-hdr" style="background: var(--sf2);">
-        <span class="card-title" style="color: var(--ac);">🕹️ Robot Control</span>
-        <button class="btn btn-sm" id="btn-freedrive" onclick="toggleFreedrive()" style="border-color:var(--bd2); color:var(--tx2);">✋ Freedrive: OFF</button>
+        <span class="card-title" style="color: var(--ac);"> Robot Control</span>
+        <button class="btn btn-sm" id="btn-freedrive" onclick="toggleFreedrive()" style="border-color:var(--bd2); color:var(--tx2);"> Freedrive: OFF</button>
       </div>
 
       <div class="fd-mask-grid">
@@ -231,7 +233,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font:
     <div class="card">
       <div class="card-hdr">
         <span class="card-title">Positions</span>
-        <button class="btn btn-sm btn-ac" onclick="recordLivePosition()">📍 Record Live</button>
+        <button class="btn btn-sm btn-ac" onclick="recordLivePosition()"> Record Live</button>
         <div class="hsep" style="height: 16px;"></div>
         <button class="btn btn-sm" onclick="addPos('joint')">+ Joint</button>
         <button class="btn btn-sm" onclick="addPos('cart')">+ Cartesian</button>
@@ -338,9 +340,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font:
     <div class="card-hdr" style="background:#0a0a0c">
       <span class="card-title" style="color:var(--ac)">Generated URScript</span>
       <span style="font-size:10px;color:var(--tx3)" id="code-lines"></span>
-      <button class="btn btn-sm" onclick="exportProject()">💾 Save Project</button>
+      <button class="btn btn-sm" onclick="exportProject()">Save Project</button>
       <label class="btn btn-sm" style="cursor:pointer; margin-right: 4px;">
-        📂 Load Project <input type="file" accept=".json" onchange="importProject(this)" style="display:none;">
+        Load Project <input type="file" accept=".json" onchange="importProject(this)" style="display:none;">
       </label>
       <div class="hsep"></div>
 
@@ -440,6 +442,11 @@ async function pingRobot() {
   }
 }
 
+function emergencyStop() {
+  console.error("EMERGENCY STOP TRIGGERED");
+  sendDirect("stopj(2.0)\n");
+}
+
 async function sendToRobot() {
   const ip = document.getElementById('robot-ip').value.trim();
   if (!ip) { alert('Enter the robot IP address.'); return; }
@@ -453,7 +460,7 @@ async function sendToRobot() {
   const sendBtn = document.getElementById('send-btn');
   const origText = sendBtn.textContent;
   sendBtn.disabled = true;
-  sendBtn.textContent = '⏳ Sending…';
+  sendBtn.textContent = 'Sending…';
   setDot('sending');
 
   try {
@@ -613,12 +620,12 @@ function toggleFreedrive() {
   const btn = document.getElementById('btn-freedrive');
   
   if (isFreedrive) {
-    btn.textContent = "✋ Freedrive: ON";
+    btn.textContent = "Freedrive: ON";
     btn.style.background = "var(--ac)";
     btn.style.color = "#fff";
     sendDirect(`def fd_on():\n  freedrive_mode([${fdAxes.join(',')}], p[0,0,0,0,0,0])\n  sleep(3600)\nend\n`);
   } else {
-    btn.textContent = "✋ Freedrive: OFF";
+    btn.textContent = "Freedrive: OFF";
     btn.style.background = "transparent";
     btn.style.color = "var(--ac)";
     sendDirect("def fd_off():\n  end_freedrive_mode()\nend\n");
@@ -1116,7 +1123,7 @@ function importProject(fileInput) {
       renderPositions();
       renderSteps();
       refreshCode();
-      alert("📁 Project loaded successfully!");
+      alert("Project loaded successfully!");
     } catch(err) {
       alert("Error parsing project file: " + err.message);
     }
