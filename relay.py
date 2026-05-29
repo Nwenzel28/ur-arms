@@ -68,21 +68,25 @@ class Handler(BaseHTTPRequestHandler):
                     except FileNotFoundError:
                         print("⚠️ robotiq_preamble.script missing!")
 
-                    # Inject the hardware bootup sequence safely
+                    # 1. Ensure the hardware initialization function we created at the bottom is called
+                    preamble_code += "\n    init_robotiq_hardware()\n"
+
+                    # 2. Inject the ENTIRE preamble INSIDE the main function block!
+                    # This completely solves all scope, index, and uninitialized variable errors.
                     timeline_code = timeline_code.replace(
                         "def master_program():", 
-                        "def master_program():\n    init_robotiq_hardware()\n"
+                        "def master_program():\n" + preamble_code
                     )
 
-                    # Stitch them together
-                    full_transpiled_program = preamble_code + "\n\n" + timeline_code
+                    # 3. Use this perfectly nested code as our final payload
+                    full_transpiled_program = timeline_code
 
-                    # Ensure it executes
+                    # Ensure it executes at the end
                     if not full_transpiled_program.strip().endswith("master_program()"):
                         full_transpiled_program += "\nmaster_program()\n"
                 
                 else:
-                    # It's a quick command (Free Drive, Stop, etc). Send it raw without the preamble!
+                    # It's a quick command (Free Drive, Stop, etc). Send it raw!
                     full_transpiled_program = timeline_code
 
                 # Stream the payload to the controller
@@ -92,6 +96,8 @@ class Handler(BaseHTTPRequestHandler):
                     s.sendall(full_transpiled_program.encode())
                 
                 resp = b'{"ok":true}'
+        
+
 
         except Exception as e:
             print(f"Relay Error [{action}]: {e}")
