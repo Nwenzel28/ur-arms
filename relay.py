@@ -59,36 +59,39 @@ class Handler(BaseHTTPRequestHandler):
                 # Standard URScript sending
                 timeline_code = data['code']
                 
-                # 1. Look for the pre-built driver file on disk
-                preamble_code = ""
-                try:
-                    with open("robotiq_preamble.script", "r") as f:
-                        preamble_code = f.read()
-                except FileNotFoundError:
-                    print("⚠️ robotiq_preamble.script missing! Sending raw timeline.")
-
-                # 2. Inject the hardware bootup sequence safely into the timeline
+                # Check if this is the main timeline program
                 if "def master_program():" in timeline_code:
+                    preamble_code = ""
+                    try:
+                        with open("robotiq_preamble.script", "r") as f:
+                            preamble_code = f.read()
+                    except FileNotFoundError:
+                        print("⚠️ robotiq_preamble.script missing!")
+
+                    # Inject the hardware bootup sequence safely
                     timeline_code = timeline_code.replace(
                         "def master_program():", 
                         "def master_program():\n    init_robotiq_hardware()\n"
                     )
 
-                # 3. Stitch them together CORRECTLY.
-                full_transpiled_program = preamble_code + "\n\n" + timeline_code
+                    # Stitch them together
+                    full_transpiled_program = preamble_code + "\n\n" + timeline_code
 
-                # 4. Ensure the robot actually executes the code!
-                if not full_transpiled_program.strip().endswith("master_program()"):
-                    full_transpiled_program += "\nmaster_program()\n"
+                    # Ensure it executes
+                    if not full_transpiled_program.strip().endswith("master_program()"):
+                        full_transpiled_program += "\nmaster_program()\n"
+                
+                else:
+                    # It's a quick command (Free Drive, Stop, etc). Send it raw without the preamble!
+                    full_transpiled_program = timeline_code
 
-                # 5. Stream the unified payload to the controller
+                # Stream the payload to the controller
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.settimeout(2.0)
                     s.connect((ip, ROBOT_PORT))
                     s.sendall(full_transpiled_program.encode())
                 
                 resp = b'{"ok":true}'
-
 
         except Exception as e:
             print(f"Relay Error [{action}]: {e}")

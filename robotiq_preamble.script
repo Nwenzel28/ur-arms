@@ -1,3 +1,7 @@
+  global gripper_connected = [False, False, False, False]
+  global rq_gripper_id = [0, 0, 0, 0]
+  global rq_gripper_type = [0, 0, 0, 0]
+  global rq_is_gripper_activated = [False, False, False, False]
   global _hidden_verificationVariable=0
   step_count_450f5d79_fd72_4646_9ce9_500ea850b9da = 0.0
   thread Step_Counter_Thread_b70ca59f_9c07_40c6_96f1_4ddf32464be5():
