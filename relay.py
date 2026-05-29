@@ -65,6 +65,34 @@ class Handler(BaseHTTPRequestHandler):
                     with open("robotiq_preamble.script", "r") as f:
                         preamble_code = f.read()
                 except FileNotFoundError:
+                    print("⚠️ robotiq_preamble.script missing! Sending raw timeline.")
+
+                # 2. Stitch them together CORRECTLY.
+                # Global variables and preamble functions must sit OUTSIDE and ABOVE the main program.
+                # (URScript does not allow nested functions!)
+                full_transpiled_program = preamble_code + "\n\n" + timeline_code
+
+                # 3. Ensure the robot actually executes the code!
+                # If your UI forgot to append the execution call at the bottom, the relay adds it.
+                if not full_transpiled_program.strip().endswith("master_program()"):
+                    full_transpiled_program += "\nmaster_program()\n"
+
+                # 4. Stream the unified payload to the controller
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(2.0)
+                    s.connect((ip, ROBOT_PORT))
+                    s.sendall(full_transpiled_program.encode())
+                
+                resp = b'{"ok":true}'
+                # Standard URScript sending
+                timeline_code = data['code']
+                
+                # 1. Look for the pre-built driver file on disk
+                preamble_code = ""
+                try:
+                    with open("robotiq_preamble.script", "r") as f:
+                        preamble_code = f.read()
+                except FileNotFoundError:
                     print("robotiq_preamble.script missing! Sending raw timeline.")
 
                 # 2. Stitch them together SAFELY.
