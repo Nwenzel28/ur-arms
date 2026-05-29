@@ -67,9 +67,16 @@ class Handler(BaseHTTPRequestHandler):
                 except FileNotFoundError:
                     print("robotiq_preamble.script missing! Sending raw timeline.")
 
-                # 2. Stitch them together. 
-                # Global functions sit safely ABOVE the master custom_program() block
-                full_transpiled_program = preamble_code + "\n" + timeline_code
+                # 2. Stitch them together SAFELY.
+                # UR requires everything to be inside the master function block.
+                if "def custom_program():" in timeline_code:
+                    # We dynamically inject the preamble directly underneath the main def declaration
+                    full_transpiled_program = timeline_code.replace(
+                        "def custom_program():", 
+                        "def custom_program():\n" + preamble_code
+                    )
+                else:
+                    full_transpiled_program = preamble_code + "\n" + timeline_code
 
                 # 3. Stream the unified payload to the controller
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
