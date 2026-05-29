@@ -2366,31 +2366,33 @@
       return scale(value, range, range)
   end
   
-  
-  rq_init_comm_if_connected(9, "1")
-  rq_init_comm_if_connected(2, "2")
-  rq_init_comm_if_connected(3, "3")
-  rq_init_comm_if_connected(4, "4")
-  rq_print_connected_grippers()
-  rq_gripper_communication_thread = run rq_gripper_communication()
-  set_closed_norm(90.19607843137254, 1)
-  set_open_norm(1.1764705882352942, 1)
-  set_closed_mm(0.0, 1)
-  set_open_mm(85.0, 1)
-  set_closed_norm(100.0, 2)
-  set_open_norm(0.0, 2)
-  set_closed_mm(0.0, 2)
-  set_open_mm(50.0, 2)
-  set_closed_norm(100.0, 3)
-  set_open_norm(0.0, 3)
-  set_closed_mm(0.0, 3)
-  set_open_mm(50.0, 3)
-  set_closed_norm(100.0, 4)
-  set_open_norm(0.0, 4)
-  set_closed_mm(0.0, 4)
-  set_open_mm(50.0, 4)
-  rq_current_limit_enabled = False
-  while(not rq_gripper_communication_thread_started):
-      sleep(0.008)
-  end
+  # --- ADD THIS DEF LINE ---
+  def init_robotiq_hardware():
+      rq_init_comm_if_connected(9, "1")
+      rq_init_comm_if_connected(2, "2")
+      rq_init_comm_if_connected(3, "3")
+      rq_init_comm_if_connected(4, "4")
+      rq_print_connected_grippers()
+      rq_gripper_communication_thread = run rq_gripper_communication()
+      set_closed_norm(90.19607843137254, 1)
+      set_open_norm(1.1764705882352942, 1)
+      set_closed_mm(0.0, 1)
+      set_open_mm(85.0, 1)
+      set_closed_norm(100.0, 2)
+      set_open_norm(0.0, 2)
+      set_closed_mm(0.0, 2)
+      set_open_mm(50.0, 2)
+      set_closed_norm(100.0, 3)
+      set_open_norm(0.0, 3)
+      set_closed_mm(0.0, 3)
+      set_open_mm(50.0, 3)
+      set_closed_norm(100.0, 4)
+      set_open_norm(0.0, 4)
+      set_closed_mm(0.0, 4)
+      set_open_mm(50.0, 4)
+      rq_current_limit_enabled = False
+      while(not rq_gripper_communication_thread_started):
+          sleep(0.008)
+      end
+  end # --- ADD THIS END LINE ---
   # end: URCap Installation Node
