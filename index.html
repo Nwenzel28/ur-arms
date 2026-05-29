@@ -992,9 +992,16 @@ function buildCode() {
   L.push('');
   
   L.push(`${T}# Main Sequence`);
-
+  // Open the loopback channel
   L.push(`${T}socket_open("127.0.0.1", 63352, "rq_srv")`);
-
+  
+  // MANDATORY BULLETPROOF INITIALIZATION: Primer sequence so the daemon accepts POS commands
+  L.push(`${T}socket_send_string("SET ACT 1\\n", "rq_srv")`);
+  L.push(`${T}sync()`);
+  L.push(`${T}socket_send_string("SET GTO 1\\n", "rq_srv")`);
+  L.push(`${T}sync()`);
+  L.push(`${T}sleep(1.0)`); 
+  
   let ind=1, loopIdx=0; 
   steps.forEach(s=>{
     const tab=T.repeat(ind);
@@ -1004,27 +1011,36 @@ function buildCode() {
       case 'movel':{const p=positions.find(x=>x.id===s.pid);L.push(`${tab}movel(${p?p.name:'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED, r=BLEND_RADIUS)`);break;}
       case 'movec':{const v=positions.find(x=>x.id===s.via),t=positions.find(x=>x.id===s.to);L.push(`${tab}movec(${v?v.name:'UNKNOWN'}, ${t?t.name:'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED)`);break;}
       
-      // Gripper
-      // Gripper Socket Commands (Clean No-Timeout Edition)
-      // Gripper Commands (Send Only)
+      // Gripper Commands (Send Only Edition + Thread Sync Fix)
       case 'activate_gripper':
         L.push(`${tab}socket_send_string("SET ACT 1\\n", "rq_srv")`);
+        L.push(`${tab}sync()`);
         L.push(`${tab}socket_send_string("SET GTO 1\\n", "rq_srv")`);
+        L.push(`${tab}sync()`);
         L.push(`${tab}sleep(1.0)`);
+        L.push(`${tab}textmsg("GRIPPER:ACTIVATE")`);
         break;
         
       case 'open_gripper':
         L.push(`${tab}socket_send_string("SET SPE 255\\n", "rq_srv")`);
+        L.push(`${tab}sync()`);
         L.push(`${tab}socket_send_string("SET FOR 255\\n", "rq_srv")`);
+        L.push(`${tab}sync()`);
         L.push(`${tab}socket_send_string("SET POS 0\\n", "rq_srv")`);
+        L.push(`${tab}sync()`);
         L.push(`${tab}sleep(0.8)`);
+        L.push(`${tab}textmsg("GRIPPER:OPEN")`);
         break;
         
       case 'close_gripper':
         L.push(`${tab}socket_send_string("SET SPE 255\\n", "rq_srv")`);
+        L.push(`${tab}sync()`);
         L.push(`${tab}socket_send_string("SET FOR 255\\n", "rq_srv")`);
+        L.push(`${tab}sync()`);
         L.push(`${tab}socket_send_string("SET POS 255\\n", "rq_srv")`);
+        L.push(`${tab}sync()`);
         L.push(`${tab}sleep(0.8)`);
+        L.push(`${tab}textmsg("GRIPPER:CLOSE")`);
         break;
       
       //Other
@@ -1049,7 +1065,9 @@ function buildCode() {
     }
   });
 
+  // Close channel cleanly at the end
   L.push(`${T}socket_close("rq_srv")`);
+  
   L.push(`${T}textmsg("=== Program Complete ===")`);
   L.push('end');
   return L.join('\n') + '\n';
