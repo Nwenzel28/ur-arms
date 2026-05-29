@@ -68,12 +68,11 @@ class Handler(BaseHTTPRequestHandler):
                     print("robotiq_preamble.script missing! Sending raw timeline.")
 
                 # 2. Stitch them together SAFELY.
-                # UR requires everything to be inside the master function block.
-                if "def custom_program():" in timeline_code:
-                    # We dynamically inject the preamble directly underneath the main def declaration
+                if "def master_program():" in timeline_code:
+                    # Dynamically inject the preamble directly underneath the main def declaration
                     full_transpiled_program = timeline_code.replace(
-                        "def custom_program():", 
-                        "def custom_program():\n" + preamble_code
+                        "def master_program():", 
+                        "def master_program():\n" + preamble_code
                     )
                 else:
                     full_transpiled_program = preamble_code + "\n" + timeline_code
