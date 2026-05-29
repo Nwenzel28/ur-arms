@@ -1003,13 +1003,13 @@ function buildCode() {
       
       // Gripper
       case 'activate_gripper':
-        s += `${tab}rq_activate_and_wait()\n`;
+        L.push(`${tab}rq_activate_and_wait()`);
         break;
       case 'open_gripper':
-        s += `${tab}rq_move_and_wait(0)\n`; // 0 = Fully Open
+        L.push(`${tab}rq_move_and_wait(0)`); // 0 = Fully Open
         break;
       case 'close_gripper':
-        s += `${tab}rq_move_and_wait(255)\n`; // 255 = Fully Closed
+        L.push(`${tab}rq_move_and_wait(255)`); // 255 = Fully Closed
         break;
       
       //Other
