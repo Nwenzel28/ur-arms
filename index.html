@@ -999,9 +999,9 @@ function buildCode() {
       case 'movej':{const p=positions.find(x=>x.id===s.pid);L.push(`${tab}movej(${p?p.name:'UNKNOWN'}, a=JOINT_ACCEL, v=JOINT_SPEED, r=BLEND_RADIUS)`);break;}
       case 'movel':{const p=positions.find(x=>x.id===s.pid);L.push(`${tab}movel(${p?p.name:'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED, r=BLEND_RADIUS)`);break;}
       case 'movec':{const v=positions.find(x=>x.id===s.via),t=positions.find(x=>x.id===s.to);L.push(`${tab}movec(${v?v.name:'UNKNOWN'}, ${t?t.name:'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED)`);break;}
-      case 'activate_gripper': L.push(`${tab}# rq_activate_and_wait()`);break;
-      case 'open_gripper':     L.push(`${tab}# rq_move_and_wait_norm(GRIPPER_OPEN_MM)`);break;
-      case 'close_gripper':    L.push(`${tab}# rq_move_and_wait_norm(GRIPPER_CLOSE_MM)`);break;
+      case 'activate_gripper': L.push(`${tab}rq_activate_and_wait()`);break;
+      case 'open_gripper':     L.push(`${tab}rq_move_and_wait_norm(GRIPPER_OPEN_MM)`);break;
+      case 'close_gripper':    L.push(`${tab}rq_move_and_wait_norm(GRIPPER_CLOSE_MM)`);break;
       
       case 'sleep':            L.push(`${tab}sleep(${s.sec??1})`);break;
       case 'textmsg':          L.push(`${tab}textmsg("${s.msg??''}")`);break;
