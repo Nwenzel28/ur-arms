@@ -1002,14 +1002,29 @@ function buildCode() {
       case 'movec':{const v=positions.find(x=>x.id===s.via),t=positions.find(x=>x.id===s.to);L.push(`${tab}movec(${v?v.name:'UNKNOWN'}, ${t?t.name:'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED)`);break;}
       
       // Gripper
+      // Gripper Native Socket Commands
       case 'activate_gripper':
-        L.push(`${tab}rq_activate_and_wait()`);
+        L.push(`${tab}socket_open("127.0.0.1", 63352, "rq_srv")`);
+        L.push(`${tab}socket_send_string("SET ACT 1\\n", "rq_srv")`);
+        L.push(`${tab}socket_send_string("SET GTO 1\\n", "rq_srv")`);
+        L.push(`${tab}sleep(1.0)`);
+        L.push(`${tab}socket_close("rq_srv")`);
         break;
       case 'open_gripper':
-        L.push(`${tab}rq_move_and_wait(0)`); // 0 = Fully Open
+        L.push(`${tab}socket_open("127.0.0.1", 63352, "rq_srv")`);
+        L.push(`${tab}socket_send_string("SET SPE 255\\n", "rq_srv")`);
+        L.push(`${tab}socket_send_string("SET FOR 255\\n", "rq_srv")`);
+        L.push(`${tab}socket_send_string("SET POS 0\\n", "rq_srv")`);
+        L.push(`${tab}sleep(0.8)`);
+        L.push(`${tab}socket_close("rq_srv")`);
         break;
       case 'close_gripper':
-        L.push(`${tab}rq_move_and_wait(255)`); // 255 = Fully Closed
+        L.push(`${tab}socket_open("127.0.0.1", 63352, "rq_srv")`);
+        L.push(`${tab}socket_send_string("SET SPE 255\\n", "rq_srv")`);
+        L.push(`${tab}socket_send_string("SET FOR 255\\n", "rq_srv")`);
+        L.push(`${tab}socket_send_string("SET POS 255\\n", "rq_srv")`);
+        L.push(`${tab}sleep(0.8)`);
+        L.push(`${tab}socket_close("rq_srv")`);
         break;
       
       //Other

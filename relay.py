@@ -56,38 +56,12 @@ class Handler(BaseHTTPRequestHandler):
                 resp = b'{"ok":true}'
 
             else:
-                # Standard URScript sending
-                timeline_code = data['code']
-                
-                # Check if this is the main timeline program
-                if "def master_program():" in timeline_code:
-                    preamble_code = ""
-                    try:
-                        with open("robotiq_preamble.script", "r") as f:
-                            preamble_code = f.read()
-                    except FileNotFoundError:
-                        print("⚠️ robotiq_preamble.script missing!")
+                # Standard URScript sending (Clean Edition)
+                full_transpiled_program = data['code']
 
-                    # 1. Ensure the hardware initialization function we created at the bottom is called
-                    preamble_code += "\n    init_robotiq_hardware()\n"
-
-                    # 2. Inject the ENTIRE preamble INSIDE the main function block!
-                    # This completely solves all scope, index, and uninitialized variable errors.
-                    timeline_code = timeline_code.replace(
-                        "def master_program():", 
-                        "def master_program():\n" + preamble_code
-                    )
-
-                    # 3. Use this perfectly nested code as our final payload
-                    full_transpiled_program = timeline_code
-
-                    # Ensure it executes at the end
-                    if not full_transpiled_program.strip().endswith("master_program()"):
-                        full_transpiled_program += "\nmaster_program()\n"
-                
-                else:
-                    # It's a quick command (Free Drive, Stop, etc). Send it raw!
-                    full_transpiled_program = timeline_code
+                # Ensure it executes the master function if it exists
+                if "def master_program():" in full_transpiled_program and not full_transpiled_program.strip().endswith("master_program()"):
+                    full_transpiled_program += "\nmaster_program()\n"
 
                 # Stream the payload to the controller
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -96,7 +70,6 @@ class Handler(BaseHTTPRequestHandler):
                     s.sendall(full_transpiled_program.encode())
                 
                 resp = b'{"ok":true}'
-        
 
 
         except Exception as e:
