@@ -1003,37 +1003,16 @@ function buildCode() {
       
       // Gripper
       case 'activate_gripper':
-        L.push(`${tab}socket_open("127.0.0.1", 63352, "rq_srv")`);
-        L.push(`${tab}socket_send_string("SET ACT 1\\n", "rq_srv")`);
-        L.push(`${tab}socket_read_string("rq_srv", 0.1)`);
-        L.push(`${tab}socket_send_string("SET GTO 1\\n", "rq_srv")`);
-        L.push(`${tab}socket_read_string("rq_srv", 0.1)`);
+        L.push(`${tab}textmsg("GRIPPER:ACTIVATE")`);
         L.push(`${tab}sleep(1.0)`);
-        L.push(`${tab}socket_close("rq_srv")`);
         break;
-        
       case 'open_gripper':
-        L.push(`${tab}socket_open("127.0.0.1", 63352, "rq_srv")`);
-        L.push(`${tab}socket_send_string("SET SPE 255\\n", "rq_srv")`);
-        L.push(`${tab}socket_read_string("rq_srv", 0.1)`);
-        L.push(`${tab}socket_send_string("SET FOR 255\\n", "rq_srv")`);
-        L.push(`${tab}socket_read_string("rq_srv", 0.1)`);
-        L.push(`${tab}socket_send_string("SET POS 0\\n", "rq_srv")`);
-        L.push(`${tab}socket_read_string("rq_srv", 0.1)`);
+        L.push(`${tab}textmsg("GRIPPER:OPEN")`);
         L.push(`${tab}sleep(0.8)`);
-        L.push(`${tab}socket_close("rq_srv")`);
         break;
-        
       case 'close_gripper':
-        L.push(`${tab}socket_open("127.0.0.1", 63352, "rq_srv")`);
-        L.push(`${tab}socket_send_string("SET SPE 255\\n", "rq_srv")`);
-        L.push(`${tab}socket_read_string("rq_srv", 0.1)`);
-        L.push(`${tab}socket_send_string("SET FOR 255\\n", "rq_srv")`);
-        L.push(`${tab}socket_read_string("rq_srv", 0.1)`);
-        L.push(`${tab}socket_send_string("SET POS 255\\n", "rq_srv")`);
-        L.push(`${tab}socket_read_string("rq_srv", 0.1)`);
+        L.push(`${tab}textmsg("GRIPPER:CLOSE")`);
         L.push(`${tab}sleep(0.8)`);
-        L.push(`${tab}socket_close("rq_srv")`);
         break;
       
       //Other
