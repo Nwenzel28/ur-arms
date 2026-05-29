@@ -1,0 +1,35 @@
+# =======================================================
+# OFFICIAL ROBOTIQ GRIPPER DRIVER PREAMBLE (PRE-BUILT)
+# =======================================================
+def rq_init_communication(sub_socket="1"):
+    socket_open("127.0.0.1", 63352, sub_socket)
+end
+
+def rq_set_var(var_name, var_value, sub_socket="1"):
+    socket_send_string("SET ", sub_socket)
+    socket_send_string(var_name, sub_socket)
+    socket_send_string(" ", sub_socket)
+    socket_send_string(integer_to_string(var_value), sub_socket)
+    socket_send_string("\n", sub_socket)
+    # Read the mandatory 'ack' response from the driver daemon
+    ack = socket_read_string(sub_socket, timeout=0.5)
+end
+
+def rq_activate_and_wait(sub_socket="1"):
+    rq_init_communication(sub_socket)
+    rq_set_var("ACT", 1, sub_socket)
+    rq_set_var("GTO", 1, sub_socket)
+    sleep(1.0) # Wait for mechanical initialization sweep
+    socket_close(sub_socket)
+end
+
+def rq_move_and_wait(pos, speed=255, force=255, sub_socket="1"):
+    rq_init_communication(sub_socket)
+    rq_set_var("SPE", speed, sub_socket)
+    rq_set_var("FOR", force, sub_socket)
+    rq_set_var("POS", pos, sub_socket)
+    socket_close(sub_socket)
+    
+    # Simple, reliable sequential completion wait
+    sleep(0.8) 
+end

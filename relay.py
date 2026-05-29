@@ -57,10 +57,26 @@ class Handler(BaseHTTPRequestHandler):
 
             else:
                 # Standard URScript sending
+                timeline_code = data['code']
+                
+                # 1. Look for the pre-built driver file on disk
+                preamble_code = ""
+                try:
+                    with open("robotiq_preamble.script", "r") as f:
+                        preamble_code = f.read()
+                except FileNotFoundError:
+                    print("robotiq_preamble.script missing! Sending raw timeline.")
+
+                # 2. Stitch them together. 
+                # Global functions sit safely ABOVE the master custom_program() block
+                full_transpiled_program = preamble_code + "\n" + timeline_code
+
+                # 3. Stream the unified payload to the controller
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.settimeout(2.0)
                     s.connect((ip, ROBOT_PORT))
-                    s.sendall(data['code'].encode())
+                    s.sendall(full_transpiled_program.encode())
+                
                 resp = b'{"ok":true}'
 
         except Exception as e:
