@@ -101,8 +101,9 @@ end
 live_grp()`;
   }
 
-  // Disable button so users don't spam commands and lock the socket
+  // Disable button and pause background polling!
   btn.disabled = true;
+  isGripperBusy = true; 
 
   // Send the mini-program to relay.py
   fetch('http://localhost:5678', {
@@ -118,31 +119,37 @@ live_grp()`;
         gripperState = nextState;
         btn.innerText = nextText;
         btn.disabled = false;
+        isGripperBusy = false; // RESUME POLLING
       }, waitTime);
     } else {
       alert("Error sending command: " + res.error);
-      // Revert UI on failure
       btn.disabled = false;
       btn.innerText = gripperState === 'unactivated' ? 'Activate Gripper' : (gripperState === 'open' ? 'Close Gripper' : 'Open Gripper');
+      isGripperBusy = false; // RESUME POLLING
     }
   })
   .catch(err => {
     console.error(err);
     alert("Network error. Is relay.py running?");
-    // Revert UI on failure
     btn.disabled = false;
     btn.innerText = gripperState === 'unactivated' ? 'Activate Gripper' : (gripperState === 'open' ? 'Close Gripper' : 'Open Gripper');
+    isGripperBusy = false; // RESUME POLLING
   });
 }
 
 // ═══════════════════════════════════════════════════════════
-// LIVE GRIPPER TELEMETRY
+// LIVE GRIPPER TELEMETRY (Lag-Free Version)
 // ═══════════════════════════════════════════════════════════
-let gripperTelemetryTimer = null;
+let isGripperBusy = false; // Guards the port so we don't collide with the physical button
 
 function pollGripperStatus() {
   const ip = document.getElementById('robot-ip').value;
-  if (!ip) return; 
+  
+  // If IP is missing, or the UI button is currently using the gripper, skip this tick
+  if (!ip || isGripperBusy) {
+    setTimeout(pollGripperStatus, 800);
+    return; 
+  }
 
   fetch('http://localhost:5678', {
     method: 'POST',
@@ -152,25 +159,24 @@ function pollGripperStatus() {
   .then(res => res.json())
   .then(data => {
     const gripperEl = document.getElementById('stat-gripper');
-    
-    // Check if the Python script successfully read the position
     if (data.ok && data.position_mm !== undefined) {
-      // Just drop the pre-calculated mm value right into the UI!
       if (gripperEl) gripperEl.innerText = data.position_mm.toFixed(1) + ' mm';
     } else {
       if (gripperEl) gripperEl.innerText = '-- mm';
     }
   })
   .catch(err => {
-    const gripperEl = document.getElementById('stat-gripper');
-    if (gripperEl) gripperEl.innerText = 'err';
+    // Fail silently so the UI doesn't stutter on a dropped packet
+  })
+  .finally(() => {
+    // CRITICAL FIX: Only schedule the next poll AFTER this one completely finishes.
+    // 800ms is the sweet spot for hardware polling without choking the CPU.
+    setTimeout(pollGripperStatus, 800); 
   });
 }
 
-// Start polling twice a second
-if (!gripperTelemetryTimer) {
-  gripperTelemetryTimer = setInterval(pollGripperStatus, 500); 
-}
+// Start the smart loop
+setTimeout(pollGripperStatus, 1000);
 
 function initSteps() {
   const [home,approach,pick,place] = positions.map(p=>p.id);
