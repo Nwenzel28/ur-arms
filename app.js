@@ -15,6 +15,120 @@ let positions = [
 
 let steps = [];
 
+// ═══════════════════════════════════════════════════════════
+// LIVE GRIPPER CONTROL
+// ═══════════════════════════════════════════════════════════
+let gripperState = 'unactivated'; // Tracks: 'unactivated' -> 'open' <-> 'closed'
+
+function toggleGripper() {
+  const btn = document.getElementById('btn-gripper-toggle');
+  const ip = document.getElementById('robot-ip').value;
+  
+  if (!ip) {
+    alert("Please enter the Robot IP first.");
+    return;
+  }
+
+  let urscript = '';
+  let nextState = '';
+  let nextText = '';
+  let waitTime = 1000;
+
+  // State 1: Initialization
+  if (gripperState === 'unactivated') {
+    btn.innerText = 'Activating...';
+    nextState = 'open'; // After calibration sweep, it naturally sits open
+    nextText = 'Close Gripper';
+    waitTime = 3500; // Give it 3.5 seconds for the physical fingers to calibrate
+    urscript = `def live_grp():
+  socket_close("rq_srv")
+  socket_open("127.0.0.1", 63352, "rq_srv")
+  socket_send_string("SET ACT 1", "rq_srv")
+  socket_send_byte(10, "rq_srv")
+  sync()
+  socket_send_string("SET GTO 1", "rq_srv")
+  socket_send_byte(10, "rq_srv")
+  sync()
+  sleep(3.0)
+  socket_close("rq_srv")
+end`;
+  } 
+  // State 2: Closing
+  else if (gripperState === 'open') {
+    btn.innerText = 'Closing...';
+    nextState = 'closed';
+    nextText = 'Open Gripper';
+    waitTime = 1000;
+    urscript = `def live_grp():
+  socket_close("rq_srv")
+  socket_open("127.0.0.1", 63352, "rq_srv")
+  socket_send_string("SET SPE 255", "rq_srv")
+  socket_send_byte(10, "rq_srv")
+  sync()
+  socket_send_string("SET FOR 255", "rq_srv")
+  socket_send_byte(10, "rq_srv")
+  sync()
+  socket_send_string("SET POS 255", "rq_srv")
+  socket_send_byte(10, "rq_srv")
+  sync()
+  sleep(0.8)
+  socket_close("rq_srv")
+end`;
+  } 
+  // State 3: Opening
+  else {
+    btn.innerText = 'Opening...';
+    nextState = 'open';
+    nextText = 'Close Gripper';
+    waitTime = 1000;
+    urscript = `def live_grp():
+  socket_close("rq_srv")
+  socket_open("127.0.0.1", 63352, "rq_srv")
+  socket_send_string("SET SPE 255", "rq_srv")
+  socket_send_byte(10, "rq_srv")
+  sync()
+  socket_send_string("SET FOR 255", "rq_srv")
+  socket_send_byte(10, "rq_srv")
+  sync()
+  socket_send_string("SET POS 0", "rq_srv")
+  socket_send_byte(10, "rq_srv")
+  sync()
+  sleep(0.8)
+  socket_close("rq_srv")
+end`;
+  }
+
+  // Disable button so users don't spam commands and lock the socket
+  btn.disabled = true;
+
+  // Send the mini-program to relay.py
+  fetch('http://localhost:5678', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'send', ip: ip, code: urscript })
+  })
+  .then(r => r.json())
+  .then(res => {
+    if (res.ok) {
+      // Wait for the physical movement to finish before re-enabling
+      setTimeout(() => {
+        gripperState = nextState;
+        btn.innerText = nextText;
+        btn.disabled = false;
+      }, waitTime);
+    } else {
+      alert("Error sending command: " + res.error);
+      btn.disabled = false;
+      btn.innerText = gripperState === 'unactivated' ? 'Activate Gripper' : (gripperState === 'open' ? 'Close Gripper' : 'Open Gripper');
+    }
+  })
+  .catch(err => {
+    console.error(err);
+    alert("Network error. Is relay.py running?");
+    btn.disabled = false;
+  });
+}
+
 function initSteps() {
   const [home,approach,pick,place] = positions.map(p=>p.id);
   steps = [
