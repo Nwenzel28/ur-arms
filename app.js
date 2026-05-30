@@ -145,6 +145,7 @@ let isGripperBusy = false; // Guards the port so we don't collide with the physi
 function pollGripperStatus() {
   const ip = document.getElementById('robot-ip').value;
   
+  // If IP is missing, or the UI button is currently using the gripper, skip this tick
   if (!ip || isGripperBusy) {
     setTimeout(pollGripperStatus, 800);
     return; 
@@ -158,17 +159,18 @@ function pollGripperStatus() {
   .then(res => res.json())
   .then(data => {
     const gripperEl = document.getElementById('stat-gripper');
-    
     if (data.ok && data.position_mm !== undefined) {
       if (gripperEl) gripperEl.innerText = data.position_mm.toFixed(1) + ' mm';
     } else {
-      // PRINT THE EXACT PYTHON ERROR TO THE BROWSER CONSOLE
-      console.error("Gripper Polling Failed:", data.error);
       if (gripperEl) gripperEl.innerText = '-- mm';
     }
   })
-  .catch(err => {})
+  .catch(err => {
+    // Fail silently so the UI doesn't stutter on a dropped packet
+  })
   .finally(() => {
+    // CRITICAL FIX: Only schedule the next poll AFTER this one completely finishes.
+    // 800ms is the sweet spot for hardware polling without choking the CPU.
     setTimeout(pollGripperStatus, 800); 
   });
 }
