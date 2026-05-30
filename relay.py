@@ -5,7 +5,7 @@ import socket, json, struct, time
 
 ROBOT_PORT   = 30002   # URScript injection
 STATE_PORT   = 30003   # Real-time client (robot telemetry)
-GRIPPER_PORT = 63352   # Robotiq 2F-85 URCap Modbus TCP daemon
+GRIPPER_PORT = 502     # Robotiq 2F-85 URCap Modbus TCP daemon
 
 # Global telemetry state (updated by background thread)
 robot_state = {
