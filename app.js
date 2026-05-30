@@ -34,7 +34,7 @@ function toggleGripper() {
   let nextText = '';
   let waitTime = 1000;
 
-  // State 1: Initialization
+  // State 1: Initialization (Activation & Calibration Sweep)
   if (gripperState === 'unactivated') {
     btn.innerText = 'Activating...';
     nextState = 'open'; // After calibration sweep, it naturally sits open
@@ -51,7 +51,8 @@ function toggleGripper() {
   sync()
   sleep(3.0)
   socket_close("rq_srv")
-end`;
+end
+live_grp()`;
   } 
   // State 2: Closing
   else if (gripperState === 'open') {
@@ -73,7 +74,8 @@ end`;
   sync()
   sleep(0.8)
   socket_close("rq_srv")
-end`;
+end
+live_grp()`;
   } 
   // State 3: Opening
   else {
@@ -95,7 +97,8 @@ end`;
   sync()
   sleep(0.8)
   socket_close("rq_srv")
-end`;
+end
+live_grp()`;
   }
 
   // Disable button so users don't spam commands and lock the socket
@@ -118,6 +121,7 @@ end`;
       }, waitTime);
     } else {
       alert("Error sending command: " + res.error);
+      // Revert UI on failure
       btn.disabled = false;
       btn.innerText = gripperState === 'unactivated' ? 'Activate Gripper' : (gripperState === 'open' ? 'Close Gripper' : 'Open Gripper');
     }
@@ -125,7 +129,9 @@ end`;
   .catch(err => {
     console.error(err);
     alert("Network error. Is relay.py running?");
+    // Revert UI on failure
     btn.disabled = false;
+    btn.innerText = gripperState === 'unactivated' ? 'Activate Gripper' : (gripperState === 'open' ? 'Close Gripper' : 'Open Gripper');
   });
 }
 
