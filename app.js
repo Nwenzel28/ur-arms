@@ -20,52 +20,118 @@ let steps = [];
 // ═══════════════════════════════════════════════════════════
 let gripperState = 'unactivated'; // Tracks: 'unactivated' -> 'open' <-> 'closed'
 
-// Replace your existing toggleGripper() function
 function toggleGripper() {
   const btn = document.getElementById('btn-gripper-toggle');
   const ip = document.getElementById('robot-ip').value;
-  if (!ip) return alert("Please enter the Robot IP first.");
+  
+  if (!ip) {
+    alert("Please enter the Robot IP first.");
+    return;
+  }
 
-  let targetPos = 255; // default close
+  let urscript = '';
+  let nextState = '';
+  let nextText = '';
+  let waitTime = 1000;
+
+  // State 1: Initialization (Activation & Calibration Sweep)
   if (gripperState === 'unactivated') {
     btn.innerText = 'Activating...';
-    targetPos = 0; // Sweep to open
-  } else if (gripperState === 'open') {
+    nextState = 'open'; // After calibration sweep, it naturally sits open
+    nextText = 'Close Gripper';
+    waitTime = 3500; // Give it 3.5 seconds for the physical fingers to calibrate
+    urscript = `def live_grp():
+  socket_close("rq_srv")
+  socket_open("127.0.0.1", 63352, "rq_srv")
+  socket_send_string("SET ACT 1", "rq_srv")
+  socket_send_byte(10, "rq_srv")
+  sync()
+  socket_send_string("SET GTO 1", "rq_srv")
+  socket_send_byte(10, "rq_srv")
+  sync()
+  sleep(3.0)
+  socket_close("rq_srv")
+end
+live_grp()`;
+  } 
+  // State 2: Closing
+  else if (gripperState === 'open') {
     btn.innerText = 'Closing...';
-    targetPos = 255;
-  } else {
+    nextState = 'closed';
+    nextText = 'Open Gripper';
+    waitTime = 1000;
+    urscript = `def live_grp():
+  socket_close("rq_srv")
+  socket_open("127.0.0.1", 63352, "rq_srv")
+  socket_send_string("SET SPE 255", "rq_srv")
+  socket_send_byte(10, "rq_srv")
+  sync()
+  socket_send_string("SET FOR 255", "rq_srv")
+  socket_send_byte(10, "rq_srv")
+  sync()
+  socket_send_string("SET POS 255", "rq_srv")
+  socket_send_byte(10, "rq_srv")
+  sync()
+  sleep(0.8)
+  socket_close("rq_srv")
+end
+live_grp()`;
+  } 
+  // State 3: Opening
+  else {
     btn.innerText = 'Opening...';
-    targetPos = 0;
+    nextState = 'open';
+    nextText = 'Close Gripper';
+    waitTime = 1000;
+    urscript = `def live_grp():
+  socket_close("rq_srv")
+  socket_open("127.0.0.1", 63352, "rq_srv")
+  socket_send_string("SET SPE 255", "rq_srv")
+  socket_send_byte(10, "rq_srv")
+  sync()
+  socket_send_string("SET FOR 255", "rq_srv")
+  socket_send_byte(10, "rq_srv")
+  sync()
+  socket_send_string("SET POS 0", "rq_srv")
+  socket_send_byte(10, "rq_srv")
+  sync()
+  sleep(0.8)
+  socket_close("rq_srv")
+end
+live_grp()`;
   }
-  
+
+  // Disable button so users don't spam commands and lock the socket
   btn.disabled = true;
 
-  // Send Modbus TCP position command directly
-  fetch(RELAY, {
+  // Send the mini-program to relay.py
+  fetch('http://localhost:5678', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'gripper_move', ip: ip, pos: targetPos })
-  }).then(() => {
-    // Poll the status exactly every 250ms until it finishes
-    let pollInterval = setInterval(() => {
-      fetch(RELAY, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'gripper_status', ip: ip })
-      })
-      .then(r => r.json())
-      .then(res => {
-        if (res.ok) {
-          // gobj values: 0=Moving, 1=Obj(Open), 2=Obj(Close), 3=Finished
-          if (res.gobj !== 0) { 
-            clearInterval(pollInterval); // It finished moving!
-            gripperState = (targetPos === 255 || res.gobj === 2) ? 'closed' : 'open';
-            btn.innerText = gripperState === 'closed' ? 'Open Gripper' : 'Close Gripper';
-            btn.disabled = false;
-          }
-        }
-      });
-    }, 250);
+    body: JSON.stringify({ action: 'send', ip: ip, code: urscript })
+  })
+  .then(r => r.json())
+  .then(res => {
+    if (res.ok) {
+      // Wait for the physical movement to finish before re-enabling
+      setTimeout(() => {
+        gripperState = nextState;
+        btn.innerText = nextText;
+        btn.disabled = false;
+      }, waitTime);
+    } else {
+      alert("Error sending command: " + res.error);
+      // Revert UI on failure
+      btn.disabled = false;
+      btn.innerText = gripperState === 'unactivated' ? 'Activate Gripper' : (gripperState === 'open' ? 'Close Gripper' : 'Open Gripper');
+    }
+  })
+  .catch(err => {
+    console.error(err);
+    alert("Network error. Is relay.py running?");
+    // Revert UI on failure
+    btn.disabled = false;
+    btn.innerText = gripperState === 'unactivated' ? 'Activate Gripper' : (gripperState === 'open' ? 'Close Gripper' : 'Open Gripper');
   });
 }
 
@@ -106,28 +172,20 @@ async function pingRobot() {
   const btn = document.getElementById('ping-btn');
   const ip  = document.getElementById('robot-ip').value.trim();
   if (!ip) { alert('Enter the robot IP address first.'); return; }
-  
   btn.textContent = '…';
   btn.disabled = true;
   setDot('pinging');
-  
   try {
     const res  = await fetch(RELAY, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      // Sends a harmless comment to port 30002 to test the socket
-      body: JSON.stringify({ip, code:'# ping\n'}) 
+      body: JSON.stringify({ip, code:'# ping\n'})
     });
     const data = await res.json();
-    
     if (data.ok) {
       setDot('ok');
       btn.textContent = '✓ Connected';
       btn.style.color = 'var(--gn)';
-      
-      // ► THE PLACEMENT: Inject the background listener now that we are connected
-      initFreedriveLoop(); 
-      
     } else {
       throw new Error(data.error || 'Robot refused connection');
     }
@@ -150,21 +208,6 @@ async function pingRobot() {
 function emergencyStop() {
   console.error('EMERGENCY STOP TRIGGERED');
   sendDirect('stopj(2.0)\n');
-}
-
-function initFreedriveLoop() {
-  const code = `def persistent_fd():
-  while True:
-    if read_output_boolean_register(0):
-      freedrive_mode([${fdAxes.join(',')}], p[0,0,0,0,0,0])
-    else:
-      end_freedrive_mode()
-    end
-    sync()
-  end
-end
-`;
-  sendDirect(code);
 }
 
 async function sendToRobot() {
@@ -321,29 +364,20 @@ function toggleFdAxis(index) {
   }
 }
 
-// Replace your existing toggleFreedrive()
 function toggleFreedrive() {
   isFreedrive = !isFreedrive;
   const btn = document.getElementById('btn-freedrive');
-  const ip = document.getElementById('robot-ip').value;
-  
-  // Update UI
   if (isFreedrive) {
     btn.textContent = 'Freedrive: ON';
     btn.style.background = 'var(--ac)';
     btn.style.color = '#fff';
+    sendDirect(`def fd_on():\n  freedrive_mode([${fdAxes.join(',')}], p[0,0,0,0,0,0])\n  sleep(3600)\nend\n`);
   } else {
     btn.textContent = 'Freedrive: OFF';
     btn.style.background = 'transparent';
     btn.style.color = 'var(--ac)';
+    sendDirect("def fd_off():\n  end_freedrive_mode()\nend\n");
   }
-
-  // Toggle Modbus Coil 0 instantly
-  fetch(RELAY, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'set_freedrive_register', ip: ip, state: isFreedrive })
-  });
 }
 
 function startJog(axis, direction) {
