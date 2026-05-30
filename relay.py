@@ -162,6 +162,42 @@ class Handler(BaseHTTPRequestHandler):
 
         # ── Gripper status ─────────────────────────────────────────────
         elif action == 'gripper_status':
+            s = None
+            try:
+                # 1. THE TIMEOUT FIX: Force failure after 0.5s so it never hangs your UI
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(0.5) 
+                s.connect((ip, 502)) # UR3e Modbus Port
+                
+                # (Your existing s.send(...) or s.sendall(...) code stays exactly the same here)
+                # Example: s.sendall(b'\x00\x01\x00\x00\x00\x06\x00\x03\x03\xe8\x00\x03')
+                
+                raw = s.recv(1024)
+                
+                if not raw or len(raw) < 13:
+                    return {"ok": False, "error": "Bad data length"}
+
+                # (Your existing math stays exactly the same here)
+                gpo  = raw[12]  # Modbus Register 1001 Low Byte (Position)
+                pos_mm = round((1.0 - gpo / 255.0) * 85.0, 1)
+                
+                return {
+                    "ok": True,
+                    "position_raw": gpo,
+                    "position_mm": pos_mm
+                }
+
+            except Exception as e:
+                return {"ok": False, "error": str(e)}
+                
+            finally:
+                # 2. THE ZOMBIE KILLER: This guarantees the socket is destroyed 
+                # and the port is released back to the UR3e, even if the math crashes!
+                if s:
+                    try:
+                        s.close()
+                    except:
+                        pass
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.settimeout(2.0)
@@ -189,4 +225,5 @@ if __name__ == '__main__':
     print("║  Telemetry →  robot:30003            ║")
     print("║  Gripper   →  robot:63352 (Modbus)   ║")
     print("╚══════════════════════════════════════╝")
-    HTTPServer(('localhost', 5678), Handler).serve_forever()
+    server = ThreadedHTTPServer(('0.0.0.0', 5678), MyHandler)
+    server.serve_forever()
