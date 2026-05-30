@@ -138,37 +138,18 @@ live_grp()`;
 }
 
 // ═══════════════════════════════════════════════════════════
-// LIVE GRIPPER TELEMETRY
+// LIVE GRIPPER TELEMETRY (Lag-Free Version)
 // ═══════════════════════════════════════════════════════════
-let isGripperBusy = false; // Make sure this is declared globally!
+let isGripperBusy = false; // Guards the port so we don't collide with the physical button
 
 function pollGripperStatus() {
-  const gripperEl = document.getElementById('stat-gripper');
+  const ip = document.getElementById('robot-ip').value;
   
-  // If the HTML element is missing, stop trying to run
-  if (!gripperEl) {
-    setTimeout(pollGripperStatus, 800);
-    return;
-  }
-
-  const ipInput = document.getElementById('robot-ip');
-  const ip = ipInput ? ipInput.value : '';
-
-  // STATE: No IP entered yet
-  if (!ip) {
-    gripperEl.innerText = "Wait IP";
+  if (!ip || isGripperBusy) {
     setTimeout(pollGripperStatus, 800);
     return; 
   }
 
-  // STATE: Gripper is physically moving via the toggle button
-  if (isGripperBusy) {
-    gripperEl.innerText = "Busy...";
-    setTimeout(pollGripperStatus, 800);
-    return;
-  }
-
-  // STATE: Fetching data from Python
   fetch('http://localhost:5678', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -176,36 +157,49 @@ function pollGripperStatus() {
   })
   .then(res => res.json())
   .then(data => {
+    const gripperEl = document.getElementById('stat-gripper');
+    if (!gripperEl) return;
+
+    // SCENARIO 1: Python threw an error (e.g., Connection Refused)
+    // We will print the error directly to the UI so you can see it!
     if (data.ok === false) {
-      gripperEl.innerText = "Err: " + (data.error || "Py Fail");
-      gripperEl.style.color = "red";
+      gripperEl.innerText = "Err: " + (data.error || "Unknown");
+      // Optional: change color so it's obvious it's an error
+      gripperEl.style.color = "red"; 
+      return;
+    }
+
+    // SCENARIO 2: We successfully got the 0-255 value
+    let raw_val = data.position_raw; 
+
+    if (raw_val !== undefined) {
+      // Math: 0 = 85mm (Open), 255 = 0mm (Closed)
+      let gap_mm = 85 - (raw_val * (85 / 255));
+      
+      // Display both the mm and the raw 0-255 value so you know it's working
+      gripperEl.innerText = gap_mm.toFixed(1) + ' mm'; // e.g. "42.5 mm"
+      gripperEl.style.color = ""; // Reset color
     } 
-    // If Python sends the raw 0-255 value
-    else if (data.position_raw !== undefined) {
-      let gap_mm = 85 - (data.position_raw * (85 / 255));
-      gripperEl.innerText = gap_mm.toFixed(1) + ' mm';
-      gripperEl.style.color = ""; // reset color
-    } 
-    // If Python sends the pre-calculated mm value
-    else if (data.position_mm !== undefined) {
-      gripperEl.innerText = data.position_mm.toFixed(1) + ' mm';
-      gripperEl.style.color = "";
-    } 
+    // SCENARIO 3: Python responded, but the data is weird
     else {
-      gripperEl.innerText = "Bad JSON";
+      // Print the literal raw JSON payload to the screen so we can see what's inside
+      gripperEl.innerText = "Dump: " + JSON.stringify(data).substring(0, 15);
       gripperEl.style.color = "orange";
     }
   })
   .catch(err => {
-    gripperEl.innerText = 'Net Down';
-    gripperEl.style.color = "red";
+    const gripperEl = document.getElementById('stat-gripper');
+    if (gripperEl) {
+      gripperEl.innerText = 'Network Down';
+      gripperEl.style.color = "red";
+    }
   })
   .finally(() => {
     setTimeout(pollGripperStatus, 800); 
   });
 }
 
-// Kickstart the loop
+// Start the smart loop
 setTimeout(pollGripperStatus, 1000);
 
 function initSteps() {
