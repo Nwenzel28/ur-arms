@@ -1,0 +1,864 @@
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let mode = 'deg';
+let cfgOpen = true;
+let _uid = 0;
+const uid = () => 'u' + (_uid++);
+
+let positions = [
+  {id:uid(), name:'HOME',     type:'joint', j:[0,-1.5708,0,-1.5708,-1.5708,0]},
+  {id:uid(), name:'APPROACH', type:'joint', j:[0,-1.5708,0,-1.5708,-1.5708,0]},
+  {id:uid(), name:'PICK',     type:'joint', j:[0,-1.5708,0,-1.5708,-1.5708,0]},
+  {id:uid(), name:'PLACE',    type:'joint', j:[0,-1.5708,0,-1.5708,-1.5708,0]},
+];
+
+let steps = [];
+
+function initSteps() {
+  const [home,approach,pick,place] = positions.map(p=>p.id);
+  steps = [
+    {id:uid(), type:'movej', pid:home},
+    {id:uid(), type:'movej', pid:approach},
+    {id:uid(), type:'movej', pid:pick},
+    {id:uid(), type:'movej', pid:approach},
+    {id:uid(), type:'movej', pid:place},
+    {id:uid(), type:'movej', pid:home},
+  ];
+}
+
+// ═══════════════════════════════════════════════════════════
+// ROBOT CONNECTION
+// ═══════════════════════════════════════════════════════════
+const RELAY = 'http://localhost:5678';
+
+function setDot(state) {
+  const dot = document.getElementById('robot-dot');
+  const sendBtn = document.getElementById('send-btn');
+  const map = {
+    idle:    {bg:'var(--tx3)',          shadow:'none',               send:false},
+    pinging: {bg:'var(--yl,#f59e0b)',   shadow:'none',               send:false},
+    ok:      {bg:'var(--gn)',           shadow:'0 0 7px var(--gn)',  send:true},
+    err:     {bg:'var(--rd)',           shadow:'none',               send:false},
+    sending: {bg:'var(--bl)',           shadow:'0 0 7px var(--bl)', send:false},
+  };
+  const cfg = map[state] || map.idle;
+  dot.style.background = cfg.bg;
+  dot.style.boxShadow  = cfg.shadow;
+  sendBtn.disabled     = !cfg.send;
+}
+
+async function pingRobot() {
+  const btn = document.getElementById('ping-btn');
+  const ip  = document.getElementById('robot-ip').value.trim();
+  if (!ip) { alert('Enter the robot IP address first.'); return; }
+  btn.textContent = '…';
+  btn.disabled = true;
+  setDot('pinging');
+  try {
+    const res  = await fetch(RELAY, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ip, code:'# ping\n'})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      setDot('ok');
+      btn.textContent = '✓ Connected';
+      btn.style.color = 'var(--gn)';
+    } else {
+      throw new Error(data.error || 'Robot refused connection');
+    }
+  } catch(e) {
+    setDot('err');
+    btn.textContent = 'Failed';
+    btn.style.color = 'var(--rd)';
+    const isRelay = e.message.includes('fetch') || e.message.includes('Failed to fetch');
+    setTimeout(() => alert(
+      isRelay
+        ? 'Cannot reach the relay server.\n\nMake sure it is still running:\n  python3 relay.py'
+        : `Could not connect to robot at ${ip}.\n\nCheck:\n• Robot is powered on\n• IP address is correct\n• Robot is in Remote mode\n• Mac and robot are on the same network\n\nError: ${e.message}`
+    ), 50);
+  } finally {
+    btn.disabled = false;
+    setTimeout(() => { btn.textContent = 'Ping'; btn.style.color = ''; }, 3000);
+  }
+}
+
+function emergencyStop() {
+  console.error('EMERGENCY STOP TRIGGERED');
+  sendDirect('stopj(2.0)\n');
+}
+
+async function sendToRobot() {
+  const ip = document.getElementById('robot-ip').value.trim();
+  if (!ip) { alert('Enter the robot IP address.'); return; }
+
+  const warns = [];
+  steps.forEach((s,i) => {
+    if ((s.type==='movej'||s.type==='movel') && !s.pid)
+      warns.push(`Step ${i+1} has no position set`);
+  });
+  if (warns.length && !confirm(`Warning:\n${warns.join('\n')}\n\nSend anyway?`)) return;
+
+  const sendBtn   = document.getElementById('send-btn');
+  const origText  = sendBtn.textContent;
+  sendBtn.disabled = true;
+  sendBtn.textContent = 'Sending…';
+  setDot('sending');
+
+  try {
+    const res  = await fetch(RELAY, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ip, code: buildCode()})
+    });
+    const data = await res.json();
+    if (data.ok) {
+      setDot('ok');
+      sendBtn.textContent = '✓ Sent!';
+      sendBtn.style.background  = 'var(--gn)';
+      sendBtn.style.borderColor = 'var(--gn)';
+      setTimeout(() => {
+        sendBtn.textContent = origText;
+        sendBtn.style.background  = '';
+        sendBtn.style.borderColor = '';
+        sendBtn.disabled = false;
+      }, 2500);
+    } else {
+      throw new Error(data.error || 'Robot rejected the script');
+    }
+  } catch(e) {
+    setDot('err');
+    sendBtn.textContent = '✕ Failed';
+    sendBtn.style.background  = 'var(--rd)';
+    sendBtn.style.borderColor = 'var(--rd)';
+    const isRelay = e.message.includes('fetch') || e.message.includes('Failed to fetch');
+    setTimeout(() => alert(
+      isRelay
+        ? 'Relay server not reachable.\n\nMake sure relay.py is still running:\n  python3 relay.py'
+        : `Failed to send script:\n${e.message}\n\nCheck the robot is still in Remote mode.`
+    ), 50);
+    setTimeout(() => {
+      sendBtn.textContent = origText;
+      sendBtn.style.background  = '';
+      sendBtn.style.borderColor = '';
+      sendBtn.disabled = false;
+    }, 2500);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// LIVE JOGGING & STATE
+// ═══════════════════════════════════════════════════════════
+let fdAxes = [1,1,1,1,1,1];
+let isFreedrive   = false;
+let jogInterval   = null;
+let latestJoints  = null;
+let livePollInterval = null;
+
+function toggleLiveMonitoring(checkbox) {
+  if (checkbox.checked) {
+    livePollInterval = setInterval(() => {
+      const ip  = document.getElementById('robot-ip').value.trim();
+      const dot = document.getElementById('robot-dot').style.background;
+      if (ip && dot !== 'var(--bl)') fetchRobotState();
+    }, 250);
+  } else {
+    clearInterval(livePollInterval);
+    livePollInterval = null;
+  }
+}
+
+async function fetchRobotState() {
+  const ip = document.getElementById('robot-ip').value.trim();
+  if (!ip) return;
+  try {
+    const res  = await fetch(RELAY, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ip, action:'state'})
+    });
+    const data = await res.json();
+    console.log('ROBOT DATA RECEIVED:', data);
+
+    const tcp    = data.tcp    || data.actual_TCP_pose || data.pose || data.cartesian;
+    const joints = data.joints || data.actual_joint_positions || data.q_actual || data.q;
+
+    if (tcp && tcp.length >= 6) {
+      document.getElementById('live-x').innerText  = toDisp(tcp[0], false);
+      document.getElementById('live-y').innerText  = toDisp(tcp[1], false);
+      document.getElementById('live-z').innerText  = toDisp(tcp[2], false);
+      document.getElementById('live-rx').innerText = toDisp(tcp[3], true);
+      document.getElementById('live-ry').innerText = toDisp(tcp[4], true);
+      document.getElementById('live-rz').innerText = toDisp(tcp[5], true);
+    } else {
+      console.warn('Could not find TCP data in the response.');
+    }
+
+    if (joints && joints.length >= 6) {
+      latestJoints = joints;
+      document.getElementById('live-j0').innerText = toDisp(joints[0], true);
+      document.getElementById('live-j1').innerText = toDisp(joints[1], true);
+      document.getElementById('live-j2').innerText = toDisp(joints[2], true);
+      document.getElementById('live-j3').innerText = toDisp(joints[3], true);
+      document.getElementById('live-j4').innerText = toDisp(joints[4], true);
+      document.getElementById('live-j5').innerText = toDisp(joints[5], true);
+    } else {
+      console.warn('Could not find Joint data in the response.');
+    }
+  } catch(e) {
+    console.error('Failed to read robot state', e);
+  }
+}
+
+function recordLivePosition() {
+  if (!latestJoints) {
+    alert("Please click '↻ Refresh' on the Robot Control panel first to get the latest coordinates!");
+    return;
+  }
+  positions.push({
+    id: uid(),
+    name: 'POS_' + (positions.length + 1),
+    type: 'joint',
+    j: [...latestJoints]
+  });
+  renderPositions(); renderSteps(); refreshCode();
+}
+
+function sendDirect(codeStr) {
+  const ip = document.getElementById('robot-ip').value.trim();
+  if (!ip) return;
+  fetch(RELAY, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ip, code: codeStr, action:'send'})
+  });
+}
+
+function toggleFdAxis(index) {
+  fdAxes[index] = fdAxes[index] === 1 ? 0 : 1;
+  document.getElementById(`fd-ax-${index}`).classList.toggle('on', fdAxes[index] === 1);
+  if (isFreedrive) {
+    sendDirect(`def fd_update():\n  freedrive_mode([${fdAxes.join(',')}], p[0,0,0,0,0,0])\n  sleep(3600)\nend\n`);
+  }
+}
+
+function toggleFreedrive() {
+  isFreedrive = !isFreedrive;
+  const btn = document.getElementById('btn-freedrive');
+  if (isFreedrive) {
+    btn.textContent = 'Freedrive: ON';
+    btn.style.background = 'var(--ac)';
+    btn.style.color = '#fff';
+    sendDirect(`def fd_on():\n  freedrive_mode([${fdAxes.join(',')}], p[0,0,0,0,0,0])\n  sleep(3600)\nend\n`);
+  } else {
+    btn.textContent = 'Freedrive: OFF';
+    btn.style.background = 'transparent';
+    btn.style.color = 'var(--ac)';
+    sendDirect("def fd_off():\n  end_freedrive_mode()\nend\n");
+  }
+}
+
+function startJog(axis, direction) {
+  if (jogInterval) clearInterval(jogInterval);
+  let vector = [0,0,0,0,0,0];
+  vector[axis] = direction * (axis < 3 ? 0.05 : 0.25);
+  const speedlCmd = `def jog():\n  speedl([${vector.join(',')}], a=0.3, t=1.0)\nend\n`;
+  sendDirect(speedlCmd);
+  jogInterval = setInterval(() => sendDirect(speedlCmd), 800);
+}
+
+function stopJog() {
+  if (jogInterval) clearInterval(jogInterval);
+  jogInterval = null;
+  sendDirect("def stop_jog():\n  stopl(2.5)\nend\n");
+}
+
+// ═══════════════════════════════════════════════════════════
+// TABS / SETTINGS
+// ═══════════════════════════════════════════════════════════
+function showTab(name) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.getElementById('tab-'+name).classList.add('on');
+  event.target.classList.add('on');
+}
+
+function toggleCfg() {
+  cfgOpen = !cfgOpen;
+  document.getElementById('cfg-body').style.display = cfgOpen ? '' : 'none';
+  document.getElementById('cfg-tog').textContent = cfgOpen ? '▼ collapse' : '▶ expand';
+}
+
+// ═══════════════════════════════════════════════════════════
+// UNITS
+// ═══════════════════════════════════════════════════════════
+function setMode(m) {
+  mode = m;
+  document.getElementById('btn-deg').classList.toggle('on', m==='deg');
+  document.getElementById('btn-rad').classList.toggle('on', m==='rad');
+  renderPositions();
+  refreshCode();
+}
+
+function toDisp(rad, isAngle=true) {
+  if (!isAngle) return +rad.toFixed(4);
+  return mode==='deg' ? +(rad*180/Math.PI).toFixed(2) : +rad.toFixed(4);
+}
+function fromDisp(v, isAngle=true) {
+  const n = parseFloat(v); if (isNaN(n)) return 0;
+  if (!isAngle) return n;
+  return mode==='deg' ? n*Math.PI/180 : n;
+}
+
+// ═══════════════════════════════════════════════════════════
+// POSITIONS
+// ═══════════════════════════════════════════════════════════
+const JOINT_LABELS = ['Base','Shldr','Elbow','Wrst1','Wrst2','Wrst3'];
+const CART_LABELS  = ['X(m)','Y(m)','Z(m)','RX','RY','RZ'];
+
+function isAngleCol(type, col) {
+  if (type === 'joint') return true;
+  return col >= 3;
+}
+
+function renderPositions() {
+  const el = document.getElementById('pos-list');
+  el.innerHTML = positions.map(pos => {
+    const labels  = pos.type==='joint' ? JOINT_LABELS : CART_LABELS;
+    const unit    = pos.type==='joint' ? (mode==='deg'?'°':'r') : '';
+    return `
+    <div class="pos-card" id="pc-${pos.id}">
+      <div class="pos-hdr">
+        <div class="pos-dot ${posComplete(pos)?'full':''}" id="dot-${pos.id}"></div>
+        <input class="pos-name" value="${pos.name}"
+          onchange="renamePos('${pos.id}',this.value)"
+          onblur="renamePos('${pos.id}',this.value)"/>
+        <div class="type-seg">
+          <button class="type-btn ${pos.type==='joint'?'on':''}" onclick="setPosType('${pos.id}','joint')">JOINT</button>
+          <button class="type-btn ${pos.type==='cart'?'on':''}"  onclick="setPosType('${pos.id}','cart')">CART</button>
+        </div>
+        <button class="btn-del btn btn-sm" onclick="deletePos('${pos.id}')">✕</button>
+      </div>
+      <div class="joints">
+        ${labels.map((name,ji)=>{
+          const isAng   = isAngleCol(pos.type,ji);
+          const disp    = toDisp(pos.j[ji], isAng);
+          const unitStr = pos.type==='cart' ? (ji<3?'m':(mode==='deg'?'°':'r')) : unit;
+          return `<div class="jcell">
+            <div class="jlabel">${name}<br>${unitStr}</div>
+            <input class="jinput ${pos.j[ji]!==0?'filled':''}" type="number"
+              step="${isAng&&mode==='deg'?'0.1':'0.0001'}"
+              value="${disp}"
+              oninput="liveJoint(this,'${pos.id}',${ji},${isAng})"/>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function posComplete(pos) { return pos.j.some(v=>v!==0); }
+
+function liveJoint(el, pid, ji, isAngle) {
+  el.classList.toggle('filled', el.value!==''&&el.value!=='0');
+  const pos = positions.find(p=>p.id===pid); if (!pos) return;
+  pos.j[ji] = fromDisp(el.value, isAngle);
+  document.getElementById('dot-'+pid).className = 'pos-dot'+(posComplete(pos)?' full':'');
+  refreshCode();
+}
+
+function renamePos(pid, val) {
+  const pos = positions.find(p=>p.id===pid); if (!pos) return;
+  pos.name = val.toUpperCase().replace(/\s+/g,'_').replace(/[^A-Z0-9_]/g,'') || pos.name;
+  refreshCode(); renderSteps();
+}
+
+function setPosType(pid, type) {
+  const pos = positions.find(p=>p.id===pid); if (!pos) return;
+  pos.type = type;
+  renderPositions(); refreshCode(); renderSteps();
+}
+
+function addPos(type) {
+  positions.push({id:uid(), name:'POS_'+(positions.length+1), type, j:[0,0,0,0,0,0]});
+  renderPositions(); renderSteps(); refreshCode();
+}
+
+function deletePos(pid) {
+  if (positions.length<=1) return;
+  positions = positions.filter(p=>p.id!==pid);
+  steps = steps.map(s=>{
+    if ((s.type==='movej'||s.type==='movel')&&s.pid===pid) return {...s, pid:null};
+    if (s.type==='movec'&&s.via===pid) return {...s, via:null};
+    if (s.type==='movec'&&s.to===pid)  return {...s, to:null};
+    return s;
+  });
+  renderPositions(); renderSteps(); refreshCode();
+}
+
+// ═══════════════════════════════════════════════════════════
+// STEP DEPTHS
+// ═══════════════════════════════════════════════════════════
+const OPENERS = ['loop_n','loop_forever','loop_while','if_din'];
+
+function computeDepths() {
+  const depths=[], opens=[];
+  steps.forEach(s=>{
+    if (s.type==='block_end') {
+      opens.pop();
+      depths.push(opens.length);
+    } else if (s.type==='else_block') {
+      depths.push(opens.length>0 ? opens.length-1 : 0);
+    } else {
+      depths.push(opens.length);
+      if (OPENERS.includes(s.type)) opens.push(opens.length);
+    }
+  });
+  return depths;
+}
+
+// ═══════════════════════════════════════════════════════════
+// STEP RENDERING
+// ═══════════════════════════════════════════════════════════
+const TAG_INFO = {
+  movej:            ['MOVEJ','tag-move'],
+  movel:            ['MOVEL','tag-move'],
+  movec:            ['MOVEC','tag-move'],
+  open_gripper:     ['GRIP', 'tag-grip'],
+  close_gripper:    ['GRIP', 'tag-grip'],
+  activate_gripper: ['GRIP', 'tag-grip'],
+  loop_n:           ['LOOP', 'tag-flow'],
+  loop_forever:     ['LOOP∞','tag-flow'],
+  loop_while:       ['WHILE','tag-flow'],
+  if_din:           ['IF',   'tag-flow'],
+  else_block:       ['ELSE', 'tag-flow'],
+  block_end:        ['END',  'tag-util'],
+  sleep:            ['WAIT', 'tag-util'],
+  textmsg:          ['LOG',  'tag-util'],
+  popup:            ['POP',  'tag-util'],
+  set_digital_out:  ['DOUT', 'tag-util'],
+  set_payload:      ['LOAD', 'tag-util'],
+  set_tcp:          ['TCP',  'tag-util'],
+};
+
+function stepParams(s) {
+  const si = `'${s.id}'`;
+  switch(s.type) {
+    case 'movej':
+      return `<select class="step-sel" onchange="upd(${si},'pid',this.value)">${
+        positions.map(p=>`<option value="${p.id}" ${s.pid===p.id?'selected':''}>${p.name}</option>`).join('')
+      }</select>`;
+    case 'movel': {
+      const cp = positions.filter(p=>p.type==='cart');
+      return `<select class="step-sel" onchange="upd(${si},'pid',this.value)">${
+        cp.length
+          ? cp.map(p=>`<option value="${p.id}" ${s.pid===p.id?'selected':''}>${p.name}</option>`).join('')
+          : `<option value="">— add Cartesian pos —</option>`
+      }</select>`;
+    }
+    case 'movec': {
+      const cp  = positions.filter(p=>p.type==='cart');
+      const mk  = sel => cp.map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>${p.name}</option>`).join('');
+      return `<span style="font-size:10px;color:var(--tx3)">via</span>
+        <select class="step-sel" onchange="upd(${si},'via',this.value)">${mk(s.via)}</select>
+        <span style="font-size:10px;color:var(--tx3)">to</span>
+        <select class="step-sel" onchange="upd(${si},'to',this.value)">${mk(s.to)}</select>`;
+    }
+    case 'loop_n':
+      return `<input class="step-inp" type="number" min="1" value="${s.count??5}" style="width:60px"
+              oninput="upd(${si},'count',+this.value)">
+              <span style="font-size:10px;color:var(--tx3)">times</span>`;
+    case 'loop_while':
+    case 'if_din':
+      return `<span style="font-size:10px;color:var(--tx3)">D.IN</span>
+        <input class="step-inp" type="number" min="0" max="15" value="${s.port??0}" style="width:44px"
+          oninput="upd(${si},'port',+this.value)">
+        <select class="step-sel" onchange="upd(${si},'val',this.value==='true')">
+          <option value="true"  ${s.val!==false?'selected':''}>== TRUE</option>
+          <option value="false" ${s.val===false ?'selected':''}>== FALSE</option>
+        </select>`;
+    case 'sleep':
+      return `<input class="step-inp" type="number" min="0" step="0.1" value="${s.sec??1}" style="width:60px"
+              oninput="upd(${si},'sec',+this.value)">
+              <span style="font-size:10px;color:var(--tx3)">sec</span>`;
+    case 'textmsg':
+    case 'popup':
+      return `<input class="step-inp" type="text" value="${esc(s.msg??'')}" style="width:200px"
+        placeholder="${s.type==='popup'?'Pendant message...':'Log message...'}"
+        oninput="upd(${si},'msg',this.value)">`;
+    case 'set_digital_out':
+      return `<span style="font-size:10px;color:var(--tx3)">D.OUT</span>
+        <input class="step-inp" type="number" min="0" max="15" value="${s.port??0}" style="width:44px"
+          oninput="upd(${si},'port',+this.value)">
+        <select class="step-sel" onchange="upd(${si},'val',this.value==='true')">
+          <option value="true"  ${s.val!==false?'selected':''}>HIGH</option>
+          <option value="false" ${s.val===false ?'selected':''}>LOW</option>
+        </select>`;
+    case 'set_payload':
+      return `<input class="step-inp" type="number" step="0.1" min="0" value="${s.weight??0}" style="width:60px"
+              oninput="upd(${si},'weight',+this.value)">
+              <span style="font-size:10px;color:var(--tx3)">kg</span>`;
+    case 'set_tcp':
+      return `<input class="step-inp" type="text" value="${s.pose??'0,0,0,0,0,0'}" style="width:160px"
+        placeholder="x,y,z,rx,ry,rz" oninput="upd(${si},'pose',this.value)">`;
+    default: return '';
+  }
+}
+
+function renderSteps() {
+  const depths = computeDepths();
+  const list   = document.getElementById('steps-list');
+  list.innerHTML = steps.map((s,si)=>{
+    const [tag,tagCls] = TAG_INFO[s.type] || ['?','tag-util'];
+    const depth    = depths[si];
+    const indent   = Array(depth).fill('<div class="step-indent-line"></div>').join('');
+    const extraCls = OPENERS.includes(s.type) ? 'block-open'
+                   : s.type==='block_end'      ? 'block-end-row'
+                   : s.type==='else_block'      ? 'else-row' : '';
+    return `<div class="step-row">
+      <div class="step-indent">${indent}</div>
+      <div class="step ${extraCls}" id="st-${s.id}">
+        <span class="step-n">${si+1}</span>
+        <span class="step-tag ${tagCls}">${tag}</span>
+        <select class="step-sel" onchange="changeType('${s.id}',this.value)" style="font-size:10px;max-width:100px">
+          ${Object.entries(TAG_INFO).map(([v])=>`<option value="${v}" ${s.type===v?'selected':''}>${v}</option>`).join('')}
+        </select>
+        ${stepParams(s)}
+        <span class="step-spacer"></span>
+        <div class="step-controls">
+          <button class="btn-ghost btn btn-sm" onclick="moveStep('${s.id}',-1)" ${si===0?'disabled':''}>↑</button>
+          <button class="btn-ghost btn btn-sm" onclick="moveStep('${s.id}',1)" ${si===steps.length-1?'disabled':''}>↓</button>
+          <button class="btn-del btn btn-sm" onclick="deleteStep('${s.id}')">✕</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('step-count').textContent = steps.length+' step'+(steps.length!==1?'s':'');
+  validateSteps();
+}
+
+function validateSteps() {
+  const warns = [];
+  steps.forEach((s,i)=>{
+    if (s.type==='movel') {
+      const pos = positions.find(p=>p.id===s.pid);
+      if (!pos) warns.push(`Step ${i+1}: movel has no position set`);
+      else if (pos.type!=='cart') warns.push(`Step ${i+1}: movel requires Cartesian — "${pos.name}" is JOINT`);
+    }
+    if (s.type==='movec') {
+      const via=positions.find(p=>p.id===s.via), to=positions.find(p=>p.id===s.to);
+      if (!via||!to) warns.push(`Step ${i+1}: movec needs Via and To positions`);
+    }
+    if (s.type==='movej'&&!s.pid) warns.push(`Step ${i+1}: movej has no position set`);
+  });
+  let depth=0;
+  steps.forEach((s,i)=>{
+    if (OPENERS.includes(s.type)) depth++;
+    else if (s.type==='block_end') {
+      depth--;
+      if (depth<0) { warns.push(`Step ${i+1}: END has no matching opener`); depth=0; }
+    }
+  });
+  if (depth>0) warns.push(`${depth} block(s) not closed — add End block`);
+  const wb = document.getElementById('warn-box');
+  if (warns.length) { wb.className='warn-box show'; wb.innerHTML='⚠ '+warns.join('<br>⚠ '); }
+  else wb.className='warn-box';
+}
+
+// ═══════════════════════════════════════════════════════════
+// STEP MUTATIONS
+// ═══════════════════════════════════════════════════════════
+function defaultStep(type) {
+  const s = {id:uid(), type};
+  if (type==='movej') s.pid = positions.find(p=>p.type==='joint')?.id ?? positions[0]?.id ?? null;
+  if (type==='movel') s.pid = positions.find(p=>p.type==='cart')?.id ?? null;
+  if (type==='movec') { s.via = positions.find(p=>p.type==='cart')?.id ?? null; s.to = s.via; }
+  if (type==='loop_n') s.count = 5;
+  if (type==='loop_while'||type==='if_din') { s.port=0; s.val=true; }
+  if (type==='sleep') s.sec = 1;
+  if (type==='textmsg'||type==='popup') s.msg = '';
+  if (type==='set_digital_out') { s.port=0; s.val=true; }
+  if (type==='set_payload') s.weight = 0.5;
+  if (type==='set_tcp') s.pose = '0,0,0,0,0,0';
+  return s;
+}
+
+function addStep()    { steps.push(defaultStep(document.getElementById('new-type').value)); renderSteps(); refreshCode(); }
+function deleteStep(sid) { steps=steps.filter(s=>s.id!==sid); renderSteps(); refreshCode(); }
+function moveStep(sid,dir) {
+  const i=steps.findIndex(s=>s.id===sid), j=i+dir;
+  if (j<0||j>=steps.length) return;
+  [steps[i],steps[j]]=[steps[j],steps[i]];
+  renderSteps(); refreshCode();
+}
+function changeType(sid,type) {
+  const i=steps.findIndex(s=>s.id===sid); if (i<0) return;
+  steps[i]={...defaultStep(type), id:sid};
+  renderSteps(); refreshCode();
+}
+function upd(sid,key,val) {
+  const s=steps.find(x=>x.id===sid);
+  if (s) { s[key]=val; refreshCode(); validateSteps(); }
+}
+
+// ═══════════════════════════════════════════════════════════
+// CODE GENERATION
+// ═══════════════════════════════════════════════════════════
+function gv(id) { return parseFloat(document.getElementById(id)?.value)||0; }
+function poseStr(pos) {
+  return pos.type==='joint'
+    ? `[${pos.j.map(v=>v.toFixed(4)).join(', ')}]`
+    : `p[${pos.j.map(v=>v.toFixed(4)).join(', ')}]`;
+}
+
+function buildCode() {
+  const T  = '    ';
+  const js=gv('js'), ja=gv('ja'), ls=gv('ls'), la=gv('la'), br=gv('br');
+  const tcx=gv('tcp-x'), tcy=gv('tcp-y'), tcz=gv('tcp-z');
+  const tcrx=gv('tcp-rx'), tcry=gv('tcp-ry'), tcrz=gv('tcp-rz');
+  const plw=gv('pl-w'), plx=gv('pl-x'), ply=gv('pl-y'), plz=gv('pl-z');
+  const isTCPSet = tcx||tcy||tcz||tcrx||tcry||tcrz;
+  const L = [];
+
+  L.push('def master_program():');
+  L.push(`${T}# Motion parameters`);
+  L.push(`${T}global JOINT_SPEED  = ${js}`);
+  L.push(`${T}global JOINT_ACCEL  = ${ja}`);
+  L.push(`${T}global LINEAR_SPEED = ${ls}`);
+  L.push(`${T}global LINEAR_ACCEL = ${la}`);
+  L.push(`${T}global BLEND_RADIUS = ${br}`);
+  L.push('');
+  L.push(`${T}# Positions`);
+  positions.forEach(pos => L.push(`${T}global ${pos.name} = ${poseStr(pos)}`));
+  L.push('');
+  L.push(`${T}# Setup`);
+  if (isTCPSet) L.push(`${T}set_tcp(p[${tcx},${tcy},${tcz},${tcrx},${tcry},${tcrz}])`);
+  L.push(`${T}set_payload(${plw}, [${plx}, ${ply}, ${plz}])`);
+  L.push('');
+  L.push(`${T}# Gripper init`);
+  L.push(`${T}socket_open("127.0.0.1", 63352, "rq_srv")`);
+  L.push(`${T}socket_send_string("SET ACT 1\\n", "rq_srv")`);
+  L.push(`${T}sync()`);
+  L.push(`${T}socket_send_string("SET GTO 1\\n", "rq_srv")`);
+  L.push(`${T}sync()`);
+  L.push(`${T}sleep(1.0)`);
+  L.push('');
+  L.push(`${T}# Main sequence`);
+
+  let ind=1, loopIdx=0;
+  steps.forEach(s=>{
+    const tab = T.repeat(ind);
+    switch(s.type) {
+      case 'movej': {
+        const p = positions.find(x=>x.id===s.pid);
+        L.push(`${tab}movej(${p?p.name:'UNKNOWN'}, a=JOINT_ACCEL, v=JOINT_SPEED, r=BLEND_RADIUS)`);
+        break;
+      }
+      case 'movel': {
+        const p = positions.find(x=>x.id===s.pid);
+        L.push(`${tab}movel(${p?p.name:'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED, r=BLEND_RADIUS)`);
+        break;
+      }
+      case 'movec': {
+        const v=positions.find(x=>x.id===s.via), t=positions.find(x=>x.id===s.to);
+        L.push(`${tab}movec(${v?v.name:'UNKNOWN'}, ${t?t.name:'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED)`);
+        break;
+      }
+      case 'activate_gripper':
+        L.push(`${tab}socket_send_string("SET ACT 1", "rq_srv")`);
+        L.push(`${tab}socket_send_byte(10, "rq_srv")`);
+        L.push(`${tab}sync()`);
+        L.push(`${tab}socket_send_string("SET GTO 1", "rq_srv")`);
+        L.push(`${tab}socket_send_byte(10, "rq_srv")`);
+        L.push(`${tab}sync()`);
+        L.push(`${tab}sleep(1.0)`);
+        L.push(`${tab}textmsg("GRIPPER:ACTIVATE")`);
+        break;
+      case 'open_gripper':
+        L.push(`${tab}socket_send_string("SET SPE 255", "rq_srv")`);
+        L.push(`${tab}socket_send_byte(10, "rq_srv")`);
+        L.push(`${tab}sync()`);
+        L.push(`${tab}socket_send_string("SET FOR 255", "rq_srv")`);
+        L.push(`${tab}socket_send_byte(10, "rq_srv")`);
+        L.push(`${tab}sync()`);
+        L.push(`${tab}socket_send_string("SET POS 0", "rq_srv")`);
+        L.push(`${tab}socket_send_byte(10, "rq_srv")`);
+        L.push(`${tab}sync()`);
+        L.push(`${tab}sleep(0.8)`);
+        L.push(`${tab}textmsg("GRIPPER:OPEN")`);
+        break;
+      case 'close_gripper':
+        L.push(`${tab}socket_send_string("SET SPE 255", "rq_srv")`);
+        L.push(`${tab}socket_send_byte(10, "rq_srv")`);
+        L.push(`${tab}sync()`);
+        L.push(`${tab}socket_send_string("SET FOR 255", "rq_srv")`);
+        L.push(`${tab}socket_send_byte(10, "rq_srv")`);
+        L.push(`${tab}sync()`);
+        L.push(`${tab}socket_send_string("SET POS 255", "rq_srv")`);
+        L.push(`${tab}socket_send_byte(10, "rq_srv")`);
+        L.push(`${tab}sync()`);
+        L.push(`${tab}sleep(0.8)`);
+        L.push(`${tab}textmsg("GRIPPER:CLOSE")`);
+        break;
+      case 'sleep':           L.push(`${tab}sleep(${s.sec??1})`); break;
+      case 'textmsg':         L.push(`${tab}textmsg("${s.msg??''}")`); break;
+      case 'popup':           L.push(`${tab}popup("${s.msg??''}", title="Program", blocking=True)`); break;
+      case 'set_digital_out': L.push(`${tab}set_digital_out(${s.port??0}, ${s.val!==false?'True':'False'})`); break;
+      case 'set_payload':     L.push(`${tab}set_payload(${s.weight??0})`); break;
+      case 'set_tcp':         L.push(`${tab}set_tcp(p[${s.pose??'0,0,0,0,0,0'}])`); break;
+      case 'loop_n': {
+        const cv=`_i${loopIdx++}`;
+        L.push(`${tab}global ${cv} = 0`);
+        L.push(`${tab}while ${cv} < ${s.count??5}:`);
+        ind++;
+        break;
+      }
+      case 'loop_forever': L.push(`${tab}while True:`); ind++; break;
+      case 'loop_while':   L.push(`${tab}while get_digital_in(${s.port??0}) == ${s.val!==false?'True':'False'}:`); ind++; break;
+      case 'if_din':       L.push(`${tab}if get_digital_in(${s.port??0}) == ${s.val!==false?'True':'False'}:`); ind++; break;
+      case 'else_block':   L.push(`${T.repeat(Math.max(1,ind-1))}else:`); break;
+      case 'block_end': {
+        ind = Math.max(1, ind-1);
+        const cvar = findMatchingLoopCounter(s);
+        if (cvar) L.push(`${T.repeat(ind)}${cvar} = ${cvar} + 1`);
+        L.push(`${T.repeat(ind)}end`);
+        break;
+      }
+    }
+  });
+
+  L.push(`${T}socket_close("rq_srv")`);
+  L.push(`${T}textmsg("=== Program Complete ===")`);
+  L.push('end');
+  L.push('master_program()');
+  return L.join('\n') + '\n';
+}
+
+function findMatchingLoopCounter(endStep) {
+  const ei = steps.indexOf(endStep);
+  let depth = 0;
+  for (let i=ei; i>=0; i--) {
+    const s = steps[i];
+    if (s.type==='block_end'&&i!==ei) depth++;
+    else if (OPENERS.includes(s.type)) {
+      if (depth===0) {
+        if (s.type==='loop_n') {
+          let n=0;
+          for (let j=0; j<i; j++) if (steps[j].type==='loop_n') n++;
+          return `_i${n}`;
+        }
+        return null;
+      }
+      depth--;
+    }
+  }
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════
+// SYNTAX HIGHLIGHT
+// ═══════════════════════════════════════════════════════════
+const KW  = /\b(def|end|if|else|elif|while|global|return|True|False|not|and|or)\b/g;
+const FNS = /\b(movej|movel|movec|sleep|textmsg|popup|set_tcp|set_payload|set_digital_out|get_digital_in|socket_open|socket_close|socket_send_string|socket_send_byte|sync|speedl|stopl|freedrive_mode|end_freedrive_mode|master_program)\b/g;
+const NUM = /(?<!["'\w])(-?\d+\.?\d*)\b/g;
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function highlight(code) {
+  return code.split('\n').map(line=>{
+    const e = esc(line);
+    if (/^\s*#/.test(e)) return `<span class="c-cm">${e}</span>`;
+    let c=e, cm='';
+    const ci = e.indexOf('#');
+    if (ci>0) { c=e.slice(0,ci); cm=e.slice(ci); }
+    const sm={}; let si=0;
+    c = c.replace(/"([^"]*)"/g, (_,inner)=>{
+      const k=`\x00${si++}\x00`;
+      sm[k]=`<span class="c-str">"${inner}"</span>`;
+      return k;
+    });
+    c = c.replace(NUM, m=>`<span class="c-num">${m}</span>`)
+         .replace(KW,  m=>`<span class="c-kw">${m}</span>`)
+         .replace(FNS, m=>`<span class="c-fn">${m}</span>`);
+    Object.entries(sm).forEach(([k,v])=>{ c=c.replace(k,v); });
+    if (cm) c += `<span class="c-cm">${esc(cm)}</span>`;
+    return c;
+  }).join('\n');
+}
+
+function refreshCode() {
+  const plain = buildCode();
+  document.getElementById('code-out').innerHTML = highlight(plain);
+  document.getElementById('code-lines').textContent = plain.split('\n').length+' lines';
+}
+
+// ═══════════════════════════════════════════════════════════
+// COPY / DOWNLOAD / SAVE / LOAD
+// ═══════════════════════════════════════════════════════════
+function copyCode() {
+  navigator.clipboard.writeText(buildCode()).then(()=>{
+    const b = document.querySelector('.hdr .btn');
+    const o = b.textContent;
+    b.textContent = '✓ Copied!';
+    setTimeout(()=>b.textContent=o, 1800);
+  });
+}
+
+function downloadCode() {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([buildCode()], {type:'text/plain'}));
+  a.download = 'ur3e_program.script';
+  a.click();
+}
+
+function exportProject() {
+  const projectData = {
+    positions,
+    steps,
+    settings: {
+      js: document.getElementById('js').value,
+      ja: document.getElementById('ja').value,
+      ls: document.getElementById('ls').value,
+      la: document.getElementById('la').value,
+    }
+  };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(projectData, null, 2)], {type:'application/json'}));
+  a.download = 'ur3e_project.json';
+  a.click();
+}
+
+function importProject(fileInput) {
+  const file = fileInput.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const d = JSON.parse(e.target.result);
+      if (d.positions) positions = d.positions;
+      if (d.steps)     steps     = d.steps;
+      if (d.settings) {
+        if (d.settings.js) document.getElementById('js').value = d.settings.js;
+        if (d.settings.ja) document.getElementById('ja').value = d.settings.ja;
+        if (d.settings.ls) document.getElementById('ls').value = d.settings.ls;
+        if (d.settings.la) document.getElementById('la').value = d.settings.la;
+      }
+      renderPositions(); renderSteps(); refreshCode();
+      alert('Project loaded successfully!');
+    } catch(err) {
+      alert('Error parsing project file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  fileInput.value = '';
+}
+
+// ═══════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════
+initSteps();
+renderPositions();
+renderSteps();
+refreshCode();
