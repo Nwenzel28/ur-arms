@@ -639,9 +639,13 @@ function buildCode() {
   L.push('');
   L.push(`${T}# Gripper init`);
   L.push(`${T}socket_open("127.0.0.1", 63352, "rq_srv")`);
-  L.push(`${T}socket_send_string("SET ACT 1\\n", "rq_srv")`);
+  
+  // FIXED: Byte 10 for activation sequence
+  L.push(`${T}socket_send_string("SET ACT 1", "rq_srv")`);
+  L.push(`${T}socket_send_byte(10, "rq_srv")`);
   L.push(`${T}sync()`);
-  L.push(`${T}socket_send_string("SET GTO 1\\n", "rq_srv")`);
+  L.push(`${T}socket_send_string("SET GTO 1", "rq_srv")`);
+  L.push(`${T}socket_send_byte(10, "rq_srv")`);
   L.push(`${T}sync()`);
   L.push(`${T}sleep(1.0)`);
   L.push('');
