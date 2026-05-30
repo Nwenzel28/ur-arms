@@ -225,4 +225,5 @@ if __name__ == '__main__':
     print("║  Telemetry →  robot:30003            ║")
     print("║  Gripper   →  robot:63352 (Modbus)   ║")
     print("╚══════════════════════════════════════╝")
-    HTTPServer(('localhost', 5678), Handler).serve_forever()
+    server = ThreadedHTTPServer(('0.0.0.0', 5678), MyHandler)
+    server.serve_forever()
