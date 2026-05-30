@@ -638,16 +638,22 @@ function buildCode() {
   L.push(`${T}set_payload(${plw}, [${plx}, ${ply}, ${plz}])`);
   L.push('');
   L.push(`${T}# Gripper init`);
+  
+  // 1. ZOMBIE SOCKET KILLER: Force close any hanging connections from previous runs
+  L.push(`${T}socket_close("rq_srv")`);
   L.push(`${T}socket_open("127.0.0.1", 63352, "rq_srv")`);
   
-  // FIXED: Byte 10 for activation sequence
+  // 2. VALID ACTIVATION SEQUENCE
   L.push(`${T}socket_send_string("SET ACT 1", "rq_srv")`);
   L.push(`${T}socket_send_byte(10, "rq_srv")`);
   L.push(`${T}sync()`);
   L.push(`${T}socket_send_string("SET GTO 1", "rq_srv")`);
   L.push(`${T}socket_send_byte(10, "rq_srv")`);
   L.push(`${T}sync()`);
-  L.push(`${T}sleep(1.0)`);
+  
+  // 3. INCREASED TIMEOUT: Wait 3 seconds for the physical fingers to calibrate
+  L.push(`${T}sleep(3.0)`);
+  L.push('');
   L.push('');
   L.push(`${T}# Main sequence`);
 
