@@ -275,6 +275,7 @@ let fdAxes = [1,1,1,1,1,1];
 let isFreedrive   = false;
 let jogInterval   = null;
 let latestJoints  = null;
+let latestTcp = null;
 let livePollInterval = null;
 
 function toggleLiveMonitoring(checkbox) {
@@ -300,20 +301,19 @@ async function fetchRobotState() {
       body: JSON.stringify({ip, action:'state'})
     });
     const data = await res.json();
-    console.log('ROBOT DATA RECEIVED:', data);
 
     const tcp    = data.tcp    || data.actual_TCP_pose || data.pose || data.cartesian;
     const joints = data.joints || data.actual_joint_positions || data.q_actual || data.q;
 
     if (tcp && tcp.length >= 6) {
-      document.getElementById('live-x').innerText  = toDisp(tcp[0], false);
-      document.getElementById('live-y').innerText  = toDisp(tcp[1], false);
-      document.getElementById('live-z').innerText  = toDisp(tcp[2], false);
-      document.getElementById('live-rx').innerText = toDisp(tcp[3], true);
-      document.getElementById('live-ry').innerText = toDisp(tcp[4], true);
-      document.getElementById('live-rz').innerText = toDisp(tcp[5], true);
-    } else {
-      console.warn('Could not find TCP data in the response.');
+      latestTcp = tcp; // Store it globally!
+      // Display raw meters and radians (No degree conversion!)
+      document.getElementById('live-x').innerText  = tcp[0].toFixed(4);
+      document.getElementById('live-y').innerText  = tcp[1].toFixed(4);
+      document.getElementById('live-z').innerText  = tcp[2].toFixed(4);
+      document.getElementById('live-rx').innerText = tcp[3].toFixed(4);
+      document.getElementById('live-ry').innerText = tcp[4].toFixed(4);
+      document.getElementById('live-rz').innerText = tcp[5].toFixed(4);
     }
 
     if (joints && joints.length >= 6) {
@@ -324,8 +324,6 @@ async function fetchRobotState() {
       document.getElementById('live-j3').innerText = toDisp(joints[3], true);
       document.getElementById('live-j4').innerText = toDisp(joints[4], true);
       document.getElementById('live-j5').innerText = toDisp(joints[5], true);
-    } else {
-      console.warn('Could not find Joint data in the response.');
     }
   } catch(e) {
     console.error('Failed to read robot state', e);
@@ -333,15 +331,16 @@ async function fetchRobotState() {
 }
 
 function recordLivePosition() {
-  if (!latestJoints) {
-    alert("Please click '↻ Refresh' on the Robot Control panel first to get the latest coordinates!");
+  if (!latestJoints || !latestTcp) {
+    alert("Please click '↻ Refresh' or enable Live Monitoring first to get coordinates!");
     return;
   }
   positions.push({
     id: uid(),
     name: 'POS_' + (positions.length + 1),
-    type: 'joint',
-    j: [...latestJoints]
+    type: 'joint', // Default UI view, user can toggle to 'cart'
+    j: [...latestJoints],
+    c: [...latestTcp] // Save the EXACT Cartesian data directly from the robot!
   });
   renderPositions(); renderSteps(); refreshCode();
 }
@@ -446,8 +445,15 @@ function isAngleCol(type, col) {
 function renderPositions() {
   const el = document.getElementById('pos-list');
   el.innerHTML = positions.map(pos => {
-    const labels  = pos.type==='joint' ? JOINT_LABELS : CART_LABELS;
-    const unit    = pos.type==='joint' ? (mode==='deg'?'°':'r') : '';
+    const isCart  = pos.type === 'cart';
+    const labels  = isCart ? CART_LABELS : JOINT_LABELS;
+    
+    // Safety check for old saved project files
+    if (!pos.c) pos.c = [...pos.j]; 
+    
+    // Pick the correct array to display
+    const arr = isCart ? pos.c : pos.j;
+
     return `
     <div class="pos-card" id="pc-${pos.id}">
       <div class="pos-hdr">
@@ -456,22 +462,22 @@ function renderPositions() {
           onchange="renamePos('${pos.id}',this.value)"
           onblur="renamePos('${pos.id}',this.value)"/>
         <div class="type-seg">
-          <button class="type-btn ${pos.type==='joint'?'on':''}" onclick="setPosType('${pos.id}','joint')">JOINT</button>
-          <button class="type-btn ${pos.type==='cart'?'on':''}"  onclick="setPosType('${pos.id}','cart')">CART</button>
+          <button class="type-btn ${!isCart?'on':''}" onclick="setPosType('${pos.id}','joint')">JOINT</button>
+          <button class="type-btn ${isCart?'on':''}"  onclick="setPosType('${pos.id}','cart')">CART</button>
         </div>
         <button class="btn-del btn btn-sm" onclick="deletePos('${pos.id}')">✕</button>
       </div>
       <div class="joints">
         ${labels.map((name,ji)=>{
-          const isAng   = isAngleCol(pos.type,ji);
-          const disp    = toDisp(pos.j[ji], isAng);
-          const unitStr = pos.type==='cart' ? (ji<3?'m':(mode==='deg'?'°':'r')) : unit;
+          const isAng = !isCart; // Only joint mode uses the DEG/RAD toggle now
+          const disp  = isCart ? arr[ji].toFixed(4) : toDisp(arr[ji], true);
+          const unitStr = isCart ? (ji<3?'m':'rad') : (mode==='deg'?'°':'rad');
           return `<div class="jcell">
             <div class="jlabel">${name}<br>${unitStr}</div>
-            <input class="jinput ${pos.j[ji]!==0?'filled':''}" type="number"
+            <input class="jinput ${arr[ji]!==0?'filled':''}" type="number"
               step="${isAng&&mode==='deg'?'0.1':'0.0001'}"
               value="${disp}"
-              oninput="liveJoint(this,'${pos.id}',${ji},${isAng})"/>
+              oninput="liveJoint(this,'${pos.id}',${ji},${isCart})"/>
           </div>`;
         }).join('')}
       </div>
@@ -479,12 +485,22 @@ function renderPositions() {
   }).join('');
 }
 
-function posComplete(pos) { return pos.j.some(v=>v!==0); }
+function posComplete(pos) { 
+  const arr = pos.type === 'cart' ? (pos.c || pos.j) : pos.j;
+  return arr.some(v=>v!==0); 
+}
 
-function liveJoint(el, pid, ji, isAngle) {
+function liveJoint(el, pid, ji, isCart) {
   el.classList.toggle('filled', el.value!==''&&el.value!=='0');
   const pos = positions.find(p=>p.id===pid); if (!pos) return;
-  pos.j[ji] = fromDisp(el.value, isAngle);
+  
+  // Save directly to the correct array!
+  if (isCart) {
+    pos.c[ji] = parseFloat(el.value) || 0; 
+  } else {
+    pos.j[ji] = fromDisp(el.value, true);
+  }
+  
   document.getElementById('dot-'+pid).className = 'pos-dot'+(posComplete(pos)?' full':'');
   refreshCode();
 }
@@ -502,7 +518,8 @@ function setPosType(pid, type) {
 }
 
 function addPos(type) {
-  positions.push({id:uid(), name:'POS_'+(positions.length+1), type, j:[0,0,0,0,0,0]});
+  // Ensure manual additions create both arrays
+  positions.push({id:uid(), name:'POS_'+(positions.length+1), type, j:[0,0,0,0,0,0], c:[0,0,0,0,0,0]});
   renderPositions(); renderSteps(); refreshCode();
 }
 
@@ -728,9 +745,13 @@ function upd(sid,key,val) {
 // ═══════════════════════════════════════════════════════════
 function gv(id) { return parseFloat(document.getElementById(id)?.value)||0; }
 function poseStr(pos) {
-  return pos.type==='joint'
-    ? `[${pos.j.map(v=>v.toFixed(4)).join(', ')}]`
-    : `p[${pos.j.map(v=>v.toFixed(4)).join(', ')}]`;
+  if (pos.type === 'joint') {
+    return `[${pos.j.map(v=>v.toFixed(4)).join(', ')}]`;
+  } else {
+    // If it's a Cartesian type, use the exact 'c' array generated by the robot
+    const cartData = pos.c || pos.j; 
+    return `p[${cartData.map(v=>v.toFixed(4)).join(', ')}]`;
+  }
 }
 
 function buildCode() {
