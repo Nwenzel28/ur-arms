@@ -1,16 +1,15 @@
 // ═══════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════
-let mode = 'deg';
 let cfgOpen = true;
 let _uid = 0;
 const uid = () => 'u' + (_uid++);
 
 let positions = [
-  {id:uid(), name:'HOME',     type:'joint', j:[0,-1.5708,0,-1.5708,-1.5708,0]},
-  {id:uid(), name:'APPROACH', type:'joint', j:[0,-1.5708,0,-1.5708,-1.5708,0]},
-  {id:uid(), name:'PICK',     type:'joint', j:[0,-1.5708,0,-1.5708,-1.5708,0]},
-  {id:uid(), name:'PLACE',    type:'joint', j:[0,-1.5708,0,-1.5708,-1.5708,0]},
+  {id:uid(), name:'HOME',     j:[0,-1.5708,0,-1.5708,-1.5708,0], c:[0,0,0,0,0,0]},
+  {id:uid(), name:'APPROACH', j:[0,-1.5708,0,-1.5708,-1.5708,0], c:[0,0,0,0,0,0]},
+  {id:uid(), name:'PICK',     j:[0,-1.5708,0,-1.5708,-1.5708,0], c:[0,0,0,0,0,0]},
+  {id:uid(), name:'PLACE',    j:[0,-1.5708,0,-1.5708,-1.5708,0], c:[0,0,0,0,0,0]},
 ];
 
 let steps = [];
@@ -338,9 +337,8 @@ function recordLivePosition() {
   positions.push({
     id: uid(),
     name: 'POS_' + (positions.length + 1),
-    type: 'joint', // Default UI view, user can toggle to 'cart'
     j: [...latestJoints],
-    c: [...latestTcp] // Save the EXACT Cartesian data directly from the robot!
+    c: [...latestTcp]
   });
   renderPositions(); renderSteps(); refreshCode();
 }
@@ -411,48 +409,25 @@ function toggleCfg() {
 }
 
 // ═══════════════════════════════════════════════════════════
-// UNITS
-// ═══════════════════════════════════════════════════════════
-function setMode(m) {
-  mode = m;
-  document.getElementById('btn-deg').classList.toggle('on', m==='deg');
-  document.getElementById('btn-rad').classList.toggle('on', m==='rad');
-  renderPositions();
-  refreshCode();
+// Always display joint angles in degrees in the UI; generate radians for the robot
+function toDisp(rad) {
+  return (rad * 180 / Math.PI).toFixed(2);
 }
-
-function toDisp(rad, isAngle=true) {
-  if (!isAngle) return +rad.toFixed(4);
-  return mode==='deg' ? +(rad*180/Math.PI).toFixed(2) : +rad.toFixed(4);
-}
-function fromDisp(v, isAngle=true) {
-  const n = parseFloat(v); if (isNaN(n)) return 0;
-  if (!isAngle) return n;
-  return mode==='deg' ? n*Math.PI/180 : n;
+function fromDisp(deg) {
+  return (parseFloat(deg) || 0) * Math.PI / 180;
 }
 
 // ═══════════════════════════════════════════════════════════
 // POSITIONS
 // ═══════════════════════════════════════════════════════════
-const JOINT_LABELS = ['Base','Shldr','Elbow','Wrst1','Wrst2','Wrst3'];
-const CART_LABELS  = ['X(m)','Y(m)','Z(m)','RX','RY','RZ'];
-
-function isAngleCol(type, col) {
-  if (type === 'joint') return true;
-  return col >= 3;
-}
+const JOINT_LABELS = ['J0','J1','J2','J3','J4','J5'];
+const CART_LABELS  = ['X','Y','Z','Rx','Ry','Rz'];
 
 function renderPositions() {
   const el = document.getElementById('pos-list');
   el.innerHTML = positions.map(pos => {
-    const isCart  = pos.type === 'cart';
-    const labels  = isCart ? CART_LABELS : JOINT_LABELS;
-    
-    // Safety check for old saved project files
-    if (!pos.c) pos.c = [...pos.j]; 
-    
-    // Pick the correct array to display
-    const arr = isCart ? pos.c : pos.j;
+    // Safety check — ensure both arrays always exist (handles old saved files)
+    if (!pos.c) pos.c = [...pos.j];
 
     return `
     <div class="pos-card" id="pc-${pos.id}">
@@ -461,47 +436,55 @@ function renderPositions() {
         <input class="pos-name" value="${pos.name}"
           onchange="renamePos('${pos.id}',this.value)"
           onblur="renamePos('${pos.id}',this.value)"/>
-        <div class="type-seg">
-          <button class="type-btn ${!isCart?'on':''}" onclick="setPosType('${pos.id}','joint')">JOINT</button>
-          <button class="type-btn ${isCart?'on':''}"  onclick="setPosType('${pos.id}','cart')">CART</button>
-        </div>
+        <div class="hspace"></div>
         <button class="btn-del btn btn-sm" onclick="deletePos('${pos.id}')">✕</button>
       </div>
+
+      <div class="pos-section-label">Joints (Degrees)</div>
       <div class="joints">
-        ${labels.map((name,ji)=>{
-          const isAng = !isCart; // Only joint mode uses the DEG/RAD toggle now
-          const disp  = isCart ? arr[ji].toFixed(4) : toDisp(arr[ji], true);
-          const unitStr = isCart ? (ji<3?'m':'rad') : (mode==='deg'?'°':'rad');
-          return `<div class="jcell">
-            <div class="jlabel">${name}<br>${unitStr}</div>
-            <input class="jinput ${arr[ji]!==0?'filled':''}" type="number"
-              step="${isAng&&mode==='deg'?'0.1':'0.0001'}"
-              value="${disp}"
-              oninput="liveJoint(this,'${pos.id}',${ji},${isCart})"/>
-          </div>`;
-        }).join('')}
+        ${JOINT_LABELS.map((name, ji) => `
+          <div class="jcell">
+            <div class="jlabel">${name}</div>
+            <input class="jinput ${pos.j[ji] !== 0 ? 'filled' : ''}" type="number"
+              step="0.1" value="${toDisp(pos.j[ji])}"
+              oninput="liveJoint(this,'${pos.id}',${ji},false)"/>
+          </div>
+        `).join('')}
+      </div>
+
+      <div class="pos-section-label">Cartesian (Meters / Rads)</div>
+      <div class="joints">
+        ${CART_LABELS.map((name, ci) => `
+          <div class="jcell">
+            <div class="jlabel">${name}</div>
+            <input class="jinput ${pos.c[ci] !== 0 ? 'filled' : ''}" type="number"
+              step="0.0001" value="${pos.c[ci].toFixed(4)}"
+              oninput="liveJoint(this,'${pos.id}',${ci},true)"/>
+          </div>
+        `).join('')}
       </div>
     </div>`;
   }).join('');
 }
 
-function posComplete(pos) { 
-  const arr = pos.type === 'cart' ? (pos.c || pos.j) : pos.j;
-  return arr.some(v=>v!==0); 
+function posComplete(pos) {
+  // Complete if it has either joint or Cartesian data
+  return pos.j.some(v => v !== 0) || (pos.c && pos.c.some(v => v !== 0));
 }
 
-function liveJoint(el, pid, ji, isCart) {
-  el.classList.toggle('filled', el.value!==''&&el.value!=='0');
-  const pos = positions.find(p=>p.id===pid); if (!pos) return;
-  
-  // Save directly to the correct array!
+function liveJoint(el, pid, index, isCart) {
+  el.classList.toggle('filled', el.value !== '' && el.value !== '0');
+  const pos = positions.find(p => p.id === pid);
+  if (!pos) return;
+
   if (isCart) {
-    pos.c[ji] = parseFloat(el.value) || 0; 
+    if (!pos.c) pos.c = [0,0,0,0,0,0];
+    pos.c[index] = parseFloat(el.value) || 0;
   } else {
-    pos.j[ji] = fromDisp(el.value, true);
+    pos.j[index] = fromDisp(el.value); // typed degrees → stored radians
   }
-  
-  document.getElementById('dot-'+pid).className = 'pos-dot'+(posComplete(pos)?' full':'');
+
+  document.getElementById('dot-' + pid).className = 'pos-dot' + (posComplete(pos) ? ' full' : '');
   refreshCode();
 }
 
@@ -511,15 +494,8 @@ function renamePos(pid, val) {
   refreshCode(); renderSteps();
 }
 
-function setPosType(pid, type) {
-  const pos = positions.find(p=>p.id===pid); if (!pos) return;
-  pos.type = type;
-  renderPositions(); refreshCode(); renderSteps();
-}
-
-function addPos(type) {
-  // Ensure manual additions create both arrays
-  positions.push({id:uid(), name:'POS_'+(positions.length+1), type, j:[0,0,0,0,0,0], c:[0,0,0,0,0,0]});
+function addPos() {
+  positions.push({id:uid(), name:'POS_'+(positions.length+1), j:[0,0,0,0,0,0], c:[0,0,0,0,0,0]});
   renderPositions(); renderSteps(); refreshCode();
 }
 
@@ -588,16 +564,12 @@ function stepParams(s) {
         positions.map(p=>`<option value="${p.id}" ${s.pid===p.id?'selected':''}>${p.name}</option>`).join('')
       }</select>`;
     case 'movel': {
-      const cp = positions.filter(p=>p.type==='cart');
       return `<select class="step-sel" onchange="upd(${si},'pid',this.value)">${
-        cp.length
-          ? cp.map(p=>`<option value="${p.id}" ${s.pid===p.id?'selected':''}>${p.name}</option>`).join('')
-          : `<option value="">— add Cartesian pos —</option>`
+        positions.map(p=>`<option value="${p.id}" ${s.pid===p.id?'selected':''}>${p.name}</option>`).join('')
       }</select>`;
     }
     case 'movec': {
-      const cp  = positions.filter(p=>p.type==='cart');
-      const mk  = sel => cp.map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>${p.name}</option>`).join('');
+      const mk  = sel => positions.map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>${p.name}</option>`).join('');
       return `<span style="font-size:10px;color:var(--tx3)">via</span>
         <select class="step-sel" onchange="upd(${si},'via',this.value)">${mk(s.via)}</select>
         <span style="font-size:10px;color:var(--tx3)">to</span>
@@ -682,7 +654,6 @@ function validateSteps() {
     if (s.type==='movel') {
       const pos = positions.find(p=>p.id===s.pid);
       if (!pos) warns.push(`Step ${i+1}: movel has no position set`);
-      else if (pos.type!=='cart') warns.push(`Step ${i+1}: movel requires Cartesian — "${pos.name}" is JOINT`);
     }
     if (s.type==='movec') {
       const via=positions.find(p=>p.id===s.via), to=positions.find(p=>p.id===s.to);
@@ -744,14 +715,14 @@ function upd(sid,key,val) {
 // CODE GENERATION
 // ═══════════════════════════════════════════════════════════
 function gv(id) { return parseFloat(document.getElementById(id)?.value)||0; }
-function poseStr(pos) {
-  if (pos.type === 'joint') {
-    return `[${pos.j.map(v=>v.toFixed(4)).join(', ')}]`;
-  } else {
-    // If it's a Cartesian type, use the exact 'c' array generated by the robot
-    const cartData = pos.c || pos.j; 
-    return `p[${cartData.map(v=>v.toFixed(4)).join(', ')}]`;
+function poseStr(pos, moveType) {
+  if (moveType === 'movel' || moveType === 'movec') {
+    // Linear/circular moves use Cartesian data
+    const cart = pos.c && pos.c.some(v=>v!==0) ? pos.c : pos.j;
+    return `p[${cart.map(v=>v.toFixed(4)).join(', ')}]`;
   }
+  // movej and all others use joint angles (radians)
+  return `[${pos.j.map(v=>v.toFixed(4)).join(', ')}]`;
 }
 
 function buildCode() {
@@ -772,7 +743,11 @@ function buildCode() {
   L.push(`${T}global BLEND_RADIUS = ${br}`);
   L.push('');
   L.push(`${T}# Positions`);
-  positions.forEach(pos => L.push(`${T}global ${pos.name} = ${poseStr(pos)}`));
+  positions.forEach(pos => {
+    L.push(`${T}global ${pos.name}_J = [${pos.j.map(v=>v.toFixed(4)).join(', ')}]`);
+    const cart = pos.c && pos.c.some(v=>v!==0) ? pos.c : pos.j;
+    L.push(`${T}global ${pos.name}_C = p[${cart.map(v=>v.toFixed(4)).join(', ')}]`);
+  });
   L.push('');
   L.push(`${T}# Setup`);
   if (isTCPSet) L.push(`${T}set_tcp(p[${tcx},${tcy},${tcz},${tcrx},${tcry},${tcrz}])`);
@@ -804,17 +779,17 @@ function buildCode() {
     switch(s.type) {
       case 'movej': {
         const p = positions.find(x=>x.id===s.pid);
-        L.push(`${tab}movej(${p?p.name:'UNKNOWN'}, a=JOINT_ACCEL, v=JOINT_SPEED, r=BLEND_RADIUS)`);
+        L.push(`${tab}movej(${p?p.name+'_J':'UNKNOWN'}, a=JOINT_ACCEL, v=JOINT_SPEED, r=BLEND_RADIUS)`);
         break;
       }
       case 'movel': {
         const p = positions.find(x=>x.id===s.pid);
-        L.push(`${tab}movel(${p?p.name:'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED, r=BLEND_RADIUS)`);
+        L.push(`${tab}movel(${p?p.name+'_C':'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED, r=BLEND_RADIUS)`);
         break;
       }
       case 'movec': {
         const v=positions.find(x=>x.id===s.via), t=positions.find(x=>x.id===s.to);
-        L.push(`${tab}movec(${v?v.name:'UNKNOWN'}, ${t?t.name:'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED)`);
+        L.push(`${tab}movec(${v?v.name+'_C':'UNKNOWN'}, ${t?t.name+'_C':'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED)`);
         break;
       }
       case 'activate_gripper':
