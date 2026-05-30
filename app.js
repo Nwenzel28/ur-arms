@@ -21,7 +21,8 @@ let steps = [];
 let gripperState = 'unactivated'; // Tracks: 'unactivated' -> 'open' <-> 'closed'
 
 // Replace your existing toggleGripper() function
-function toggleGripper() {
+// SAFE GRIPPER TOGGLE
+async function toggleGripper() {
   const btn = document.getElementById('btn-gripper-toggle');
   const ip = document.getElementById('robot-ip').value;
   if (!ip) return alert("Please enter the Robot IP first.");
@@ -29,7 +30,7 @@ function toggleGripper() {
   let targetPos = 255; // default close
   if (gripperState === 'unactivated') {
     btn.innerText = 'Activating...';
-    targetPos = 0; // Sweep to open
+    targetPos = 0; 
   } else if (gripperState === 'open') {
     btn.innerText = 'Closing...';
     targetPos = 255;
@@ -40,33 +41,47 @@ function toggleGripper() {
   
   btn.disabled = true;
 
-  // Send Modbus TCP position command directly
-  fetch(RELAY, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'gripper_move', ip: ip, pos: targetPos })
-  }).then(() => {
-    // Poll the status exactly every 250ms until it finishes
-    let pollInterval = setInterval(() => {
-      fetch(RELAY, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'gripper_status', ip: ip })
-      })
-      .then(r => r.json())
-      .then(res => {
-        if (res.ok) {
-          // gobj values: 0=Moving, 1=Obj(Open), 2=Obj(Close), 3=Finished
-          if (res.gobj !== 0) { 
-            clearInterval(pollInterval); // It finished moving!
-            gripperState = (targetPos === 255 || res.gobj === 2) ? 'closed' : 'open';
-            btn.innerText = gripperState === 'closed' ? 'Open Gripper' : 'Close Gripper';
-            btn.disabled = false;
-          }
+  try {
+    // 1. Send the move command
+    await fetch(RELAY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'gripper_move', ip: ip, pos: targetPos })
+    });
+
+    // 2. Safe recursive polling (won't crash the browser if the network drops)
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(RELAY, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'gripper_status', ip: ip })
+        });
+        const data = await res.json();
+        
+        if (data.ok && data.gobj !== 0) { 
+          // gobj > 0 means it finished moving or grabbed something!
+          gripperState = (targetPos === 255 || data.gobj === 2) ? 'closed' : 'open';
+          btn.innerText = gripperState === 'closed' ? 'Open Gripper' : 'Close Gripper';
+          btn.disabled = false;
+        } else {
+          // Still moving, wait 250ms and ask again
+          setTimeout(checkStatus, 250);
         }
-      });
-    }, 250);
-  });
+      } catch (err) {
+        console.error("Status poll failed:", err);
+        setTimeout(checkStatus, 500); // Retry gracefully
+      }
+    };
+
+    // Start checking
+    setTimeout(checkStatus, 250);
+
+  } catch (err) {
+    console.error("Gripper error:", err);
+    btn.disabled = false;
+    btn.innerText = "Error";
+  }
 }
 
 function initSteps() {
@@ -125,9 +140,6 @@ async function pingRobot() {
       btn.textContent = '✓ Connected';
       btn.style.color = 'var(--gn)';
       
-      // ► THE PLACEMENT: Inject the background listener now that we are connected
-      initFreedriveLoop(); 
-      
     } else {
       throw new Error(data.error || 'Robot refused connection');
     }
@@ -150,21 +162,6 @@ async function pingRobot() {
 function emergencyStop() {
   console.error('EMERGENCY STOP TRIGGERED');
   sendDirect('stopj(2.0)\n');
-}
-
-function initFreedriveLoop() {
-  const code = `def persistent_fd():
-  while True:
-    if read_output_boolean_register(0):
-      freedrive_mode([${fdAxes.join(',')}], p[0,0,0,0,0,0])
-    else:
-      end_freedrive_mode()
-    end
-    sync()
-  end
-end
-`;
-  sendDirect(code);
 }
 
 async function sendToRobot() {
@@ -321,29 +318,26 @@ function toggleFdAxis(index) {
   }
 }
 
-// Replace your existing toggleFreedrive()
+// SAFE FREEDRIVE TOGGLE
 function toggleFreedrive() {
   isFreedrive = !isFreedrive;
   const btn = document.getElementById('btn-freedrive');
-  const ip = document.getElementById('robot-ip').value;
   
-  // Update UI
   if (isFreedrive) {
     btn.textContent = 'Freedrive: ON';
     btn.style.background = 'var(--ac)';
     btn.style.color = '#fff';
+    // Send a URScript block with strict \n newlines so the parser accepts it
+    const code = `def start_fd():\n  freedrive_mode([${fdAxes.join(',')}], p[0,0,0,0,0,0])\n  sleep(3600)\nend\n`;
+    sendDirect(code);
   } else {
     btn.textContent = 'Freedrive: OFF';
     btn.style.background = 'transparent';
     btn.style.color = 'var(--ac)';
+    // Sending a new program immediately kills the old one, ending freedrive
+    const code = `def stop_fd():\n  end_freedrive_mode()\nend\n`;
+    sendDirect(code);
   }
-
-  // Toggle Modbus Coil 0 instantly
-  fetch(RELAY, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'set_freedrive_register', ip: ip, state: isFreedrive })
-  });
 }
 
 function startJog(axis, direction) {
