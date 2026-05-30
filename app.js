@@ -135,43 +135,6 @@ live_grp()`;
   });
 }
 
-// ═══════════════════════════════════════════════════════════
-// LIVE GRIPPER TELEMETRY
-// ═══════════════════════════════════════════════════════════
-let gripperTelemetryTimer = null;
-
-function pollGripperStatus() {
-  const ip = document.getElementById('robot-ip').value;
-  if (!ip) return; 
-
-  fetch('http://localhost:5678', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'gripper_status', ip: ip })
-  })
-  .then(res => res.json())
-  .then(data => {
-    const gripperEl = document.getElementById('stat-gripper');
-    
-    // Check if the Python script successfully read the position
-    if (data.ok && data.position_mm !== undefined) {
-      // Just drop the pre-calculated mm value right into the UI!
-      if (gripperEl) gripperEl.innerText = data.position_mm.toFixed(1) + ' mm';
-    } else {
-      if (gripperEl) gripperEl.innerText = '-- mm';
-    }
-  })
-  .catch(err => {
-    const gripperEl = document.getElementById('stat-gripper');
-    if (gripperEl) gripperEl.innerText = 'err';
-  });
-}
-
-// Start polling twice a second
-if (!gripperTelemetryTimer) {
-  gripperTelemetryTimer = setInterval(pollGripperStatus, 500); 
-}
-
 function initSteps() {
   const [home,approach,pick,place] = positions.map(p=>p.id);
   steps = [
