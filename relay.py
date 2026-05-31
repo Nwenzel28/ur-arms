@@ -171,6 +171,7 @@ class Handler(BaseHTTPRequestHandler):
                     resp = json.dumps(parse_gripper_status(raw)).encode()
             except Exception as e:
                 resp = json.dumps({"ok": False, "error": str(e)}).encode()
+
         elif action in ['ik', 'fk']:
             try:
                 # 1. Open a temporary server on a random free port
@@ -178,7 +179,7 @@ class Handler(BaseHTTPRequestHandler):
                 cb_sock.bind(('', 0))
                 port = cb_sock.getsockname()[1]
                 cb_sock.listen(1)
-                cb_sock.settimeout(4.0) # Increased timeout for safety
+                cb_sock.settimeout(2.0)
 
                 # 2. Find our Mac's IP on the network facing the robot
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -188,10 +189,10 @@ class Handler(BaseHTTPRequestHandler):
                 # Helper to format arrays safely for URScript
                 def fmt(arr): return "[" + ",".join(f"{x:.6f}" for x in arr) + "]"
 
-                # 3. Build the background script
+                # 3. Build the background script (using 'sec' so it doesn't interrupt programs!)
                 if action == 'ik':
                     script = f"""sec math():
-                    q = get_inverse_kin(p{fmt(data['c'])}, {fmt(data['qnear'])})
+                   q = get_inverse_kin(p{fmt(data['c'])}, {fmt(data['qnear'])})
                     if socket_open("{my_ip}", {port}, "cb"):
                         socket_send_string(to_str(q[0]), "cb")
                         socket_send_string(",", "cb")
@@ -225,8 +226,6 @@ class Handler(BaseHTTPRequestHandler):
                         socket_close("cb")
                     end
                     end\n"""
-                
-                print(f"➤ Requesting {action.upper()} calculation from robot...")
 
                 # 4. Inject it into the background thread
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -237,27 +236,64 @@ class Handler(BaseHTTPRequestHandler):
                 # 5. Wait for the robot to call us back with the math!
                 conn, addr = cb_sock.accept()
                 with conn:
-                    # FIX: Safely read all data until the robot closes the socket!
-                    res_bytes = b''
-                    while True:
-                        chunk = conn.recv(1024)
-                        if not chunk: 
-                            break # Socket closed by robot!
-                        res_bytes += chunk
-                        
-                    # Strip any trailing commas or spaces safely
-                    res_str = res_bytes.decode().strip().strip(',')
-                    values = [float(x) for x in res_str.split(',')]
-                    
-                    print(f"✓ Received {action.upper()} result: {values}")
+                    res = conn.recv(1024).decode()
+                    values = [float(x) for x in res.split(',')]
                     resp = json.dumps({"ok": True, "res": values}).encode()
 
                 cb_sock.close()
 
             except Exception as e:
-                print(f"❌ Kinematics failed: {e}")
+                print(f"Kinematics error: {e}") # This will print to your Mac terminal if it fails!
                 resp = json.dumps({"ok": False, "error": str(e)}).encode()
+            try:
+                # 1. Open a temporary server on a random free port
+                cb_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                cb_sock.bind(('', 0))
+                port = cb_sock.getsockname()[1]
+                cb_sock.listen(1)
+                cb_sock.settimeout(2.0)
 
+                # 2. Find our Mac's IP on the network facing the robot
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.connect((ip, 30002))
+                    my_ip = s.getsockname()[0]
+
+                # Helper to format arrays safely for URScript
+                def fmt(arr): return "[" + ",".join(f"{x:.6f}" for x in arr) + "]"
+
+                # 3. Build the background script (using 'sec' so it doesn't interrupt programs!)
+                if action == 'ik':
+                    script = f"""sec math():
+                            q = get_inverse_kin(p{fmt(data['c'])}, {fmt(data['qnear'])})
+                            socket_open("{my_ip}", {port}, "cb")
+                            socket_send_string(to_str(q[0])+"," + to_str(q[1])+"," + to_str(q[2])+"," + to_str(q[3])+"," + to_str(q[4])+"," + to_str(q[5]), "cb")
+                            socket_close("cb")
+                            end\n"""
+                else:
+                    script = f"""sec math():
+                            pose = get_forward_kin({fmt(data['j'])})
+                            socket_open("{my_ip}", {port}, "cb")
+                            socket_send_string(to_str(pose[0])+"," + to_str(pose[1])+"," + to_str(pose[2])+"," + to_str(pose[3])+"," + to_str(pose[4])+"," + to_str(pose[5]), "cb")
+                            socket_close("cb")
+                            end\n"""
+
+                # 4. Inject it into the background thread
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(2.0)
+                    s.connect((ip, 30002))
+                    s.sendall(script.encode())
+
+                # 5. Wait for the robot to call us back with the math!
+                conn, addr = cb_sock.accept()
+                with conn:
+                    res = conn.recv(1024).decode()
+                    values = [float(x) for x in res.split(',')]
+                    resp = json.dumps({"ok": True, "res": values}).encode()
+
+                cb_sock.close()
+
+            except Exception as e:
+                resp = json.dumps({"ok": False, "error": str(e)}).encode()
 
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
