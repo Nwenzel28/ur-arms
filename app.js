@@ -17,7 +17,7 @@ let steps = [];
 // ═══════════════════════════════════════════════════════════
 // LIVE GRIPPER CONTROL
 // ═══════════════════════════════════════════════════════════
-let gripperState = 'unactivated'; // Tracks: 'unactivated' -> 'open' <-> 'closed'
+let gripperState = 'unactivated';
 
 function toggleGripper() {
   const btn = document.getElementById('btn-gripper-toggle');
@@ -32,21 +32,18 @@ function toggleGripper() {
   let nextState = '';
   let nextText = '';
 
-  // State 1: Initialization
   if (gripperState === 'unactivated') {
     btn.innerText = 'Activating...';
     nextState = 'open'; 
     nextText = 'Close Gripper';
     urscript = `def live_grp():\n  socket_close("rq_srv")\n  socket_open("127.0.0.1", 63352, "rq_srv")\n  socket_send_string("SET ACT 1", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET GTO 1", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_close("rq_srv")\nend\nlive_grp()`;
   } 
-  // State 2: Closing
   else if (gripperState === 'open') {
     btn.innerText = 'Closing...';
     nextState = 'closed';
     nextText = 'Open Gripper';
     urscript = `def live_grp():\n  socket_close("rq_srv")\n  socket_open("127.0.0.1", 63352, "rq_srv")\n  socket_send_string("SET SPE 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET FOR 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET POS 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_close("rq_srv")\nend\nlive_grp()`;
   } 
-  // State 3: Opening
   else {
     btn.innerText = 'Opening...';
     nextState = 'open';
@@ -64,8 +61,7 @@ function toggleGripper() {
   .then(r => r.json())
   .then(res => {
     if (res.ok) {
-      // 🌟 NEW: Telemetry Polling (No more setTimeout guessing!)
-      // 🌟 NEW: Telemetry Polling (Smart Exit Conditions)
+      // 🌟 Smart Polling instead of 3.5s timeout!
       const checkStatus = async () => {
         try {
           const statusRes = await fetch(RELAY, {
@@ -79,10 +75,10 @@ function toggleGripper() {
             let isDone = false;
             
             if (gripperState === 'unactivated') {
-              // If activating, we must wait for gSTA to equal 3 (Activation Complete)
+              // Wait for Activation to Complete (STA === 3)
               if (data.gsta === 3) isDone = true;
             } else {
-              // If opening/closing, we wait for gOBJ to not be 0 (Done Moving)
+              // Wait for Movement to Complete or Object Detected (OBJ !== 0)
               if (data.gobj !== 0) isDone = true;
             }
 
@@ -90,20 +86,19 @@ function toggleGripper() {
               gripperState = nextState;
               btn.innerText = nextText;
               btn.disabled = false;
-              return; // Stop checking, unlock the UI!
+              return; // Stop polling, unlock the UI
             }
           }
-          
-          // If still moving/activating, check again in 250ms
+          // If still moving, check again in 250ms
           setTimeout(checkStatus, 250);
         } catch (err) {
           setTimeout(checkStatus, 500); 
         }
       };
       
-      // Give the hardware 500ms to register the move command before we start checking
+      // Wait a half-second for physical movement to start, then begin checking
       setTimeout(checkStatus, 500);
-      
+
     } else {
       alert("Error sending command: " + res.error);
       btn.disabled = false;

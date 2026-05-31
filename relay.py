@@ -189,7 +189,39 @@ class Handler(BaseHTTPRequestHandler):
                 resp = json.dumps({"ok": False, "error": str(e)}).encode()
 
         # ── Gripper status ─────────────────────────────────────────────
+        # ── Gripper status (ASCII Text Protocol!) ──────────────────────────
         elif action == 'gripper_status':
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(2.0)
+                    s.connect((ip, 63352))
+                    
+                    # 1. Ask for Activation Status (Returns e.g., "STA 3")
+                    s.sendall(b"GET STA\n")
+                    sta_raw = s.recv(1024).decode('utf-8').strip()
+                    
+                    # 2. Ask for Object Status (Returns e.g., "OBJ 0")
+                    s.sendall(b"GET OBJ\n")
+                    obj_raw = s.recv(1024).decode('utf-8').strip()
+
+                    # 3. Ask for Position (Returns e.g., "POS 255")
+                    s.sendall(b"GET POS\n")
+                    pos_raw = s.recv(1024).decode('utf-8').strip()
+
+                    # Parse the numbers safely
+                    gsta = int(sta_raw.replace('STA ', '')) if 'STA' in sta_raw else 0
+                    gobj = int(obj_raw.replace('OBJ ', '')) if 'OBJ' in obj_raw else 0
+                    gpo  = int(pos_raw.replace('POS ', '')) if 'POS' in pos_raw else 0
+
+                    resp = json.dumps({
+                        "ok": True,
+                        "gsta": gsta,
+                        "gobj": gobj,
+                        "position_raw": gpo
+                    }).encode()
+
+            except Exception as e:
+                resp = json.dumps({"ok": False, "error": str(e)}).encode()
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.settimeout(2.0)
