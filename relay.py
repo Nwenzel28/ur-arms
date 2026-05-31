@@ -188,30 +188,35 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 resp = json.dumps({"ok": False, "error": str(e)}).encode()
 
-        # ── Gripper status ─────────────────────────────────────────────
         # ── Gripper status (ASCII Text Protocol!) ──────────────────────────
         elif action == 'gripper_status':
             try:
+                import re # Import Regex to safely extract numbers
+                def extract_num(text):
+                    nums = re.findall(r'\d+', text)
+                    return int(nums[-1]) if nums else 0
+
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.settimeout(2.0)
                     s.connect((ip, 63352))
                     
-                    # 1. Ask for Activation Status (Returns e.g., "STA 3")
+                    # Ask for Statuses
                     s.sendall(b"GET STA\n")
                     sta_raw = s.recv(1024).decode('utf-8').strip()
                     
-                    # 2. Ask for Object Status (Returns e.g., "OBJ 0")
                     s.sendall(b"GET OBJ\n")
                     obj_raw = s.recv(1024).decode('utf-8').strip()
 
-                    # 3. Ask for Position (Returns e.g., "POS 255")
                     s.sendall(b"GET POS\n")
                     pos_raw = s.recv(1024).decode('utf-8').strip()
 
-                    # Parse the numbers safely
-                    gsta = int(sta_raw.replace('STA ', '')) if 'STA' in sta_raw else 0
-                    gobj = int(obj_raw.replace('OBJ ', '')) if 'OBJ' in obj_raw else 0
-                    gpo  = int(pos_raw.replace('POS ', '')) if 'POS' in pos_raw else 0
+                    # Print out EXACTLY what the robot sent us
+                    print(f"🤖 RAW ROBOT TEXT -> STA: '{sta_raw}', OBJ: '{obj_raw}', POS: '{pos_raw}'")
+
+                    # Extract just the numbers, ignore all letters/spaces
+                    gsta = extract_num(sta_raw)
+                    gobj = extract_num(obj_raw)
+                    gpo  = extract_num(pos_raw)
 
                     resp = json.dumps({
                         "ok": True,
@@ -221,16 +226,7 @@ class Handler(BaseHTTPRequestHandler):
                     }).encode()
 
             except Exception as e:
-                resp = json.dumps({"ok": False, "error": str(e)}).encode()
-            try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.settimeout(2.0)
-                    s.connect((ip, GRIPPER_PORT))
-                    s.sendall(gripper_read_packet())
-                    # 🌟 Call the dynamic reader instead of hardcoding 15 bytes!
-                    raw = read_modbus_response(s)
-                    resp = json.dumps(parse_gripper_status(raw)).encode()
-            except Exception as e:
+                print(f"⚠️ GRIPPER ERROR: {e}")
                 resp = json.dumps({"ok": False, "error": str(e)}).encode()
 
         # Send response back to browser
