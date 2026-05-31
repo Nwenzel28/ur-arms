@@ -437,6 +437,12 @@ function renderPositions() {
           onchange="renamePos('${pos.id}',this.value)"
           onblur="renamePos('${pos.id}',this.value)"/>
         <div class="hspace"></div>
+        <button class="btn btn-sm" style="font-size:9px; padding:3px 6px;" 
+          onmousedown="startMoveHere('${pos.id}')" 
+          onmouseup="stopMoveHere()" 
+          onmouseleave="stopMoveHere()">Move Here</button>
+        <button class="btn btn-sm" style="font-size:9px; padding:3px 6px;" 
+          onclick="setToCurrent('${pos.id}')">Set to Current</button>
         <button class="btn-del btn btn-sm" onclick="deletePos('${pos.id}')">✕</button>
       </div>
 
@@ -509,6 +515,50 @@ function deletePos(pid) {
     return s;
   });
   renderPositions(); renderSteps(); refreshCode();
+}
+
+// ═══════════════════════════════════════════════════════════
+// NEW: QUICK ACTION BUTTONS (MOVE HERE & SET TO CURRENT)
+// ═══════════════════════════════════════════════════════════
+
+function startMoveHere(pid) {
+  const pos = positions.find(p => p.id === pid);
+  if (!pos || !pos.c) return;
+
+  // Grab the global linear speed/accel from the Settings panel for safety
+  const ls = parseFloat(document.getElementById('ls').value) || 0.25;
+  const la = parseFloat(document.getElementById('la').value) || 1.2;
+
+  // Generate a Cartesian move command (movel)
+  const cartStr = pos.c.map(v => v.toFixed(4)).join(',');
+  const urscript = `def move_here():\n  movel(p[${cartStr}], a=${la}, v=${ls})\nend\n`;
+  
+  sendDirect(urscript);
+}
+
+function stopMoveHere() {
+  // Gracefully stop the robot if the user releases the mouse button early
+  sendDirect("def stop_move():\n  stopl(2.5)\nend\n");
+}
+
+function setToCurrent(pid) {
+  // Ensure we actually have live telemetry to pull from
+  if (!latestJoints || !latestTcp) {
+    alert("Please enable the 'Live Tracker' or click '↻ Refresh' first to get the robot's current coordinates.");
+    return;
+  }
+
+  const pos = positions.find(p => p.id === pid);
+  if (!pos) return;
+
+  // Update the position object with the live global arrays
+  pos.j = [...latestJoints];
+  pos.c = [...latestTcp];
+
+  // Re-render the UI and code block to reflect changes
+  renderPositions();
+  renderSteps();
+  refreshCode();
 }
 
 // ═══════════════════════════════════════════════════════════
