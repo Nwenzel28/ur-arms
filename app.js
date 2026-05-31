@@ -19,119 +19,58 @@ let steps = [];
 // ═══════════════════════════════════════════════════════════
 let gripperState = 'unactivated'; // Tracks: 'unactivated' -> 'open' <-> 'closed'
 
-function toggleGripper() {
+// ═══════════════════════════════════════════════════════════
+// LIVE GRIPPER CONTROL (Closed-Loop)
+// ═══════════════════════════════════════════════════════════
+async function toggleGripper() {
   const btn = document.getElementById('btn-gripper-toggle');
   const ip = document.getElementById('robot-ip').value;
+  if (!ip) return alert("Please enter the Robot IP first.");
+
+  // Determine target based on what the button currently says
+  const isClosing = btn.innerText.includes('Close');
+  const targetPos = isClosing ? 255 : 0; 
   
-  if (!ip) {
-    alert("Please enter the Robot IP first.");
-    return;
-  }
-
-  let urscript = '';
-  let nextState = '';
-  let nextText = '';
-  let waitTime = 1000;
-
-  // State 1: Initialization (Activation & Calibration Sweep)
-  if (gripperState === 'unactivated') {
-    btn.innerText = 'Activating...';
-    nextState = 'open'; // After calibration sweep, it naturally sits open
-    nextText = 'Close Gripper';
-    waitTime = 3500; // Give it 3.5 seconds for the physical fingers to calibrate
-    urscript = `def live_grp():
-  socket_close("rq_srv")
-  socket_open("127.0.0.1", 63352, "rq_srv")
-  socket_send_string("SET ACT 1", "rq_srv")
-  socket_send_byte(10, "rq_srv")
-  sync()
-  socket_send_string("SET GTO 1", "rq_srv")
-  socket_send_byte(10, "rq_srv")
-  sync()
-  sleep(3.0)
-  socket_close("rq_srv")
-end
-live_grp()`;
-  } 
-  // State 2: Closing
-  else if (gripperState === 'open') {
-    btn.innerText = 'Closing...';
-    nextState = 'closed';
-    nextText = 'Open Gripper';
-    waitTime = 1000;
-    urscript = `def live_grp():
-  socket_close("rq_srv")
-  socket_open("127.0.0.1", 63352, "rq_srv")
-  socket_send_string("SET SPE 255", "rq_srv")
-  socket_send_byte(10, "rq_srv")
-  sync()
-  socket_send_string("SET FOR 255", "rq_srv")
-  socket_send_byte(10, "rq_srv")
-  sync()
-  socket_send_string("SET POS 255", "rq_srv")
-  socket_send_byte(10, "rq_srv")
-  sync()
-  sleep(0.8)
-  socket_close("rq_srv")
-end
-live_grp()`;
-  } 
-  // State 3: Opening
-  else {
-    btn.innerText = 'Opening...';
-    nextState = 'open';
-    nextText = 'Close Gripper';
-    waitTime = 1000;
-    urscript = `def live_grp():
-  socket_close("rq_srv")
-  socket_open("127.0.0.1", 63352, "rq_srv")
-  socket_send_string("SET SPE 255", "rq_srv")
-  socket_send_byte(10, "rq_srv")
-  sync()
-  socket_send_string("SET FOR 255", "rq_srv")
-  socket_send_byte(10, "rq_srv")
-  sync()
-  socket_send_string("SET POS 0", "rq_srv")
-  socket_send_byte(10, "rq_srv")
-  sync()
-  sleep(0.8)
-  socket_close("rq_srv")
-end
-live_grp()`;
-  }
-
-  // Disable button so users don't spam commands and lock the socket
+  btn.innerText = isClosing ? 'Closing...' : 'Opening...';
   btn.disabled = true;
 
-  // Send the mini-program to relay.py
-  fetch('http://localhost:5678', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'send', ip: ip, code: urscript })
-  })
-  .then(r => r.json())
-  .then(res => {
-    if (res.ok) {
-      // Wait for the physical movement to finish before re-enabling
-      setTimeout(() => {
-        gripperState = nextState;
-        btn.innerText = nextText;
-        btn.disabled = false;
-      }, waitTime);
-    } else {
-      alert("Error sending command: " + res.error);
-      // Revert UI on failure
-      btn.disabled = false;
-      btn.innerText = gripperState === 'unactivated' ? 'Activate Gripper' : (gripperState === 'open' ? 'Close Gripper' : 'Open Gripper');
-    }
-  })
-  .catch(err => {
-    console.error(err);
-    alert("Network error. Is relay.py running?");
-    // Revert UI on failure
+  try {
+    await fetch(RELAY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'gripper_move', ip: ip, pos: targetPos })
+    });
+
+    // We can now safely poll the Python server every 100ms because it just reads RAM!
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(RELAY, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'gripper_status', ip: ip })
+        });
+        const data = await res.json();
+        
+        // Modbus gobj byte: 0=Moving, 1=Object Detected, 2=Object Detected, 3=Reached destination
+        if (data.ok && data.gobj !== 0) { 
+          const holdingObj = data.gobj === 1 || data.gobj === 2;
+          const fullyClosed = targetPos === 255 && data.gobj === 3;
+          
+          btn.innerText = (holdingObj || fullyClosed) ? 'Open Gripper' : 'Close Gripper';
+          btn.disabled = false;
+        } else {
+          setTimeout(checkStatus, 100); 
+        }
+      } catch (err) {
+        setTimeout(checkStatus, 500); 
+      }
+    };
+    setTimeout(checkStatus, 100);
+
+  } catch (err) {
     btn.disabled = false;
-    btn.innerText = gripperState === 'unactivated' ? 'Activate Gripper' : (gripperState === 'open' ? 'Close Gripper' : 'Open Gripper');
-  });
+    btn.innerText = "Error";
+  }
 }
 
 function initSteps() {
@@ -290,42 +229,52 @@ function toggleLiveMonitoring(checkbox) {
   }
 }
 
+// ═══════════════════════════════════════════════════════════
+// LIVE DASHBOARD (Now Syncs Gripper Button Automatically!)
+// ═══════════════════════════════════════════════════════════
 async function fetchRobotState() {
   const ip = document.getElementById('robot-ip').value.trim();
   if (!ip) return;
   try {
-    const res  = await fetch(RELAY, {
+    const res = await fetch(RELAY, {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ip, action:'state'})
     });
     const data = await res.json();
-
-    const tcp    = data.tcp    || data.actual_TCP_pose || data.pose || data.cartesian;
-    const joints = data.joints || data.actual_joint_positions || data.q_actual || data.q;
-
-    if (tcp && tcp.length >= 6) {
-      latestTcp = tcp; // Store it globally!
-      // Display raw meters and radians (No degree conversion!)
-      document.getElementById('live-x').innerText  = tcp[0].toFixed(4);
-      document.getElementById('live-y').innerText  = tcp[1].toFixed(4);
-      document.getElementById('live-z').innerText  = tcp[2].toFixed(4);
-      document.getElementById('live-rx').innerText = tcp[3].toFixed(4);
-      document.getElementById('live-ry').innerText = tcp[4].toFixed(4);
-      document.getElementById('live-rz').innerText = tcp[5].toFixed(4);
+    
+    if (data.tcp && data.tcp.length >= 6) {
+      latestTcp = data.tcp;
+      document.getElementById('live-x').innerText = data.tcp[0].toFixed(4);
+      document.getElementById('live-y').innerText = data.tcp[1].toFixed(4);
+      document.getElementById('live-z').innerText = data.tcp[2].toFixed(4);
+      document.getElementById('live-rx').innerText = data.tcp[3].toFixed(4);
+      document.getElementById('live-ry').innerText = data.tcp[4].toFixed(4);
+      document.getElementById('live-rz').innerText = data.tcp[5].toFixed(4);
+    }
+    
+    if (data.joints && data.joints.length >= 6) {
+      latestJoints = data.joints;
+      document.getElementById('live-j0').innerText = toDisp(data.joints[0]);
+      document.getElementById('live-j1').innerText = toDisp(data.joints[1]);
+      document.getElementById('live-j2').innerText = toDisp(data.joints[2]);
+      document.getElementById('live-j3').innerText = toDisp(data.joints[3]);
+      document.getElementById('live-j4').innerText = toDisp(data.joints[4]);
+      document.getElementById('live-j5').innerText = toDisp(data.joints[5]);
     }
 
-    if (joints && joints.length >= 6) {
-      latestJoints = joints;
-      document.getElementById('live-j0').innerText = toDisp(joints[0], true);
-      document.getElementById('live-j1').innerText = toDisp(joints[1], true);
-      document.getElementById('live-j2').innerText = toDisp(joints[2], true);
-      document.getElementById('live-j3').innerText = toDisp(joints[3], true);
-      document.getElementById('live-j4').innerText = toDisp(joints[4], true);
-      document.getElementById('live-j5').innerText = toDisp(joints[5], true);
+    // NEW: If the physical robot gripper changes, instantly update our UI button!
+    const gBtn = document.getElementById('btn-gripper-toggle');
+    if (data.gripper && data.gripper.ok && !gBtn.disabled) {
+       if (data.gripper.gobj !== 0) { // If it is currently stopped
+         const holding = data.gripper.gobj === 1 || data.gripper.gobj === 2;
+         const closed = data.gripper.position_raw > 200;
+         gBtn.innerText = (holding || closed) ? 'Open Gripper' : 'Close Gripper';
+       }
     }
+
   } catch(e) {
-    console.error('Failed to read robot state', e);
+    console.error('Failed to read robot state');
   }
 }
 

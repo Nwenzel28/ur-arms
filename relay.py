@@ -7,85 +7,107 @@ ROBOT_PORT   = 30002   # URScript injection
 STATE_PORT   = 30003   # Real-time client (robot telemetry)
 GRIPPER_PORT = 63352   # Robotiq 2F-85 URCap Modbus TCP daemon
 
-# ── 🌟 NEW: Global State (Digital Twin) ─────────────────────────────────
+# ── 🌟 Global State (Digital Twin) ──────────────────────────────────────
 target_ip = None
 robot_state = {
     "connected": False,
     "joints": None,
-    "tcp": None
+    "tcp": None,
+    "gripper": {"ok": False, "gobj": 0, "gobj_label": "Connecting..."}
 }
 
+# ── Thread 1: Arm Telemetry (Port 30003) ────────────────────────────────
 def state_monitor():
-    """Background thread that persistently reads telemetry from the robot."""
+    """Background thread that persistently reads arm telemetry."""
     global target_ip, robot_state
     current_socket = None
 
     while True:
-        # If the UI hasn't given us an IP yet, just wait.
         if not target_ip:
             time.sleep(0.5)
             continue
 
         try:
-            # If we don't have a socket, create exactly ONE and keep it alive.
             if current_socket is None:
-                print(f"📡 [Monitor] Connecting to robot telemetry at {target_ip}:{STATE_PORT}...")
+                print(f"📡 [Arm Monitor] Connecting to {target_ip}:{STATE_PORT}...")
                 current_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 current_socket.settimeout(2.0)
                 current_socket.connect((target_ip, STATE_PORT))
-                current_socket.settimeout(5.0) # Longer timeout once established
-                print(f"✅ [Monitor] Connected! Streaming state continuously...")
+                current_socket.settimeout(5.0)
+                print(f"✅ [Arm Monitor] Connected! Streaming state...")
 
-            # Read 4-byte size header
             size_data = recv_exact(current_socket, 4)
             size = struct.unpack('>i', size_data)[0]
             payload = recv_exact(current_socket, size - 4)
 
-            # Extract e-Series Kinematics
             if size >= 1220:
-                q_actual = list(struct.unpack('>6d', payload[248:248+48]))
-                p_actual = list(struct.unpack('>6d', payload[440:440+48]))
-
-                robot_state['joints'] = q_actual
-                robot_state['tcp'] = p_actual
+                robot_state['joints'] = list(struct.unpack('>6d', payload[248:248+48]))
+                robot_state['tcp'] = list(struct.unpack('>6d', payload[440:440+48]))
                 robot_state['connected'] = True
             else:
-                time.sleep(0.01) # Safety sleep if weird packets arrive
+                time.sleep(0.01)
 
         except Exception as e:
-            if robot_state['connected']:
-                print(f"⚠️ [Monitor] Connection lost: {e}. Retrying in 1s...")
             robot_state['connected'] = False
-            robot_state['joints'] = None
-            robot_state['tcp'] = None
             if current_socket:
                 try: current_socket.close()
                 except: pass
                 current_socket = None
-            time.sleep(1.0) # Backoff before reconnecting
+            time.sleep(1.0)
 
-# ── Reliable socket reader ─────────────────────────────────────────────
+# ── Thread 2: Gripper Telemetry (Port 63352) ────────────────────────────
+def gripper_monitor():
+    """Background thread that persistently reads Gripper Modbus telemetry."""
+    global target_ip, robot_state
+    current_socket = None
+
+    while True:
+        if not target_ip:
+            time.sleep(0.5)
+            continue
+
+        try:
+            if current_socket is None:
+                print(f"📡 [Gripper Monitor] Connecting to {target_ip}:{GRIPPER_PORT}...")
+                current_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                current_socket.settimeout(2.0)
+                current_socket.connect((target_ip, GRIPPER_PORT))
+                current_socket.settimeout(5.0)
+                print(f"✅ [Gripper Monitor] Connected! Polling state at 10Hz...")
+
+            # Request 3 registers (15 bytes) from the Robotiq Modbus server
+            current_socket.sendall(gripper_read_packet())
+            raw = recv_exact(current_socket, 15)
+            
+            # Parse it instantly into the RAM dictionary
+            robot_state['gripper'] = parse_gripper_status(raw)
+            time.sleep(0.1) # Safe 10Hz Modbus polling rate
+
+        except Exception as e:
+            robot_state['gripper'] = {"ok": False, "error": "Disconnected"}
+            if current_socket:
+                try: current_socket.close()
+                except: pass
+                current_socket = None
+            time.sleep(1.0)
+
+# ── Helpers ────────────────────────────────────────────────────────────
 def recv_exact(sock, n):
-    """Read exactly n bytes, handling partial TCP reads."""
     buf = b''
     while len(buf) < n:
         chunk = sock.recv(n - len(buf))
-        if not chunk:
-            raise ConnectionError(f"Socket closed after {len(buf)}/{n} bytes")
+        if not chunk: raise ConnectionError("Socket closed")
         buf += chunk
     return buf
 
-# ── Gripper Modbus TCP packet builders ────────────────────────────────
 def gripper_write_packet(action_byte, position, speed, force):
     data = bytes([action_byte, 0x00, 0x00, position, speed, force])
     pdu  = struct.pack('>BHH', 0x10, 0x03E8, 3) + bytes([6]) + data
-    mbap = struct.pack('>HHH', 1, 0, 1 + len(pdu)) + bytes([9])
-    return mbap + pdu
+    return struct.pack('>HHH', 1, 0, 1 + len(pdu)) + bytes([9]) + pdu
 
 def gripper_read_packet():
     pdu  = struct.pack('>BHH', 0x04, 0x07D0, 3)
-    mbap = struct.pack('>HHH', 1, 0, 1 + len(pdu)) + bytes([9])
-    return mbap + pdu
+    return struct.pack('>HHH', 1, 0, 1 + len(pdu)) + bytes([9]) + pdu
 
 def parse_gripper_status(raw):
     if len(raw) < 15: return {"ok": False}
@@ -93,12 +115,11 @@ def parse_gripper_status(raw):
     gact = (status_byte >> 0) & 0x01
     gobj = (status_byte >> 6) & 0x03
     gpo  = raw[12]
-    pos_mm = round((1.0 - gpo / 255.0) * 85.0, 1)
-    gobj_labels = ['Moving', 'Obj @ open', 'Obj @ close', 'At position']
     return {
-        "ok": True, "activated": gact == 1, "gobj": gobj, 
-        "gobj_label": gobj_labels[gobj], "object_detected": gobj in [1, 2], 
-        "position_raw": gpo, "position_mm": pos_mm
+        "ok": True, 
+        "activated": gact == 1, 
+        "gobj": gobj, # 0=Moving, 1=Object(open), 2=Object(close), 3=At target
+        "position_raw": gpo
     }
 
 # ── HTTP Handler ───────────────────────────────────────────────────────
@@ -118,21 +139,10 @@ class Handler(BaseHTTPRequestHandler):
         action = data.get('action', 'send')
         resp = b'{"ok":false}'
 
-        # ── Script sending ─────────────────────────────────────────────
-        if action == 'send':
+        # Execute Actions (Requires temporary socket opening)
+        if action == 'send' or action == 'urscript':
             try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.settimeout(2.0)
-                    s.connect((ip, ROBOT_PORT))
-                    s.sendall(data['code'].encode())
-                resp = b'{"ok":true}'
-            except Exception as e:
-                resp = json.dumps({"ok": False, "error": str(e)}).encode()
-
-        # ── Direct URScript execution (for Hold-to-Move) ───────────────
-        elif action == 'urscript':
-            try:
-                script = data.get('script', '') + '\n'
+                script = data.get('code', data.get('script', '')) + '\n'
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.settimeout(2.0)
                     s.connect((ip, ROBOT_PORT))
@@ -141,28 +151,6 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 resp = json.dumps({"ok": False, "error": str(e)}).encode()
 
-        # ── 🌟 NEW: Get Live Position & Dashboard State (INSTANT READ) ───
-        elif action in ['state', 'get_position']:
-            global target_ip
-            req_ip = data.get('ip', '')
-            
-            # If this is the first time the UI gives us an IP, set it to wake up the thread
-            if req_ip and target_ip != req_ip:
-                target_ip = req_ip
-                time.sleep(0.2) # Give the thread a split second to do the initial handshake
-
-            # Read directly from RAM instantly! No socket exhaustion.
-            if robot_state['connected'] and robot_state['joints'] and robot_state['tcp']:
-                resp = json.dumps({
-                    "ok": True,
-                    "joints": robot_state['joints'],
-                    "tcp": robot_state['tcp'],
-                    "cartesian": robot_state['tcp'] # Redundant key so 'get_position' API matches perfectly
-                }).encode()
-            else:
-                resp = json.dumps({"ok": False, "error": "Robot state monitor is connecting or unavailable"}).encode()
-
-        # ── Gripper Controls ───────────────────────────────────────────
         elif action == 'gripper_move':
             pos = data.get('pos', 255)
             try:
@@ -175,18 +163,29 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 resp = json.dumps({"ok": False, "error": str(e)}).encode()
 
-        elif action == 'gripper_status':
-            try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.settimeout(2.0)
-                    s.connect((ip, GRIPPER_PORT))
-                    s.sendall(gripper_read_packet())
-                    raw  = recv_exact(s, 15)
-                    resp = json.dumps(parse_gripper_status(raw)).encode()
-            except Exception as e:
-                resp = json.dumps({"ok": False, "error": str(e)}).encode()
+        # 🌟 INSTANT RAM READS (Zero Network Overhead)
+        elif action in ['state', 'get_position', 'gripper_status']:
+            global target_ip
+            if ip and target_ip != ip:
+                target_ip = ip
+                time.sleep(0.2) # Give threads a moment to wake up
 
-        # Send response back to browser
+            if action == 'gripper_status':
+                # Return only gripper data
+                resp = json.dumps(robot_state.get('gripper', {"ok": False})).encode()
+            else:
+                # Return everything
+                if robot_state['connected'] and robot_state['joints']:
+                    resp = json.dumps({
+                        "ok": True,
+                        "joints": robot_state['joints'],
+                        "tcp": robot_state['tcp'],
+                        "cartesian": robot_state['tcp'],
+                        "gripper": robot_state.get('gripper', {"ok": False})
+                    }).encode()
+                else:
+                    resp = json.dumps({"ok": False, "error": "Arm telemetry unavailable"}).encode()
+
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -194,14 +193,14 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(resp)
 
     def log_message(self, *a):
-        pass  # silence request logs
+        pass
 
 if __name__ == '__main__':
     print("╔══════════════════════════════════════╗")
     print("║     UR3e Relay  —  localhost:5678    ║")
     print("╚══════════════════════════════════════╝")
     
-    # 🌟 Start the background thread before starting the server!
     threading.Thread(target=state_monitor, daemon=True).start()
+    threading.Thread(target=gripper_monitor, daemon=True).start()
     
     HTTPServer(('', 5678), Handler).serve_forever()
