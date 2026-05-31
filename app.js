@@ -20,62 +20,55 @@ let steps = [];
 let gripperState = 'unactivated'; // Tracks: 'unactivated' -> 'open' <-> 'closed'
 
 // ═══════════════════════════════════════════════════════════
-// LIVE GRIPPER CONTROL (Stateless Polling)
+// LIVE GRIPPER CONTROL (URScript + Dashboard Polling)
 // ═══════════════════════════════════════════════════════════
+let isGripperClosed = false;
+
 async function toggleGripper() {
   const btn = document.getElementById('btn-gripper-toggle');
   const ip = document.getElementById('robot-ip').value;
   if (!ip) return alert("Please enter the Robot IP first.");
 
-  // Guess target based on current button text
-  const isClosing = btn.innerText.includes('Close');
-  const targetPos = isClosing ? 255 : 0; 
+  // Toggle our local state
+  isGripperClosed = !isGripperClosed;
+  const targetPos = isGripperClosed ? 255 : 0; 
   
-  btn.innerText = isClosing ? 'Closing...' : 'Opening...';
+  btn.innerText = isGripperClosed ? 'Closing...' : 'Opening...';
   btn.disabled = true;
 
+  // 1. Send the exact URScript that worked flawlessly before
+  const script = `def move_grp():\n  rq_move_and_wait(${targetPos})\nend\n`;
   try {
-    // 1. Send the stateless move command (Hit and run)
     await fetch(RELAY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'gripper_move', ip: ip, pos: targetPos })
+      body: JSON.stringify({ action: 'urscript', ip: ip, script: script })
     });
 
-    // 2. Start a safe, paced polling loop
-    const checkStatus = async () => {
+    // 2. Poll the Dashboard Server to see when the script finishes!
+    const checkDone = async () => {
       try {
         const res = await fetch(RELAY, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'gripper_status', ip: ip })
+          body: JSON.stringify({ action: 'program_state', ip: ip })
         });
         const data = await res.json();
         
-        if (data.ok) {
-          // gobj byte: 0=Moving, 1=Obj(open), 2=Obj(closed), 3=At destination
-          if (data.gobj !== 0) { 
-            const holdingObj = data.gobj === 1 || data.gobj === 2;
-            const fullyClosed = targetPos === 255 && data.gobj === 3;
-            
-            // If we are holding an object OR fully closed, the next action should be "Open"
-            btn.innerText = (holdingObj || fullyClosed) ? 'Open Gripper' : 'Close Gripper';
-            btn.disabled = false;
-            return; // Exit the loop, we are done!
-          }
+        // When the script finishes, the state returns to STOPPED
+        if (data.state && data.state.includes('STOPPED')) {
+          btn.innerText = isGripperClosed ? 'Open Gripper' : 'Close Gripper';
+          btn.disabled = false;
+        } else {
+          setTimeout(checkDone, 200); // Check again in 200ms
         }
-        
-        // If it's still moving (gobj === 0) or we got a safe error, check again in 250ms
-        setTimeout(checkStatus, 250); 
-        
       } catch (err) {
-        // If the python server hiccups, wait 500ms and try again
-        setTimeout(checkStatus, 500); 
+        setTimeout(checkDone, 500); 
       }
     };
     
-    // Give the hardware 250ms to actually start moving before we start bothering it
-    setTimeout(checkStatus, 250);
+    // Give the robot 500ms to officially start "PLAYING" before we start checking
+    setTimeout(checkDone, 500);
 
   } catch (err) {
     btn.disabled = false;
