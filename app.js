@@ -517,7 +517,6 @@ async function syncKinematics(pid, source) {
 
   try {
     if (source === 'joint') {
-      // Changed joints, calculate new Cartesian (Forward Kinematics)
       const res = await fetch(RELAY, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -526,12 +525,12 @@ async function syncKinematics(pid, source) {
       const data = await res.json();
       if (data.ok) {
         pos.c = data.res;
-        pos.active = 'both'; // Reset dimming
-        renderPositions();   // Update the UI with the exact robot math
+        pos.active = 'both'; 
+        renderPositions();   
+      } else {
+        console.error("Relay said:", data.error);
       }
     } else {
-      // Changed cartesian, calculate new Joints (Inverse Kinematics)
-      // We pass pos.j as 'qnear' so the robot knows which of the 8 solutions to pick!
       const res = await fetch(RELAY, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -542,10 +541,12 @@ async function syncKinematics(pid, source) {
         pos.j = data.res;
         pos.active = 'both'; 
         renderPositions(); 
+      } else {
+        console.error("Relay said:", data.error);
       }
     }
   } catch (e) {
-    console.error("Kinematics sync failed", e);
+    console.error("Kinematics fetch failed", e);
   }
 }
 
