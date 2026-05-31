@@ -1,14 +1,70 @@
 # relay.py — UR3e Relay Server
 # Run with: python3 relay.py
 from http.server import HTTPServer, BaseHTTPRequestHandler
-import socket, json, struct, time
+import socket, json, struct, time, threading
 
 ROBOT_PORT   = 30002   # URScript injection
 STATE_PORT   = 30003   # Real-time client (robot telemetry)
 GRIPPER_PORT = 63352   # Robotiq 2F-85 URCap Modbus TCP daemon
 
-# ── Reliable socket reader ─────────────────────────────────────────────
+# ── 🌟 NEW: Global State (Digital Twin) ─────────────────────────────────
+target_ip = None
+robot_state = {
+    "connected": False,
+    "joints": None,
+    "tcp": None
+}
 
+def state_monitor():
+    """Background thread that persistently reads telemetry from the robot."""
+    global target_ip, robot_state
+    current_socket = None
+
+    while True:
+        # If the UI hasn't given us an IP yet, just wait.
+        if not target_ip:
+            time.sleep(0.5)
+            continue
+
+        try:
+            # If we don't have a socket, create exactly ONE and keep it alive.
+            if current_socket is None:
+                print(f"📡 [Monitor] Connecting to robot telemetry at {target_ip}:{STATE_PORT}...")
+                current_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                current_socket.settimeout(2.0)
+                current_socket.connect((target_ip, STATE_PORT))
+                current_socket.settimeout(5.0) # Longer timeout once established
+                print(f"✅ [Monitor] Connected! Streaming state continuously...")
+
+            # Read 4-byte size header
+            size_data = recv_exact(current_socket, 4)
+            size = struct.unpack('>i', size_data)[0]
+            payload = recv_exact(current_socket, size - 4)
+
+            # Extract e-Series Kinematics
+            if size >= 1220:
+                q_actual = list(struct.unpack('>6d', payload[248:248+48]))
+                p_actual = list(struct.unpack('>6d', payload[440:440+48]))
+
+                robot_state['joints'] = q_actual
+                robot_state['tcp'] = p_actual
+                robot_state['connected'] = True
+            else:
+                time.sleep(0.01) # Safety sleep if weird packets arrive
+
+        except Exception as e:
+            if robot_state['connected']:
+                print(f"⚠️ [Monitor] Connection lost: {e}. Retrying in 1s...")
+            robot_state['connected'] = False
+            robot_state['joints'] = None
+            robot_state['tcp'] = None
+            if current_socket:
+                try: current_socket.close()
+                except: pass
+                current_socket = None
+            time.sleep(1.0) # Backoff before reconnecting
+
+# ── Reliable socket reader ─────────────────────────────────────────────
 def recv_exact(sock, n):
     """Read exactly n bytes, handling partial TCP reads."""
     buf = b''
@@ -20,72 +76,33 @@ def recv_exact(sock, n):
     return buf
 
 # ── Gripper Modbus TCP packet builders ────────────────────────────────
-
 def gripper_write_packet(action_byte, position, speed, force):
-    """
-    Modbus TCP Write Multiple Registers (FC 16) to Robotiq 2F-85.
-    Registers 0x03E8–0x03EA (1000–1002):
-      Reg 0: [action_byte, 0x00]
-      Reg 1: [0x00, position]   (0=open, 255=closed)
-      Reg 2: [speed, force]     (0–255 each)
-    """
     data = bytes([action_byte, 0x00, 0x00, position, speed, force])
     pdu  = struct.pack('>BHH', 0x10, 0x03E8, 3) + bytes([6]) + data
     mbap = struct.pack('>HHH', 1, 0, 1 + len(pdu)) + bytes([9])
     return mbap + pdu
 
 def gripper_read_packet():
-    """
-    Modbus TCP Read Input Registers (FC 4).
-    Reads 3 registers starting at 0x07D0 (2000) — gripper status.
-    """
     pdu  = struct.pack('>BHH', 0x04, 0x07D0, 3)
     mbap = struct.pack('>HHH', 1, 0, 1 + len(pdu)) + bytes([9])
     return mbap + pdu
 
 def parse_gripper_status(raw):
-    """
-    Parse Modbus TCP FC4 response into a status dict.
-    Response layout (15 bytes total):
-      [0-6]  MBAP header
-      [7]    FC echo (0x04)
-      [8]    Byte count (6)
-      [9]    Status byte: gACT(bit0), gSTA(bits4-5), gOBJ(bits6-7)
-      [10]   Fault byte (gFLT)
-      [11]   Position request echo (gPR)
-      [12]   Actual position (gPO): 0=open, 255=closed
-      [13]   Motor current hi
-      [14]   Motor current lo
-
-    gOBJ values:
-      0 = Fingers moving
-      1 = Object detected while opening
-      2 = Object detected while closing  ← gripped something
-      3 = At requested position, no object
-    """
-    if len(raw) < 15:
-        return {"ok": False, "error": f"Response too short ({len(raw)} bytes)"}
+    if len(raw) < 15: return {"ok": False}
     status_byte = raw[9]
     gact = (status_byte >> 0) & 0x01
-    gsta = (status_byte >> 4) & 0x03
     gobj = (status_byte >> 6) & 0x03
-    gpo  = raw[12]  # actual position 0–255
+    gpo  = raw[12]
     pos_mm = round((1.0 - gpo / 255.0) * 85.0, 1)
     gobj_labels = ['Moving', 'Obj @ open', 'Obj @ close', 'At position']
     return {
-        "ok":              True,
-        "activated":       gact == 1,
-        "gobj":            gobj,
-        "gobj_label":      gobj_labels[gobj],
-        "object_detected": gobj in [1, 2],
-        "position_raw":    gpo,
-        "position_mm":     pos_mm,
+        "ok": True, "activated": gact == 1, "gobj": gobj, 
+        "gobj_label": gobj_labels[gobj], "object_detected": gobj in [1, 2], 
+        "position_raw": gpo, "position_mm": pos_mm
     }
 
 # ── HTTP Handler ───────────────────────────────────────────────────────
-
 class Handler(BaseHTTPRequestHandler):
-
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -93,74 +110,71 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
-        body   = self.rfile.read(int(self.headers['Content-Length']))
-        data   = json.loads(body)
-        ip     = data.get('ip', '')
+        content_length = int(self.headers.get('Content-Length', 0))
+        body = self.rfile.read(content_length)
+        data = json.loads(body) if body else {}
+
+        ip = data.get('ip', '')
         action = data.get('action', 'send')
-        resp   = b'{"ok":false,"error":"Unknown action"}'
+        resp = b'{"ok":false}'
 
-        # ── Send URScript ──────────────────────────────────────────────
+        # ── Script sending ─────────────────────────────────────────────
         if action == 'send':
-            code = data['code'].encode()
-            try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.settimeout(5.0)
-                    s.connect((ip, ROBOT_PORT))
-                    s.sendall(code)
-                resp = b'{"ok":true}'
-            except Exception as e:
-                resp = json.dumps({"ok": False, "error": str(e)}).encode()
-
-        # ── Read robot state ───────────────────────────────────────────
-        elif action == 'state':
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.settimeout(2.0)
-                    s.connect((ip, STATE_PORT))
-                    header  = recv_exact(s, 4)
-                    pkt_len = struct.unpack('>I', header)[0]
-                    body_b  = recv_exact(s, pkt_len - 4)
-                    packet  = header + body_b
-                    if len(packet) >= 492:
-                        joints = struct.unpack('>6d', packet[252:300])
-                        tcp    = struct.unpack('>6d', packet[444:492])
-                        resp   = json.dumps({
-                            "ok":     True,
-                            "joints": list(joints),
-                            "tcp":    list(tcp)
-                        }).encode()
-                    else:
-                        resp = json.dumps({"ok": False, "error": f"Packet too small: {len(packet)}"}).encode()
-            except Exception as e:
-                resp = json.dumps({"ok": False, "error": str(e)}).encode()
-
-        # ── Gripper command ────────────────────────────────────────────
-        elif action == 'gripper_cmd':
-            cmd      = data.get('cmd', 'move')   # activate | open | close | move
-            position = max(0, min(255, int(data.get('position', 0))))
-            speed    = max(0, min(255, int(data.get('speed', 150))))
-            force    = max(0, min(255, int(data.get('force', 100))))
-            try:
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.settimeout(5.0)
-                    s.connect((ip, GRIPPER_PORT))
-                    if cmd == 'activate':
-                        # Phase 1: activate (rACT=1, rGTO=0 — just power on)
-                        s.sendall(gripper_write_packet(0x01, 0, 0, 0))
-                        recv_exact(s, 12)   # read Modbus ACK
-                        time.sleep(0.15)
-                        # Phase 2: go to open position (rACT=1, rGTO=1)
-                        s.sendall(gripper_write_packet(0x09, 0, 150, 0))
-                        recv_exact(s, 12)
-                    else:
-                        # open / close / move all use rACT=1, rGTO=1
-                        s.sendall(gripper_write_packet(0x09, position, speed, force))
-                        recv_exact(s, 12)
+                    s.connect((ip, ROBOT_PORT))
+                    s.sendall(data['code'].encode())
                 resp = b'{"ok":true}'
             except Exception as e:
                 resp = json.dumps({"ok": False, "error": str(e)}).encode()
 
-        # ── Gripper status ─────────────────────────────────────────────
+        # ── Direct URScript execution (for Hold-to-Move) ───────────────
+        elif action == 'urscript':
+            try:
+                script = data.get('script', '') + '\n'
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(2.0)
+                    s.connect((ip, ROBOT_PORT))
+                    s.sendall(script.encode())
+                resp = b'{"ok":true}'
+            except Exception as e:
+                resp = json.dumps({"ok": False, "error": str(e)}).encode()
+
+        # ── 🌟 NEW: Get Live Position & Dashboard State (INSTANT READ) ───
+        elif action in ['state', 'get_position']:
+            global target_ip
+            req_ip = data.get('ip', '')
+            
+            # If this is the first time the UI gives us an IP, set it to wake up the thread
+            if req_ip and target_ip != req_ip:
+                target_ip = req_ip
+                time.sleep(0.2) # Give the thread a split second to do the initial handshake
+
+            # Read directly from RAM instantly! No socket exhaustion.
+            if robot_state['connected'] and robot_state['joints'] and robot_state['tcp']:
+                resp = json.dumps({
+                    "ok": True,
+                    "joints": robot_state['joints'],
+                    "tcp": robot_state['tcp'],
+                    "cartesian": robot_state['tcp'] # Redundant key so 'get_position' API matches perfectly
+                }).encode()
+            else:
+                resp = json.dumps({"ok": False, "error": "Robot state monitor is connecting or unavailable"}).encode()
+
+        # ── Gripper Controls ───────────────────────────────────────────
+        elif action == 'gripper_move':
+            pos = data.get('pos', 255)
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(2.0)
+                    s.connect((ip, GRIPPER_PORT))
+                    s.sendall(gripper_write_packet(0x09, pos, 255, 150))
+                    recv_exact(s, 12)
+                resp = b'{"ok":true}'
+            except Exception as e:
+                resp = json.dumps({"ok": False, "error": str(e)}).encode()
+
         elif action == 'gripper_status':
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -172,6 +186,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 resp = json.dumps({"ok": False, "error": str(e)}).encode()
 
+        # Send response back to browser
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -184,9 +199,9 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == '__main__':
     print("╔══════════════════════════════════════╗")
     print("║     UR3e Relay  —  localhost:5678    ║")
-    print("╠══════════════════════════════════════╣")
-    print("║  URScript  →  robot:30002            ║")
-    print("║  Telemetry →  robot:30003            ║")
-    print("║  Gripper   →  robot:63352 (Modbus)   ║")
     print("╚══════════════════════════════════════╝")
-    HTTPServer(('localhost', 5678), Handler).serve_forever()
+    
+    # 🌟 Start the background thread before starting the server!
+    threading.Thread(target=state_monitor, daemon=True).start()
+    
+    HTTPServer(('', 5678), Handler).serve_forever()
