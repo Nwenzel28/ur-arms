@@ -9,7 +9,7 @@ GRIPPER_PORT = 63352   # Robotiq 2F-85 URCap Modbus TCP daemon
 
 # ── 🌟 Global State (Digital Twin) ──────────────────────────────────────
 target_ip = None
-gripper_cmd_queue = [] # safely passes commands to the thread holding the socket
+gripper_cmd_queue = [] 
 robot_state = {
     "connected": False,
     "joints": None,
@@ -17,7 +17,7 @@ robot_state = {
     "gripper": {"ok": False, "gobj": 0, "gobj_label": "Connecting..."}
 }
 
-# ── Thread 1: Arm Telemetry (Port 30003) ────────────────────────────────
+# ── Thread 1: Arm Telemetry (Port 30003 - Supports Persistent) ──────────
 def state_monitor():
     global target_ip, robot_state
     current_socket = None
@@ -62,11 +62,11 @@ def state_monitor():
                 current_socket = None
             time.sleep(1.0)
 
-# ── Thread 2: Gripper Telemetry (Port 63352) ────────────────────────────
+# ── Thread 2: Gripper Telemetry (Port 63352 - Single-Shot) ──────────────
 def gripper_monitor():
     global target_ip, robot_state, gripper_cmd_queue
-    current_socket = None
-    was_connected = False
+    has_printed_success = False
+    tid = 1 # Dynamic Transaction ID prevents Modbus packet rejection
 
     while True:
         if not target_ip:
@@ -74,41 +74,37 @@ def gripper_monitor():
             continue
 
         try:
-            if current_socket is None:
-                if not was_connected:
-                    print(f"📡 [Gripper] Connecting to Modbus at {target_ip}:{GRIPPER_PORT}...")
-                current_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                current_socket.settimeout(2.0)
-                current_socket.connect((target_ip, GRIPPER_PORT))
-                current_socket.settimeout(5.0)
-                print(f"✅ [Gripper] Connected! Modbus polling active.")
-                was_connected = True
-
-            # 1. 🌟 Process any commands waiting in the queue FIRST
+            # 1. 🌟 PROCESS QUEUE (Guaranteed Fresh Socket for Writes)
             while gripper_cmd_queue:
                 pos = gripper_cmd_queue.pop(0)
-                # Send the write packet
-                current_socket.sendall(gripper_write_packet(0x09, pos, 255, 150))
-                recv_exact(current_socket, 12) # Acknowledge Modbus response
+                tid = (tid % 65535) + 1
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(2.0)
+                    s.connect((target_ip, GRIPPER_PORT))
+                    s.sendall(gripper_write_packet(tid, 0x09, pos, 255, 150))
+                    recv_exact(s, 12)
+                time.sleep(0.05) # Give the UR hardware bus a tiny breather
 
-            # 2. Read the latest status
-            current_socket.sendall(gripper_read_packet())
-            raw = recv_exact(current_socket, 15)
-            robot_state['gripper'] = parse_gripper_status(raw)
-            
-            time.sleep(0.1) # 10Hz polling
+            # 2. 🌟 POLLING (Fresh Socket for Reads)
+            tid = (tid % 65535) + 1
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(2.0)
+                s.connect((target_ip, GRIPPER_PORT))
+                s.sendall(gripper_read_packet(tid))
+                raw = recv_exact(s, 15)
+                robot_state['gripper'] = parse_gripper_status(raw)
+                
+                if not has_printed_success:
+                    print(f"✅ [Gripper] Connected! Modbus polling active.")
+                    has_printed_success = True
+
+            # Sleep dictates UI update rate. 4Hz is very safe for UR controllers.
+            time.sleep(0.25) 
 
         except Exception as e:
-            if was_connected:
-                print(f"⚠️ [Gripper] Disconnected. Retrying in background...")
-                was_connected = False
-            
-            robot_state['gripper'] = {"ok": False, "error": "Disconnected"}
-            if current_socket:
-                try: current_socket.close()
-                except: pass
-                current_socket = None
-            time.sleep(1.0)
+            # Silently catch disconnects to prevent terminal spam
+            robot_state['gripper'] = {"ok": False, "error": str(e)}
+            time.sleep(0.5)
 
 # ── Helpers ────────────────────────────────────────────────────────────
 def recv_exact(sock, n):
@@ -119,14 +115,14 @@ def recv_exact(sock, n):
         buf += chunk
     return buf
 
-def gripper_write_packet(action_byte, position, speed, force):
+def gripper_write_packet(tid, action_byte, position, speed, force):
     data = bytes([action_byte, 0x00, 0x00, position, speed, force])
     pdu  = struct.pack('>BHH', 0x10, 0x03E8, 3) + bytes([6]) + data
-    return struct.pack('>HHH', 1, 0, 1 + len(pdu)) + bytes([9]) + pdu
+    return struct.pack('>HHH', tid, 0, 1 + len(pdu)) + bytes([9]) + pdu
 
-def gripper_read_packet():
+def gripper_read_packet(tid):
     pdu  = struct.pack('>BHH', 0x04, 0x07D0, 3)
-    return struct.pack('>HHH', 1, 0, 1 + len(pdu)) + bytes([9]) + pdu
+    return struct.pack('>HHH', tid, 0, 1 + len(pdu)) + bytes([9]) + pdu
 
 def parse_gripper_status(raw):
     if len(raw) < 15: return {"ok": False}
@@ -137,7 +133,7 @@ def parse_gripper_status(raw):
     return {
         "ok": True, 
         "activated": gact == 1, 
-        "gobj": gobj, # 0=Moving, 1=Object(open), 2=Object(close), 3=At target
+        "gobj": gobj, 
         "position_raw": gpo
     }
 
@@ -158,7 +154,6 @@ class Handler(BaseHTTPRequestHandler):
         action = data.get('action', 'send')
         resp = b'{"ok":false}'
 
-        # Arm Script Execution
         if action == 'send' or action == 'urscript':
             try:
                 script = data.get('code', data.get('script', '')) + '\n'
@@ -170,14 +165,11 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 resp = json.dumps({"ok": False, "error": str(e)}).encode()
 
-        # 🌟 NEW: Gripper Move (Thread-Safe Queue)
         elif action == 'gripper_move':
             pos = data.get('pos', 255)
-            # Just drop it in the queue for the background thread to handle!
             gripper_cmd_queue.append(pos) 
             resp = b'{"ok":true}'
 
-        # RAM Reads (Instant)
         elif action in ['state', 'get_position', 'gripper_status']:
             global target_ip
             if ip and target_ip != ip:
@@ -205,7 +197,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(resp)
 
     def log_message(self, *a):
-        pass # Disables the HTTP request spam in the terminal
+        pass
 
 if __name__ == '__main__':
     print("╔══════════════════════════════════════╗")
