@@ -9,7 +9,6 @@ GRIPPER_PORT = 63352   # Robotiq 2F-85 URCap Modbus TCP daemon
 
 # ── 🌟 Global State (Digital Twin) ──────────────────────────────────────
 target_ip = None
-gripper_cmd_queue = [] # safely passes commands to the thread holding the socket
 robot_state = {
     "connected": False,
     "joints": None,
@@ -19,9 +18,9 @@ robot_state = {
 
 # ── Thread 1: Arm Telemetry (Port 30003) ────────────────────────────────
 def state_monitor():
+    """Background thread that persistently reads arm telemetry."""
     global target_ip, robot_state
     current_socket = None
-    was_connected = False
 
     while True:
         if not target_ip:
@@ -30,14 +29,12 @@ def state_monitor():
 
         try:
             if current_socket is None:
-                if not was_connected:
-                    print(f"📡 [Arm] Connecting to telemetry at {target_ip}:{STATE_PORT}...")
+                print(f"📡 [Arm Monitor] Connecting to {target_ip}:{STATE_PORT}...")
                 current_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 current_socket.settimeout(2.0)
                 current_socket.connect((target_ip, STATE_PORT))
                 current_socket.settimeout(5.0)
-                print(f"✅ [Arm] Connected! Telemetry streaming.")
-                was_connected = True
+                print(f"✅ [Arm Monitor] Connected! Streaming state...")
 
             size_data = recv_exact(current_socket, 4)
             size = struct.unpack('>i', size_data)[0]
@@ -51,10 +48,6 @@ def state_monitor():
                 time.sleep(0.01)
 
         except Exception as e:
-            if was_connected:
-                print(f"⚠️ [Arm] Disconnected. Retrying in background...")
-                was_connected = False
-            
             robot_state['connected'] = False
             if current_socket:
                 try: current_socket.close()
@@ -64,9 +57,9 @@ def state_monitor():
 
 # ── Thread 2: Gripper Telemetry (Port 63352) ────────────────────────────
 def gripper_monitor():
-    global target_ip, robot_state, gripper_cmd_queue
+    """Background thread that persistently reads Gripper Modbus telemetry."""
+    global target_ip, robot_state
     current_socket = None
-    was_connected = False
 
     while True:
         if not target_ip:
@@ -75,34 +68,22 @@ def gripper_monitor():
 
         try:
             if current_socket is None:
-                if not was_connected:
-                    print(f"📡 [Gripper] Connecting to Modbus at {target_ip}:{GRIPPER_PORT}...")
+                print(f"📡 [Gripper Monitor] Connecting to {target_ip}:{GRIPPER_PORT}...")
                 current_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 current_socket.settimeout(2.0)
                 current_socket.connect((target_ip, GRIPPER_PORT))
                 current_socket.settimeout(5.0)
-                print(f"✅ [Gripper] Connected! Modbus polling active.")
-                was_connected = True
+                print(f"✅ [Gripper Monitor] Connected! Polling state at 10Hz...")
 
-            # 1. 🌟 Process any commands waiting in the queue FIRST
-            while gripper_cmd_queue:
-                pos = gripper_cmd_queue.pop(0)
-                # Send the write packet
-                current_socket.sendall(gripper_write_packet(0x09, pos, 255, 150))
-                recv_exact(current_socket, 12) # Acknowledge Modbus response
-
-            # 2. Read the latest status
+            # Request 3 registers (15 bytes) from the Robotiq Modbus server
             current_socket.sendall(gripper_read_packet())
             raw = recv_exact(current_socket, 15)
-            robot_state['gripper'] = parse_gripper_status(raw)
             
-            time.sleep(0.1) # 10Hz polling
+            # Parse it instantly into the RAM dictionary
+            robot_state['gripper'] = parse_gripper_status(raw)
+            time.sleep(0.1) # Safe 10Hz Modbus polling rate
 
         except Exception as e:
-            if was_connected:
-                print(f"⚠️ [Gripper] Disconnected. Retrying in background...")
-                was_connected = False
-            
             robot_state['gripper'] = {"ok": False, "error": "Disconnected"}
             if current_socket:
                 try: current_socket.close()
@@ -158,7 +139,7 @@ class Handler(BaseHTTPRequestHandler):
         action = data.get('action', 'send')
         resp = b'{"ok":false}'
 
-        # Arm Script Execution
+        # Execute Actions (Requires temporary socket opening)
         if action == 'send' or action == 'urscript':
             try:
                 script = data.get('code', data.get('script', '')) + '\n'
@@ -170,23 +151,30 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 resp = json.dumps({"ok": False, "error": str(e)}).encode()
 
-        # 🌟 NEW: Gripper Move (Thread-Safe Queue)
         elif action == 'gripper_move':
             pos = data.get('pos', 255)
-            # Just drop it in the queue for the background thread to handle!
-            gripper_cmd_queue.append(pos) 
-            resp = b'{"ok":true}'
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(2.0)
+                    s.connect((ip, GRIPPER_PORT))
+                    s.sendall(gripper_write_packet(0x09, pos, 255, 150))
+                    recv_exact(s, 12)
+                resp = b'{"ok":true}'
+            except Exception as e:
+                resp = json.dumps({"ok": False, "error": str(e)}).encode()
 
-        # RAM Reads (Instant)
+        # 🌟 INSTANT RAM READS (Zero Network Overhead)
         elif action in ['state', 'get_position', 'gripper_status']:
             global target_ip
             if ip and target_ip != ip:
                 target_ip = ip
-                time.sleep(0.2) 
+                time.sleep(0.2) # Give threads a moment to wake up
 
             if action == 'gripper_status':
+                # Return only gripper data
                 resp = json.dumps(robot_state.get('gripper', {"ok": False})).encode()
             else:
+                # Return everything
                 if robot_state['connected'] and robot_state['joints']:
                     resp = json.dumps({
                         "ok": True,
@@ -205,7 +193,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(resp)
 
     def log_message(self, *a):
-        pass # Disables the HTTP request spam in the terminal
+        pass
 
 if __name__ == '__main__':
     print("╔══════════════════════════════════════╗")
