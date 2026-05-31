@@ -531,7 +531,7 @@ function startMoveHere(pid) {
 
   // Generate a Cartesian move command (movel)
   const cartStr = pos.c.map(v => v.toFixed(4)).join(',');
-  const urscript = `def move_here():\n  movel(p[${cartStr}], a=${la}, v=${ls})\nend\n`;
+  const urscript = `def move_here():\n  movej(p[${cartStr}], a=${la}, v=${ls})\nend\n`;
   
   sendDirect(urscript);
 }
