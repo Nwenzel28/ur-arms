@@ -528,7 +528,7 @@ async function syncKinematics(pid, source) {
         pos.active = 'both'; 
         renderPositions();   
       } else {
-        console.error("Relay said:", data.error);
+        console.error("Relay FK failed:", data.error);
       }
     } else {
       const res = await fetch(RELAY, {
@@ -542,7 +542,7 @@ async function syncKinematics(pid, source) {
         pos.active = 'both'; 
         renderPositions(); 
       } else {
-        console.error("Relay said:", data.error);
+        console.error("Relay IK failed:", data.error);
       }
     }
   } catch (e) {
