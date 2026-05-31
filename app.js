@@ -65,6 +65,7 @@ function toggleGripper() {
   .then(res => {
     if (res.ok) {
       // 🌟 NEW: Telemetry Polling (No more setTimeout guessing!)
+      // 🌟 NEW: Telemetry Polling (Smart Exit Conditions)
       const checkStatus = async () => {
         try {
           const statusRes = await fetch(RELAY, {
@@ -75,15 +76,25 @@ function toggleGripper() {
           const data = await statusRes.json();
           
           if (data.ok) {
-            // Modbus gobj: 0 = Moving, 1 = Obj Detected (Open), 2 = Obj Detected (Closed), 3 = Reached target
-            if (data.gobj !== 0) { 
+            let isDone = false;
+            
+            if (gripperState === 'unactivated') {
+              // If activating, we must wait for gSTA to equal 3 (Activation Complete)
+              if (data.gsta === 3) isDone = true;
+            } else {
+              // If opening/closing, we wait for gOBJ to not be 0 (Done Moving)
+              if (data.gobj !== 0) isDone = true;
+            }
+
+            if (isDone) { 
               gripperState = nextState;
               btn.innerText = nextText;
               btn.disabled = false;
-              return; // Stop checking, we are done!
+              return; // Stop checking, unlock the UI!
             }
           }
-          // If still moving (gobj === 0), check again in 250ms
+          
+          // If still moving/activating, check again in 250ms
           setTimeout(checkStatus, 250);
         } catch (err) {
           setTimeout(checkStatus, 500); 
@@ -92,7 +103,7 @@ function toggleGripper() {
       
       // Give the hardware 500ms to register the move command before we start checking
       setTimeout(checkStatus, 500);
-
+      
     } else {
       alert("Error sending command: " + res.error);
       btn.disabled = false;

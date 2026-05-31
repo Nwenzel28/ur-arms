@@ -102,10 +102,17 @@ def parse_gripper_status(raw):
         
     status_byte = raw[9]
     gact = (status_byte >> 0) & 0x01
-    gobj = (status_byte >> 6) & 0x03
+    gsta = (status_byte >> 4) & 0x03  # NEW: Activation Status (3 = Done Activating)
+    gobj = (status_byte >> 6) & 0x03  # Object Detection Status
     gpo  = raw[12]
-    return {"ok": True, "activated": gact == 1, "gobj": gobj, "position_raw": gpo}
-
+    
+    return {
+        "ok": True, 
+        "activated": gact == 1, 
+        "gsta": gsta, 
+        "gobj": gobj, 
+        "position_raw": gpo
+    }
 
 # ── HTTP Handler ───────────────────────────────────────────────────────
 class Handler(BaseHTTPRequestHandler):
