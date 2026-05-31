@@ -20,52 +20,55 @@ let steps = [];
 let gripperState = 'unactivated'; // Tracks: 'unactivated' -> 'open' <-> 'closed'
 
 // ═══════════════════════════════════════════════════════════
-// LIVE GRIPPER CONTROL (Closed-Loop)
+// LIVE GRIPPER CONTROL (URScript + Dashboard Polling)
 // ═══════════════════════════════════════════════════════════
+let isGripperClosed = false;
+
 async function toggleGripper() {
   const btn = document.getElementById('btn-gripper-toggle');
   const ip = document.getElementById('robot-ip').value;
   if (!ip) return alert("Please enter the Robot IP first.");
 
-  // Determine target based on what the button currently says
-  const isClosing = btn.innerText.includes('Close');
-  const targetPos = isClosing ? 255 : 0; 
+  // Toggle our local state
+  isGripperClosed = !isGripperClosed;
+  const targetPos = isGripperClosed ? 255 : 0; 
   
-  btn.innerText = isClosing ? 'Closing...' : 'Opening...';
+  btn.innerText = isGripperClosed ? 'Closing...' : 'Opening...';
   btn.disabled = true;
 
+  // 1. Send the exact URScript that worked flawlessly before
+  const script = `def move_grp():\n  rq_move_and_wait(${targetPos})\nend\n`;
   try {
     await fetch(RELAY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'gripper_move', ip: ip, pos: targetPos })
+      body: JSON.stringify({ action: 'urscript', ip: ip, script: script })
     });
 
-    // We can now safely poll the Python server every 100ms because it just reads RAM!
-    const checkStatus = async () => {
+    // 2. Poll the Dashboard Server to see when the script finishes!
+    const checkDone = async () => {
       try {
         const res = await fetch(RELAY, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'gripper_status', ip: ip })
+          body: JSON.stringify({ action: 'program_state', ip: ip })
         });
         const data = await res.json();
         
-        // Modbus gobj byte: 0=Moving, 1=Object Detected, 2=Object Detected, 3=Reached destination
-        if (data.ok && data.gobj !== 0) { 
-          const holdingObj = data.gobj === 1 || data.gobj === 2;
-          const fullyClosed = targetPos === 255 && data.gobj === 3;
-          
-          btn.innerText = (holdingObj || fullyClosed) ? 'Open Gripper' : 'Close Gripper';
+        // When the script finishes, the state returns to STOPPED
+        if (data.state && data.state.includes('STOPPED')) {
+          btn.innerText = isGripperClosed ? 'Open Gripper' : 'Close Gripper';
           btn.disabled = false;
         } else {
-          setTimeout(checkStatus, 100); 
+          setTimeout(checkDone, 200); // Check again in 200ms
         }
       } catch (err) {
-        setTimeout(checkStatus, 500); 
+        setTimeout(checkDone, 500); 
       }
     };
-    setTimeout(checkStatus, 100);
+    
+    // Give the robot 500ms to officially start "PLAYING" before we start checking
+    setTimeout(checkDone, 500);
 
   } catch (err) {
     btn.disabled = false;
