@@ -31,80 +31,32 @@ function toggleGripper() {
   let urscript = '';
   let nextState = '';
   let nextText = '';
-  let waitTime = 1000;
 
-  // State 1: Initialization (Activation & Calibration Sweep)
+  // State 1: Initialization
   if (gripperState === 'unactivated') {
     btn.innerText = 'Activating...';
-    nextState = 'open'; // After calibration sweep, it naturally sits open
+    nextState = 'open'; 
     nextText = 'Close Gripper';
-    waitTime = 3500; // Give it 3.5 seconds for the physical fingers to calibrate
-    urscript = `def live_grp():
-  socket_close("rq_srv")
-  socket_open("127.0.0.1", 63352, "rq_srv")
-  socket_send_string("SET ACT 1", "rq_srv")
-  socket_send_byte(10, "rq_srv")
-  sync()
-  socket_send_string("SET GTO 1", "rq_srv")
-  socket_send_byte(10, "rq_srv")
-  sync()
-  sleep(3.0)
-  socket_close("rq_srv")
-end
-live_grp()`;
+    urscript = `def live_grp():\n  socket_close("rq_srv")\n  socket_open("127.0.0.1", 63352, "rq_srv")\n  socket_send_string("SET ACT 1", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET GTO 1", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_close("rq_srv")\nend\nlive_grp()`;
   } 
   // State 2: Closing
   else if (gripperState === 'open') {
     btn.innerText = 'Closing...';
     nextState = 'closed';
     nextText = 'Open Gripper';
-    waitTime = 1000;
-    urscript = `def live_grp():
-  socket_close("rq_srv")
-  socket_open("127.0.0.1", 63352, "rq_srv")
-  socket_send_string("SET SPE 255", "rq_srv")
-  socket_send_byte(10, "rq_srv")
-  sync()
-  socket_send_string("SET FOR 255", "rq_srv")
-  socket_send_byte(10, "rq_srv")
-  sync()
-  socket_send_string("SET POS 255", "rq_srv")
-  socket_send_byte(10, "rq_srv")
-  sync()
-  sleep(0.8)
-  socket_close("rq_srv")
-end
-live_grp()`;
+    urscript = `def live_grp():\n  socket_close("rq_srv")\n  socket_open("127.0.0.1", 63352, "rq_srv")\n  socket_send_string("SET SPE 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET FOR 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET POS 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_close("rq_srv")\nend\nlive_grp()`;
   } 
   // State 3: Opening
   else {
     btn.innerText = 'Opening...';
     nextState = 'open';
     nextText = 'Close Gripper';
-    waitTime = 1000;
-    urscript = `def live_grp():
-  socket_close("rq_srv")
-  socket_open("127.0.0.1", 63352, "rq_srv")
-  socket_send_string("SET SPE 255", "rq_srv")
-  socket_send_byte(10, "rq_srv")
-  sync()
-  socket_send_string("SET FOR 255", "rq_srv")
-  socket_send_byte(10, "rq_srv")
-  sync()
-  socket_send_string("SET POS 0", "rq_srv")
-  socket_send_byte(10, "rq_srv")
-  sync()
-  sleep(0.8)
-  socket_close("rq_srv")
-end
-live_grp()`;
+    urscript = `def live_grp():\n  socket_close("rq_srv")\n  socket_open("127.0.0.1", 63352, "rq_srv")\n  socket_send_string("SET SPE 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET FOR 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET POS 0", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_close("rq_srv")\nend\nlive_grp()`;
   }
 
-  // Disable button so users don't spam commands and lock the socket
   btn.disabled = true;
 
-  // Send the mini-program to relay.py
-  fetch('http://localhost:5678', {
+  fetch(RELAY, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'send', ip: ip, code: urscript })
@@ -112,15 +64,37 @@ live_grp()`;
   .then(r => r.json())
   .then(res => {
     if (res.ok) {
-      // Wait for the physical movement to finish before re-enabling
-      setTimeout(() => {
-        gripperState = nextState;
-        btn.innerText = nextText;
-        btn.disabled = false;
-      }, waitTime);
+      // 🌟 NEW: Telemetry Polling (No more setTimeout guessing!)
+      const checkStatus = async () => {
+        try {
+          const statusRes = await fetch(RELAY, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'gripper_status', ip: ip })
+          });
+          const data = await statusRes.json();
+          
+          if (data.ok) {
+            // Modbus gobj: 0 = Moving, 1 = Obj Detected (Open), 2 = Obj Detected (Closed), 3 = Reached target
+            if (data.gobj !== 0) { 
+              gripperState = nextState;
+              btn.innerText = nextText;
+              btn.disabled = false;
+              return; // Stop checking, we are done!
+            }
+          }
+          // If still moving (gobj === 0), check again in 250ms
+          setTimeout(checkStatus, 250);
+        } catch (err) {
+          setTimeout(checkStatus, 500); 
+        }
+      };
+      
+      // Give the hardware 500ms to register the move command before we start checking
+      setTimeout(checkStatus, 500);
+
     } else {
       alert("Error sending command: " + res.error);
-      // Revert UI on failure
       btn.disabled = false;
       btn.innerText = gripperState === 'unactivated' ? 'Activate Gripper' : (gripperState === 'open' ? 'Close Gripper' : 'Open Gripper');
     }
@@ -128,9 +102,7 @@ live_grp()`;
   .catch(err => {
     console.error(err);
     alert("Network error. Is relay.py running?");
-    // Revert UI on failure
     btn.disabled = false;
-    btn.innerText = gripperState === 'unactivated' ? 'Activate Gripper' : (gripperState === 'open' ? 'Close Gripper' : 'Open Gripper');
   });
 }
 

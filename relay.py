@@ -87,19 +87,25 @@ def gripper_read_packet():
     mbap = struct.pack('>HHH', 1, 0, 1 + len(pdu)) + bytes([9])
     return mbap + pdu
 
+# Place this helper near your other network readers:
+def read_modbus_response(sock):
+    """Dynamically reads a Modbus packet to prevent hanging on short error packets."""
+    mbap = recv_exact(sock, 6)
+    length = struct.unpack('>HHH', mbap)[2]
+    payload = recv_exact(sock, length)
+    return mbap + payload
+
 def parse_gripper_status(raw):
-    if len(raw) < 15: return {"ok": False}
+    # Check if the robot sent a short error packet
+    if len(raw) < 15: 
+        return {"ok": False, "error": f"Modbus exception: {raw.hex()}"}
+        
     status_byte = raw[9]
     gact = (status_byte >> 0) & 0x01
     gobj = (status_byte >> 6) & 0x03
     gpo  = raw[12]
-    pos_mm = round((1.0 - gpo / 255.0) * 85.0, 1)
-    gobj_labels = ['Moving', 'Obj @ open', 'Obj @ close', 'At position']
-    return {
-        "ok": True, "activated": gact == 1, "gobj": gobj, 
-        "gobj_label": gobj_labels[gobj], "object_detected": gobj in [1, 2], 
-        "position_raw": gpo, "position_mm": pos_mm
-    }
+    return {"ok": True, "activated": gact == 1, "gobj": gobj, "position_raw": gpo}
+
 
 # ── HTTP Handler ───────────────────────────────────────────────────────
 class Handler(BaseHTTPRequestHandler):
@@ -175,13 +181,15 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 resp = json.dumps({"ok": False, "error": str(e)}).encode()
 
+        # ── Gripper status ─────────────────────────────────────────────
         elif action == 'gripper_status':
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.settimeout(2.0)
                     s.connect((ip, GRIPPER_PORT))
                     s.sendall(gripper_read_packet())
-                    raw  = recv_exact(s, 15)
+                    # 🌟 Call the dynamic reader instead of hardcoding 15 bytes!
+                    raw = read_modbus_response(s)
                     resp = json.dumps(parse_gripper_status(raw)).encode()
             except Exception as e:
                 resp = json.dumps({"ok": False, "error": str(e)}).encode()
