@@ -427,11 +427,7 @@ function renderPositions() {
   const el = document.getElementById('pos-list');
   el.innerHTML = positions.map(pos => {
     // Safety check — ensure both arrays always exist (handles old saved files)
-    if (!pos.c) pos.c = [0, 0, 0, 0, 0, 0]; // Ensure it defaults to a 6-element pose array
-
-    // 1. DEFINE THE DIMMING CLASSES HERE BASED ON ACTIVE STATUS
-    const jDim = pos.active === 'cart' ? 'dimmed' : '';
-    const cDim = pos.active === 'joint' ? 'dimmed' : '';
+    if (!pos.c) pos.c = [...pos.j];
 
     return `
     <div class="pos-card" id="pc-${pos.id}">
@@ -445,27 +441,25 @@ function renderPositions() {
       </div>
 
       <div class="pos-section-label">Joints (Degrees)</div>
-      <div class="joints joints-j ${jDim}">
+      <div class="joints">
         ${JOINT_LABELS.map((name, ji) => `
           <div class="jcell">
             <div class="jlabel">${name}</div>
             <input class="jinput ${pos.j[ji] !== 0 ? 'filled' : ''}" type="number"
               step="0.1" value="${toDisp(pos.j[ji])}"
-              oninput="liveJoint(this,'${pos.id}',${ji},false)"
-              onchange="syncKinematics('${pos.id}', 'joint')"/>
+              oninput="liveJoint(this,'${pos.id}',${ji},false)"/>
           </div>
         `).join('')}
       </div>
 
       <div class="pos-section-label">Cartesian (Meters / Rads)</div>
-      <div class="joints joints-c ${cDim}">
+      <div class="joints">
         ${CART_LABELS.map((name, ci) => `
           <div class="jcell">
             <div class="jlabel">${name}</div>
             <input class="jinput ${pos.c[ci] !== 0 ? 'filled' : ''}" type="number"
               step="0.0001" value="${pos.c[ci].toFixed(4)}"
-              oninput="liveJoint(this,'${pos.id}',${ci},true)"
-              onchange="syncKinematics('${pos.id}', 'cart')"/>
+              oninput="liveJoint(this,'${pos.id}',${ci},true)"/>
           </div>
         `).join('')}
       </div>
@@ -486,67 +480,12 @@ function liveJoint(el, pid, index, isCart) {
   if (isCart) {
     if (!pos.c) pos.c = [0,0,0,0,0,0];
     pos.c[index] = parseFloat(el.value) || 0;
-    pos.active = 'cart'; // Track that Cartesian is being manually edited
   } else {
     pos.j[index] = fromDisp(el.value); // typed degrees → stored radians
-    pos.active = 'joint'; // Track that Joint is being manually edited
-  }
-
-  // Handle instant visual dimming without re-rendering the whole card list
-  const card = document.getElementById(`pc-${pid}`);
-  if (card) {
-    const jSection = card.querySelector('.joints-j');
-    const cSection = card.querySelector('.joints-c');
-    if (isCart) {
-      if (jSection) jSection.classList.add('dimmed');
-      if (cSection) cSection.classList.remove('dimmed');
-    } else {
-      if (cSection) cSection.classList.add('dimmed');
-      if (jSection) jSection.classList.remove('dimmed');
-    }
   }
 
   document.getElementById('dot-' + pid).className = 'pos-dot' + (posComplete(pos) ? ' full' : '');
   refreshCode();
-}
-
-async function syncKinematics(pid, source) {
-  const pos = positions.find(p => p.id === pid);
-  if (!pos) return;
-  const ip = document.getElementById('robot-ip').value;
-
-  try {
-    if (source === 'joint') {
-      // Changed joints, calculate new Cartesian (Forward Kinematics)
-      const res = await fetch(RELAY, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ action: 'fk', ip: ip, j: pos.j })
-      });
-      const data = await res.json();
-      if (data.ok) {
-        pos.c = data.res;
-        pos.active = 'both'; // Reset dimming
-        renderPositions();   // Update the UI with the exact robot math
-      }
-    } else {
-      // Changed cartesian, calculate new Joints (Inverse Kinematics)
-      // We pass pos.j as 'qnear' so the robot knows which of the 8 solutions to pick!
-      const res = await fetch(RELAY, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ action: 'ik', ip: ip, c: pos.c, qnear: pos.j })
-      });
-      const data = await res.json();
-      if (data.ok) {
-        pos.j = data.res;
-        pos.active = 'both'; 
-        renderPositions(); 
-      }
-    }
-  } catch (e) {
-    console.error("Kinematics sync failed", e);
-  }
 }
 
 function renamePos(pid, val) {
