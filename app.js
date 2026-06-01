@@ -433,20 +433,30 @@ function startFreedriveDetection() {
 startFreedriveDetection();
 
 
+// ═══════════════════════════════════════════════════════════
+// INTERVAL-FREE CARTESIAN JOGGING (Hold-to-Move)
+// ═══════════════════════════════════════════════════════════
+
 function startJog(axis, direction) {
-  if (jogInterval) clearInterval(jogInterval);
-  let vector = [0,0,0,0,0,0];
-  vector[axis] = direction * (axis < 3 ? 0.05 : 0.25);
-  const speedlCmd = `def jog():\n  speedl([${vector.join(',')}], a=0.3, t=1.0)\nend\n`;
-  sendDirect(speedlCmd);
-  jogInterval = setInterval(() => sendDirect(speedlCmd), 800);
+  // 1. Force Freedrive UI to sync if it's running
   resetFreedriveUI();
+
+  // 2. Build the velocity vector just like before
+  let vector = [0, 0, 0, 0, 0, 0];
+  vector[axis] = direction * (axis < 3 ? 0.05 : 0.25);
+
+  // 3. Instead of spamming this command via setInterval, 
+  // we embed a while-loop so the robot handles its own continuous motion.
+  const speedlCmd = `def jog():\n  while True:\n    speedl([${vector.join(',')}], a=0.3, t=0.1)\n  end\nend\n`;
+  
+  // 4. Send exactly ONCE. Zero network clutter.
+  sendDirect(speedlCmd);
 }
 
 function stopJog() {
-  if (jogInterval) clearInterval(jogInterval);
-  jogInterval = null;
-  sendDirect("def stop_jog():\n  stopl(2.5)\nend\n");
+  // 1. Send the halt command exactly ONCE to break the loop and stop the robot smoothly.
+  const stopCmd = "def stop_jog():\n  stopl(2.5)\nend\n";
+  sendDirect(stopCmd);
 }
 
 // ═══════════════════════════════════════════════════════════
