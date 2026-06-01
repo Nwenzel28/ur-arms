@@ -229,20 +229,18 @@ class Handler(BaseHTTPRequestHandler):
                 print(f"⚠️ GRIPPER ERROR: {e}")
                 resp = json.dumps({"ok": False, "error": str(e)}).encode()
 
-        # ── Dashboard Detection (Is the robot stopped?) ──────────────────
-        elif action == 'dashboard_status':
+        # ── Native Freedrive Detection ───────────────────────────────────
+        elif action == 'robot_mode':
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.settimeout(2.0)
                     s.connect((ip, 29999))
-                    # Ask the Dashboard Server what the controller is doing
-                    s.sendall(b"programState\n")
-                    # Read the response
+                    s.sendall(b"robotmode\n")
                     raw_data = s.recv(1024).decode('utf-8')
                     resp = json.dumps({"ok": True, "raw": raw_data}).encode()
             except Exception as e:
                 resp = json.dumps({"ok": False, "error": str(e)}).encode()
-        
+                
         # Send response back to browser
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
