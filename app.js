@@ -213,6 +213,7 @@ function emergencyStop() {
 }
 
 async function sendToRobot() {
+  resetFreedriveUI();
   const ip = document.getElementById('robot-ip').value.trim();
   if (!ip) { alert('Enter the robot IP address.'); return; }
 
