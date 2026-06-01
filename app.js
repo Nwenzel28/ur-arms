@@ -1035,9 +1035,55 @@ function importProject(fileInput) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// LIVE GRIPPER TELEMETRY (BACKGROUND LOOP)
+// ═══════════════════════════════════════════════════════════
+
+function startGripperTelemetry() {
+  const posEl = document.getElementById('live-gripper-pos');
+  const ip = document.getElementById('robot-ip').value;
+  
+  // If no IP is entered yet, check again in 1 second
+  if (!ip) {
+    setTimeout(startGripperTelemetry, 1000);
+    return;
+  }
+
+  fetch(RELAY, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'gripper_status', ip: ip })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok) {
+      let raw = data.position_raw;
+      
+      // Clamp the values to your physical limits just in case it drifts
+      if (raw < 3) raw = 3;
+      if (raw > 230) raw = 230;
+      
+      // Map the 3-230 range to a clean 0-100%
+      let pct = Math.round(((raw - 3) / (230 - 3)) * 100);
+      
+      // Display format: "230 (100%)"
+      posEl.innerText = `${raw} (${pct}%)`;
+    }
+  })
+  .catch(err => {
+    // Fail silently if the network drops, just show dashes
+    posEl.innerText = "---";
+  })
+  .finally(() => {
+    // Ask the robot for its position again in 500ms
+    setTimeout(startGripperTelemetry, 500);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
 // BOOT
 // ═══════════════════════════════════════════════════════════
 initSteps();
 renderPositions();
 renderSteps();
 refreshCode();
+startGripperTelemetry();
