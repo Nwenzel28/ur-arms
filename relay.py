@@ -211,7 +211,7 @@ class Handler(BaseHTTPRequestHandler):
                     pos_raw = s.recv(1024).decode('utf-8').strip()
 
                     # Print out EXACTLY what the robot sent us
-                    print(f"🤖 RAW ROBOT TEXT -> STA: '{sta_raw}', OBJ: '{obj_raw}', POS: '{pos_raw}'")
+                    #print(f"🤖 RAW ROBOT TEXT -> STA: '{sta_raw}', OBJ: '{obj_raw}', POS: '{pos_raw}'")
 
                     # Extract just the numbers, ignore all letters/spaces
                     gsta = extract_num(sta_raw)
@@ -229,6 +229,20 @@ class Handler(BaseHTTPRequestHandler):
                 print(f"⚠️ GRIPPER ERROR: {e}")
                 resp = json.dumps({"ok": False, "error": str(e)}).encode()
 
+        # ── Dashboard Detection (Is the robot stopped?) ──────────────────
+        elif action == 'dashboard_status':
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(2.0)
+                    s.connect((ip, 29999))
+                    # Ask the Dashboard Server what the controller is doing
+                    s.sendall(b"programState\n")
+                    # Read the response
+                    raw_data = s.recv(1024).decode('utf-8')
+                    resp = json.dumps({"ok": True, "raw": raw_data}).encode()
+            except Exception as e:
+                resp = json.dumps({"ok": False, "error": str(e)}).encode()
+        
         # Send response back to browser
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')

@@ -364,21 +364,63 @@ function toggleFdAxis(index) {
   }
 }
 
+// ═══════════════════════════════════════════════════════════
+// FREEDRIVE CONTROL (Simple Overrides)
+// ═══════════════════════════════════════════════════════════
+
 function toggleFreedrive() {
   isFreedrive = !isFreedrive;
   const btn = document.getElementById('btn-freedrive');
+  
   if (isFreedrive) {
     btn.textContent = 'Freedrive: ON';
     btn.style.background = 'var(--ac)';
     btn.style.color = '#fff';
-    sendDirect(`def fd_on():\n  freedrive_mode([${fdAxes.join(',')}], p[0,0,0,0,0,0])\n  sleep(3600)\nend\n`);
+    
+    // The simple def hack: It overrides the active program and holds freedrive open
+    sendDirect(`def fd_on():\n  freedrive_mode([${fdAxes.join(',')}], p[0,0,0,0,0,0])\n  while True:\n    sync()\n  end\nend\n`);
   } else {
+    resetFreedriveUI();
+    // Sending an empty program instantly kills the fd_on program
+    sendDirect(`def fd_off():\n  end_freedrive_mode()\nend\n`);
+  }
+}
+
+// Helper to safely reset the button visually
+function resetFreedriveUI() {
+  if (!isFreedrive) return;
+  isFreedrive = false;
+  const btn = document.getElementById('btn-freedrive');
+  if (btn) {
     btn.textContent = 'Freedrive: OFF';
     btn.style.background = 'transparent';
     btn.style.color = 'var(--ac)';
-    sendDirect("def fd_off():\n  end_freedrive_mode()\nend\n");
   }
 }
+
+// ── BACKGROUND DETECTION LOOP ──
+function startStateDetection() {
+  const ip = document.getElementById('robot-ip').value;
+  if (!ip) return setTimeout(startStateDetection, 1000);
+
+  fetch(RELAY, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'dashboard_status', ip: ip })
+  })
+  .then(r => r.json())
+  .then(data => {
+    // If the robot says "STOPPED", it means someone hit the Red button on the Teach Pendant
+    // OR a program naturally finished. We must turn the UI button off!
+    if (data.ok && data.raw && data.raw.includes("STOPPED")) {
+      resetFreedriveUI();
+    }
+  })
+  .finally(() => {
+    setTimeout(startStateDetection, 1000); // Check once per second
+  });
+}
+
 
 function startJog(axis, direction) {
   if (jogInterval) clearInterval(jogInterval);
@@ -1092,3 +1134,4 @@ renderPositions();
 renderSteps();
 refreshCode();
 startGripperTelemetry();
+startStateDetection();
