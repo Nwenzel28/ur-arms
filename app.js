@@ -1040,9 +1040,9 @@ function importProject(fileInput) {
 
 function startGripperTelemetry() {
   const posEl = document.getElementById('live-gripper-pos');
+  const objEl = document.getElementById('live-gripper-obj');
   const ip = document.getElementById('robot-ip').value;
   
-  // If no IP is entered yet, check again in 1 second
   if (!ip) {
     setTimeout(startGripperTelemetry, 1000);
     return;
@@ -1058,23 +1058,28 @@ function startGripperTelemetry() {
     if (data.ok) {
       let raw = data.position_raw;
       
-      // Clamp the values to your physical limits just in case it drifts
+      // Clamp values
       if (raw < 3) raw = 3;
       if (raw > 230) raw = 230;
       
-      // Map the 3-230 range to a clean 0-100%
+      // Map to 0-100%
       let pct = Math.round(((raw - 3) / (230 - 3)) * 100);
-      
-      // Display format: "230 (100%)"
       posEl.innerText = `${raw} (${pct}%)`;
+
+      // Show the "OBJ" badge if gOBJ is 1 (inner grasp) or 2 (outer grasp)
+      if (data.gobj === 1 || data.gobj === 2) {
+        objEl.style.display = 'inline-block';
+      } else {
+        objEl.style.display = 'none';
+      }
     }
   })
   .catch(err => {
-    // Fail silently if the network drops, just show dashes
     posEl.innerText = "---";
+    objEl.style.display = 'none';
   })
   .finally(() => {
-    // Ask the robot for its position again in 500ms
+    // Update every 100ms
     setTimeout(startGripperTelemetry, 100);
   });
 }
