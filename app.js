@@ -1075,7 +1075,7 @@ function startGripperTelemetry() {
   })
   .finally(() => {
     // Ask the robot for its position again in 500ms
-    setTimeout(startGripperTelemetry, 500);
+    setTimeout(startGripperTelemetry, 100);
   });
 }
 
