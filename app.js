@@ -210,6 +210,7 @@ async function pingRobot() {
 function emergencyStop() {
   console.error('EMERGENCY STOP TRIGGERED');
   sendDirect('stopj(2.0)\n');
+  resetFreedriveUI();
 }
 
 async function sendToRobot() {
@@ -369,11 +370,15 @@ function toggleFdAxis(index) {
 // FREEDRIVE CONTROL (Program State Detection)
 // ═══════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════
+// FREEDRIVE CONTROL (Program State Detection)
+// ═══════════════════════════════════════════════════════════
+
 function toggleFreedrive() {
   const ip = document.getElementById('robot-ip').value;
   if (!ip) return alert("Enter Robot IP first.");
 
-  isFreedrive = !isFreedrive; // We control the state!
+  isFreedrive = !isFreedrive; 
   const btn = document.getElementById('btn-freedrive');
 
   if (isFreedrive) {
@@ -382,13 +387,14 @@ function toggleFreedrive() {
     btn.style.color = '#fff';
     sendDirect(`def fd_on():\n  freedrive_mode([${fdAxes.join(',')}], p[0,0,0,0,0,0])\n  while True:\n    sync()\n  end\nend\n`);
   } else {
+    // We are turning it off, strictly force the UI to update
     resetFreedriveUI();
     sendDirect(`def fd_off():\n  end_freedrive_mode()\nend\n`);
   }
 }
 
 function resetFreedriveUI() {
-  if (!isFreedrive) return;
+  // Removed the buggy "return" guard! Just strictly set it to OFF.
   isFreedrive = false;
   const btn = document.getElementById('btn-freedrive');
   if (btn) {
