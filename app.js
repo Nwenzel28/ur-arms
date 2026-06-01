@@ -1058,7 +1058,7 @@ function startGripperTelemetry() {
     if (data.ok) {
       let raw = data.position_raw;
       
-      // Clamp values
+      // Clamp values to your hardware limits (3 to 230)
       if (raw < 3) raw = 3;
       if (raw > 230) raw = 230;
       
@@ -1066,20 +1066,20 @@ function startGripperTelemetry() {
       let pct = Math.round(((raw - 3) / (230 - 3)) * 100);
       posEl.innerText = `${raw} (${pct}%)`;
 
-      // Show the "OBJ" badge if gOBJ is 1 (inner grasp) or 2 (outer grasp)
+      // Show "OBJ" if gOBJ is 1 (inner grasp) or 2 (outer grasp)
       if (data.gobj === 1 || data.gobj === 2) {
-        objEl.style.display = 'inline-block';
+        objEl.style.display = 'inline'; // Smooth text flow next to position
       } else {
-        objEl.style.display = 'none';
+        objEl.style.display = 'none';   // Hide completely when empty-handed
       }
     }
   })
   .catch(err => {
     posEl.innerText = "---";
-    objEl.style.display = 'none';
+    objEl.style.display = 'none'; // Clear the indicator on network drops
   })
   .finally(() => {
-    // Update every 100ms
+    // Poll every 100ms
     setTimeout(startGripperTelemetry, 100);
   });
 }
