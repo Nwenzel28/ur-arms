@@ -229,13 +229,13 @@ class Handler(BaseHTTPRequestHandler):
                 print(f"⚠️ GRIPPER ERROR: {e}")
                 resp = json.dumps({"ok": False, "error": str(e)}).encode()
 
-        # ── Native Freedrive Detection ───────────────────────────────────
-        elif action == 'robot_mode':
+        # ── Dashboard Detection (Is our script still alive?) ─────────────
+        elif action == 'dashboard_status':
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.settimeout(2.0)
                     s.connect((ip, 29999))
-                    s.sendall(b"robotmode\n")
+                    s.sendall(b"programState\n")
                     raw_data = s.recv(1024).decode('utf-8')
                     resp = json.dumps({"ok": True, "raw": raw_data}).encode()
             except Exception as e:

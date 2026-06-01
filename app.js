@@ -366,58 +366,27 @@ function toggleFdAxis(index) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// FREEDRIVE CONTROL (Native Detection)
+// FREEDRIVE CONTROL (Program State Detection)
 // ═══════════════════════════════════════════════════════════
 
 function toggleFreedrive() {
   const ip = document.getElementById('robot-ip').value;
   if (!ip) return alert("Enter Robot IP first.");
 
-  // We simply send the command. The background loop handles the UI button!
-  if (!isFreedrive) {
+  isFreedrive = !isFreedrive; // We control the state!
+  const btn = document.getElementById('btn-freedrive');
+
+  if (isFreedrive) {
+    btn.textContent = 'Freedrive: ON';
+    btn.style.background = 'var(--ac)';
+    btn.style.color = '#fff';
     sendDirect(`def fd_on():\n  freedrive_mode([${fdAxes.join(',')}], p[0,0,0,0,0,0])\n  while True:\n    sync()\n  end\nend\n`);
   } else {
+    resetFreedriveUI();
     sendDirect(`def fd_off():\n  end_freedrive_mode()\nend\n`);
   }
 }
 
-// ── BACKGROUND DETECTION LOOP ──
-function startFreedriveDetection() {
-  const ip = document.getElementById('robot-ip').value;
-  if (!ip) return setTimeout(startFreedriveDetection, 500);
-
-  fetch(RELAY, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'robot_mode', ip: ip })
-  })
-  .then(r => r.json())
-  .then(data => {
-    if (data.ok && data.raw) {
-      const btn = document.getElementById('btn-freedrive');
-      
-      // If the robot is physically in Freedrive (via UI or Teach Pendant button)
-      if (data.raw.includes("FREEDRIVE")) {
-        isFreedrive = true;
-        btn.textContent = 'Freedrive: ON';
-        btn.style.background = 'var(--ac)';
-        btn.style.color = '#fff';
-      } 
-      // If the robot is IDLE, RUNNING, or STOPPED
-      else {
-        isFreedrive = false;
-        btn.textContent = 'Freedrive: OFF';
-        btn.style.background = 'transparent';
-        btn.style.color = 'var(--ac)';
-      }
-    }
-  })
-  .finally(() => {
-    setTimeout(startFreedriveDetection, 500); // Check 2x a second
-  });
-}
-
-// Helper to safely reset the button visually
 function resetFreedriveUI() {
   if (!isFreedrive) return;
   isFreedrive = false;
@@ -428,6 +397,34 @@ function resetFreedriveUI() {
     btn.style.color = 'var(--ac)';
   }
 }
+
+// ── BACKGROUND DETECTION LOOP ──
+function startFreedriveDetection() {
+  const ip = document.getElementById('robot-ip').value;
+  if (!ip) return setTimeout(startFreedriveDetection, 250);
+
+  fetch(RELAY, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'dashboard_status', ip: ip })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.ok && data.raw) {
+      // If you jog the robot, hit E-Stop, or press Stop/Pause on the pendant, 
+      // the script dies. We must turn the UI button OFF to match reality.
+      if (data.raw.includes("STOPPED") || data.raw.includes("PAUSED")) {
+        resetFreedriveUI();
+      }
+    }
+  })
+  .finally(() => {
+    setTimeout(startFreedriveDetection, 250); // Poll fast (4x a second)
+  });
+}
+
+// Start the loop
+startFreedriveDetection();
 
 
 function startJog(axis, direction) {
@@ -1143,4 +1140,3 @@ renderSteps();
 refreshCode();
 startGripperTelemetry();
 startStateDetection();
-startFreedriveDetection();
