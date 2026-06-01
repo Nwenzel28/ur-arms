@@ -32,6 +32,8 @@ function activateGripper() {
   btnAct.innerText = 'Activating...';
   btnAct.disabled = true;
 
+  resetFreedriveUI();
+
   const urscript = `def live_grp():\n  socket_close("rq_srv")\n  socket_open("127.0.0.1", 63352, "rq_srv")\n  socket_send_string("SET ACT 1", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET GTO 1", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_close("rq_srv")\nend\nlive_grp()`;
 
   fetch(RELAY, {
@@ -85,6 +87,8 @@ function moveGripper(direction) {
   // Lock both buttons while moving
   btnOpn.disabled = true;
   btnCls.disabled = true;
+  
+  resetFreedriveUI();
 
   let urscript = '';
 
@@ -370,10 +374,6 @@ function toggleFdAxis(index) {
 // FREEDRIVE CONTROL (Program State Detection)
 // ═══════════════════════════════════════════════════════════
 
-// ═══════════════════════════════════════════════════════════
-// FREEDRIVE CONTROL (Program State Detection)
-// ═══════════════════════════════════════════════════════════
-
 function toggleFreedrive() {
   const ip = document.getElementById('robot-ip').value;
   if (!ip) return alert("Enter Robot IP first.");
@@ -440,6 +440,7 @@ function startJog(axis, direction) {
   const speedlCmd = `def jog():\n  speedl([${vector.join(',')}], a=0.3, t=1.0)\nend\n`;
   sendDirect(speedlCmd);
   jogInterval = setInterval(() => sendDirect(speedlCmd), 800);
+  resetFreedriveUI();
 }
 
 function stopJog() {
@@ -589,7 +590,9 @@ function startMoveHere(pid) {
   const cartStr = pos.c.map(v => v.toFixed(4)).join(',');
   const urscript = `def move_here():\n  movej(p[${cartStr}], a=${la}, v=${ls})\nend\n`;
   
+  resetFreedriveUI();
   sendDirect(urscript);
+
 }
 
 function stopMoveHere() {
