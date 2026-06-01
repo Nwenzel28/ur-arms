@@ -213,8 +213,15 @@ async function pingRobot() {
 
 function emergencyStop() {
   console.error('EMERGENCY STOP TRIGGERED');
-  sendDirect('stopj(2.0)\n');
+  sendDirect('protective_stop()\n');
   resetFreedriveUI();
+}
+
+function powerdownRobot() {
+  if (confirm("Are you sure you want to completely power down the robot arm and controller?")) {
+    sendDirect('powerdown()\n');
+    resetFreedriveUI();
+  }
 }
 
 async function sendToRobot() {
