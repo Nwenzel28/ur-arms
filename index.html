@@ -207,21 +207,29 @@
             <option value="open_gripper">Open gripper</option>
             <option value="close_gripper">Close gripper</option>
           </optgroup>
-          <optgroup label="Flow Control">
-            <option value="loop_n">Repeat N times</option>
-            <option value="loop_forever">Loop forever</option>
-            <option value="loop_while">While digital input</option>
-            <option value="if_din">If digital input</option>
-            <option value="else_block">Else</option>
-            <option value="block_end">End block</option>
+          <optgroup label="Logic & Flow">
+            <option value="loop_start">Loop</option>
+            <option value="if_start">If / Elseif</option>
+            <option value="else">Else</option>
+            <option value="wait_cond">Wait (Condition)</option>
+            <option value="sleep">Wait (Time)</option>
+            <option value="halt">Halt Program</option>
+            <option value="thread_start">Parallel Thread</option>
+            <option value="end">End Block</option>
           </optgroup>
-          <optgroup label="Utilities">
-            <option value="sleep">Sleep</option>
+          <optgroup label="Variables & Utils">
+            <option value="assign">Assignment</option>
+            <option value="timer">Timer</option>
             <option value="textmsg">Log message</option>
-            <option value="popup">Popup (pendant)</option>
+            <option value="popup">Popup (Pendant)</option>
+            <option value="comment">Comment</option>
+            <option value="folder">Folder</option>
             <option value="set_digital_out">Set digital output</option>
             <option value="set_payload">Set payload</option>
             <option value="set_tcp">Set TCP</option>
+            <option value="set_gravity">Set gravity vector</option>
+            <option value="zero_ftsensor">Zero F/T sensor</option>
+            <option value="set_baselight">Set base light</option>
           </optgroup>
         </select>
         <button class="btn btn-ac" onclick="addStep()">+ Add step</button>

@@ -674,18 +674,23 @@ const TAG_INFO = {
   open_gripper:     ['GRIP', 'tag-grip'],
   close_gripper:    ['GRIP', 'tag-grip'],
   activate_gripper: ['GRIP', 'tag-grip'],
-  loop_n:           ['LOOP', 'tag-flow'],
-  loop_forever:     ['LOOP∞','tag-flow'],
-  loop_while:       ['WHILE','tag-flow'],
-  if_din:           ['IF',   'tag-flow'],
-  else_block:       ['ELSE', 'tag-flow'],
-  block_end:        ['END',  'tag-util'],
   sleep:            ['WAIT', 'tag-util'],
   textmsg:          ['LOG',  'tag-util'],
   popup:            ['POP',  'tag-util'],
   set_digital_out:  ['DOUT', 'tag-util'],
   set_payload:      ['LOAD', 'tag-util'],
   set_tcp:          ['TCP',  'tag-util'],
+  loop_start:   ['LOOP', 'tag-logic'],
+  if_start:     ['IF', 'tag-logic'],
+  else:         ['ELSE', 'tag-logic'],
+  wait_cond:    ['WAIT', 'tag-logic'],
+  halt:         ['HALT', 'tag-logic'],
+  thread_start: ['THRD', 'tag-logic'],
+  end:          ['END', 'tag-logic'],
+  assign:       ['VAR', 'tag-util'],
+  timer:        ['TIME', 'tag-util'],
+  comment:      ['//', 'tag-util'],
+  folder:       ['FLDR', 'tag-util'],
 };
 
 function stepParams(s) {
@@ -707,19 +712,6 @@ function stepParams(s) {
         <span style="font-size:10px;color:var(--tx3)">to</span>
         <select class="step-sel" onchange="upd(${si},'to',this.value)">${mk(s.to)}</select>`;
     }
-    case 'loop_n':
-      return `<input class="step-inp" type="number" min="1" value="${s.count??5}" style="width:60px"
-              oninput="upd(${si},'count',+this.value)">
-              <span style="font-size:10px;color:var(--tx3)">times</span>`;
-    case 'loop_while':
-    case 'if_din':
-      return `<span style="font-size:10px;color:var(--tx3)">D.IN</span>
-        <input class="step-inp" type="number" min="0" max="15" value="${s.port??0}" style="width:44px"
-          oninput="upd(${si},'port',+this.value)">
-        <select class="step-sel" onchange="upd(${si},'val',this.value==='true')">
-          <option value="true"  ${s.val!==false?'selected':''}>== TRUE</option>
-          <option value="false" ${s.val===false ?'selected':''}>== FALSE</option>
-        </select>`;
     case 'sleep':
       return `<input class="step-inp" type="number" min="0" step="0.1" value="${s.sec??1}" style="width:60px"
               oninput="upd(${si},'sec',+this.value)">
@@ -745,6 +737,45 @@ function stepParams(s) {
       return `<input class="step-inp" type="text" value="${s.pose??'0,0,0,0,0,0'}" style="width:160px"
         placeholder="x,y,z,rx,ry,rz" oninput="upd(${si},'pose',this.value)">`;
     default: return '';
+
+    // ── Logic Blocks ──
+    case 'loop_start':
+      return `<select class="step-inp" onchange="upd(${si},'loopType',this.value)">
+                <option value="forever" ${s.loopType==='forever'?'selected':''}>Forever</option>
+                <option value="times" ${s.loopType==='times'?'selected':''}>Times</option>
+              </select>
+              ${s.loopType==='times' ? `<input class="step-inp" type="number" value="${s.loopCount}" style="width:50px" oninput="upd(${si},'loopCount',this.value)">` : ''}`;
+    case 'if_start':
+    case 'wait_cond':
+      return `Cond: <input class="step-inp" type="text" value="${s.condition}" style="width:140px" placeholder="e.g. get_digital_in(1)" oninput="upd(${si},'condition',this.value)">`;
+    case 'thread_start':
+      return `Name: <input class="step-inp" type="text" value="${s.threadName}" style="width:100px" oninput="upd(${si},'threadName',this.value)">`;
+    
+    // ── Variables & Utils ──
+    case 'assign':
+      return `<input class="step-inp" type="text" value="${s.varName}" style="width:70px" oninput="upd(${si},'varName',this.value)"> =
+              <input class="step-inp" type="text" value="${s.varValue}" style="width:90px" oninput="upd(${si},'varValue',this.value)">`;
+    case 'timer':
+      return `<select class="step-inp" onchange="upd(${si},'timerAct',this.value)">
+                <option value="start" ${s.timerAct==='start'?'selected':''}>Start</option>
+                <option value="read" ${s.timerAct==='read'?'selected':''}>Read to Var</option>
+              </select>
+              <input class="step-inp" type="text" value="${s.timerVar}" style="width:80px" oninput="upd(${si},'timerVar',this.value)">`;
+    case 'popup':
+      return `Msg: <input class="step-inp" type="text" value="${s.msg}" style="width:90px" oninput="upd(${si},'msg',this.value)">
+              Type: <select class="step-inp" onchange="upd(${si},'pType',this.value)">
+                <option value="msg" ${s.pType==='msg'?'selected':''}>Message</option>
+                <option value="warn" ${s.pType==='warn'?'selected':''}>Warning</option>
+                <option value="err" ${s.pType==='err'?'selected':''}>Error</option>
+              </select>`;
+    case 'folder':
+      return `📁 <input class="step-inp" type="text" value="${s.folderName}" style="width:130px" oninput="upd(${si},'folderName',this.value)">`;
+    case 'comment':
+      return `// <input class="step-inp" type="text" value="${s.commentTxt}" style="width:150px" oninput="upd(${si},'commentTxt',this.value)">`;
+    case 'halt':
+    case 'else':
+    case 'end':
+      return `<span style="font-size:10px;color:var(--tx3)">No parameters needed.</span>`;
   }
 }
 
@@ -815,13 +846,22 @@ function defaultStep(type) {
   if (type==='movej') s.pid = positions.find(p=>p.type==='joint')?.id ?? positions[0]?.id ?? null;
   if (type==='movel') s.pid = positions.find(p=>p.type==='cart')?.id ?? null;
   if (type==='movec') { s.via = positions.find(p=>p.type==='cart')?.id ?? null; s.to = s.via; }
-  if (type==='loop_n') s.count = 5;
-  if (type==='loop_while'||type==='if_din') { s.port=0; s.val=true; }
   if (type==='sleep') s.sec = 1;
   if (type==='textmsg'||type==='popup') s.msg = '';
   if (type==='set_digital_out') { s.port=0; s.val=true; }
   if (type==='set_payload') s.weight = 0.5;
   if (type==='set_tcp') s.pose = '0,0,0,0,0,0';
+  if (type==='loop_start') { s.loopType = 'forever'; s.loopCount = 5; }
+  if (type==='if_start') { s.condition = 'get_digital_in(1) == True'; }
+  if (type==='wait_cond') { s.condition = 'get_digital_in(1) == True'; }
+  if (type==='assign') { s.varName = 'my_var'; s.varValue = '0'; }
+  if (type==='timer') { s.timerAct = 'start'; s.timerVar = 'timer_1'; }
+  if (type==='thread_start') { s.threadName = 'thread_1'; }
+  if (type==='folder') { s.folderName = 'My Folder'; }
+  if (type==='comment') { s.commentTxt = 'Note here'; }
+  
+  // Make sure your popup has the updated properties
+  if (type==='popup') { s.msg = 'Hello'; s.pType = 'msg'; }
   return s;
 }
 
@@ -905,10 +945,53 @@ function buildCode() {
   L.push('');
   L.push(`${T}# Main sequence`);
 
-  let ind=1, loopIdx=0;
-  steps.forEach(s=>{
-    const tab = T.repeat(ind);
+  // ── NEW STACK-BASED COMPILER ──
+  let ind = 1;
+  let stack = []; 
+  const getTab = () => T.repeat(ind);
+
+  steps.forEach((s, si) => {
+    
+    // 1. Pre-indent handlers (Outdent FIRST if we hit an end or else)
+    if (s.type === 'end' || s.type === 'block_end') {
+      ind = Math.max(1, ind - 1);
+      let tab = getTab();
+      let parent = stack.pop() || { type: 'unknown' };
+      
+      if (parent.type === 'folder') {
+        L.push(`${tab}# └ End ${parent.folderName}`);
+      } 
+      else if (parent.type === 'loop_start' && parent.loopType === 'times') {
+        L.push(`${tab}loop_var_${parent._si} = loop_var_${parent._si} + 1`);
+        L.push(`${tab}end`);
+      }
+      else if (parent.type === 'loop_n') { // Legacy support
+        L.push(`${tab}${parent._cvar} = ${parent._cvar} + 1`);
+        L.push(`${tab}end`);
+      }
+      else if (parent.type === 'thread_start') {
+        L.push(`${tab}end`);
+        L.push(`${tab}run ${parent.threadName}()`);
+      } 
+      else {
+        L.push(`${tab}end`);
+      }
+      return; 
+    }
+
+    if (s.type === 'else' || s.type === 'else_block') {
+      ind = Math.max(1, ind - 1);
+      L.push(`${getTab()}else:`);
+      ind++; 
+      return; 
+    }
+
+    let tab = getTab();
+
+    // 2. Compile commands
     switch(s.type) {
+      
+      // ── MOTION BLOCKS ──
       case 'movej': {
         const p = positions.find(x=>x.id===s.pid);
         L.push(`${tab}movej(${p?p.name+'_J':'UNKNOWN'}, a=JOINT_ACCEL, v=JOINT_SPEED, r=BLEND_RADIUS)`);
@@ -924,6 +1007,8 @@ function buildCode() {
         L.push(`${tab}movec(${v?v.name+'_C':'UNKNOWN'}, ${t?t.name+'_C':'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED)`);
         break;
       }
+
+      // ── GRIPPER BLOCKS ──
       case 'activate_gripper':
         L.push(`${tab}socket_send_string("SET ACT 1", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
@@ -960,30 +1045,86 @@ function buildCode() {
         L.push(`${tab}sleep(0.8)`);
         L.push(`${tab}textmsg("GRIPPER:CLOSE")`);
         break;
-      case 'sleep':           L.push(`${tab}sleep(${s.sec??1})`); break;
-      case 'textmsg':         L.push(`${tab}textmsg("${s.msg??''}")`); break;
-      case 'popup':           L.push(`${tab}popup("${s.msg??''}", title="Program", blocking=True)`); break;
-      case 'set_digital_out': L.push(`${tab}set_digital_out(${s.port??0}, ${s.val!==false?'True':'False'})`); break;
-      case 'set_payload':     L.push(`${tab}set_payload(${s.weight??0})`); break;
-      case 'set_tcp':         L.push(`${tab}set_tcp(p[${s.pose??'0,0,0,0,0,0'}])`); break;
-      case 'loop_n': {
-        const cv=`_i${loopIdx++}`;
-        L.push(`${tab}global ${cv} = 0`);
-        L.push(`${tab}while ${cv} < ${s.count??5}:`);
+
+      // ── NEW LOGIC CONTAINERS ──
+      case 'loop_start':
+        if (s.loopType === 'times') {
+          s._si = si; 
+          L.push(`${tab}loop_var_${si} = 0`);
+          L.push(`${tab}while (loop_var_${si} < ${s.loopCount}):`);
+        } else {
+          L.push(`${tab}while True:`);
+        }
+        stack.push(s);
         ind++;
         break;
-      }
-      case 'loop_forever': L.push(`${tab}while True:`); ind++; break;
-      case 'loop_while':   L.push(`${tab}while get_digital_in(${s.port??0}) == ${s.val!==false?'True':'False'}:`); ind++; break;
-      case 'if_din':       L.push(`${tab}if get_digital_in(${s.port??0}) == ${s.val!==false?'True':'False'}:`); ind++; break;
-      case 'else_block':   L.push(`${T.repeat(Math.max(1,ind-1))}else:`); break;
-      case 'block_end': {
-        ind = Math.max(1, ind-1);
-        const cvar = findMatchingLoopCounter(s);
-        if (cvar) L.push(`${T.repeat(ind)}${cvar} = ${cvar} + 1`);
-        L.push(`${T.repeat(ind)}end`);
+
+      case 'if_start':
+        L.push(`${tab}if (${s.condition}):`);
+        stack.push(s);
+        ind++;
         break;
-      }
+
+      case 'thread_start':
+        L.push(`${tab}thread ${s.threadName}():`);
+        stack.push(s);
+        ind++;
+        break;
+
+      case 'folder':
+        L.push(`${tab}# 📂 ${s.folderName}`);
+        stack.push(s);
+        ind++;
+        break;
+
+      // ── FLAT LOGIC ──
+      case 'wait_cond':
+        L.push(`${tab}while not (${s.condition}):`);
+        L.push(`${tab}${T}sync()`);
+        L.push(`${tab}end`);
+        break;
+
+      case 'halt':
+        L.push(`${tab}halt`);
+        break;
+
+      case 'assign':
+        L.push(`${tab}${s.varName} = ${s.varValue}`);
+        break;
+
+      case 'timer':
+        if (s.timerAct === 'start') {
+          L.push(`${tab}${s.timerVar}_start = get_system_time()`);
+        } else {
+          L.push(`${tab}${s.timerVar} = get_system_time() - ${s.timerVar}_start`);
+        }
+        break;
+
+      // ── UTILITIES ──
+      case 'sleep':           
+        L.push(`${tab}sleep(${s.time ?? s.sec ?? 1.0})`); 
+        break;
+      case 'textmsg':         
+        L.push(`${tab}textmsg("${s.msg ?? 'Log'}")`); 
+        break;
+      case 'popup':           
+        let w = s.pType === 'warn' ? 'True' : 'False';
+        let e = s.pType === 'err' ? 'True' : 'False';
+        L.push(`${tab}popup("${s.msg ?? ''}", title="UI", warning=${w}, error=${e}, blocking=True)`); 
+        break;
+      case 'set_digital_out': 
+        let val = (s.outVal === 'high' || s.val !== false) ? 'True' : 'False';
+        L.push(`${tab}set_digital_out(${s.port??0}, ${val})`); 
+        break;
+      case 'set_payload':     
+        L.push(`${tab}set_payload(${s.weight ?? s.plw ?? 0})`); 
+        break;
+      case 'set_tcp':         
+        L.push(`${tab}set_tcp(p[${s.pose ?? '0,0,0,0,0,0'}])`); 
+        break;
+      case 'comment':
+        L.push(`${tab}# ${s.commentTxt ?? ''}`);
+        break;
     }
   });
 
