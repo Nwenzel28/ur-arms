@@ -1284,11 +1284,26 @@ function buildCode() {
       case 'textmsg':         
         L.push(`${tab}textmsg("${s.msg ?? 'Log'}")`); 
         break;
-      case 'popup':           
-        let w = s.pType === 'warn' ? 'True' : 'False';
-        let e = s.pType === 'err' ? 'True' : 'False';
-        L.push(`${tab}popup("${s.msg ?? ''}", title="UI", warning=${w}, error=${e}, blocking=True)`); 
-        break;
+      case 'popup':
+          L.push(`${tab}# --- UI Popup Communication ---`);
+          
+          // IMPORTANT: Replace "192.168.1.100" with the EXACT IP address of the computer running relay.py
+          // Since your robot is on 169.254.190.160, your PC's IP is likely 169.254.x.x
+          L.push(`${tab}socket_open("192.168.1.100", 50000, "ui_socket")`);
+          
+          // Send the message to the Python relay
+          L.push(`${tab}socket_send_string("${s.msg}", "ui_socket")`);
+          
+          // Halt the robot safely and wait for the UI 'Continue' button
+          L.push(`${tab}local ui_response = ""`);
+          L.push(`${tab}while (ui_response != "continue"):`);
+          L.push(`${tab}${T}ui_response = socket_read_string("ui_socket")`);
+          L.push(`${tab}${T}sleep(0.1)`);
+          L.push(`${tab}end`);
+          
+          // Close the connection and resume the program
+          L.push(`${tab}socket_close("ui_socket")`);
+          break;
       case 'set_digital_out': 
         let val = (s.outVal === 'high' || s.val !== false) ? 'True' : 'False';
         L.push(`${tab}set_digital_out(${s.port??0}, ${val})`); 
