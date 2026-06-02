@@ -1069,8 +1069,13 @@ function buildCode() {
         L.push(`${tab}${T}_raw = socket_read_string("rq_srv", timeout=0.3)`);
         L.push(`${tab}${T}socket_close("rq_srv")`);
         
-        // Direct conversion
         L.push(`${tab}${T}if (str_len(_raw) > 0):`);
+        // ---> NEW STRING SANITIZATION ADDED HERE <---
+        L.push(`${tab}${T}${T}if (str_at(_raw, 0) == "P"):`);
+        L.push(`${tab}${T}${T}${T}_raw = str_sub(_raw, 4)`);
+        L.push(`${tab}${T}${T}end`);
+        // ─────────────────────────────────────────────
+        
         L.push(`${tab}${T}${T}${s.varName ?? 'part_size'} = to_num(_raw)`);
         L.push(`${tab}${T}else:`);
         L.push(`${tab}${T}${T}${s.varName ?? 'part_size'} = 0`);
@@ -1081,7 +1086,7 @@ function buildCode() {
         L.push(`${tab}end`);
         
         L.push(`${tab}textmsg("DEBUG: Final Result = ", ${s.varName ?? 'part_size'})`);
-        break;      
+        break;     
       
       
       
