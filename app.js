@@ -1052,18 +1052,21 @@ function buildCode() {
       case 'read_gripper':
         L.push(`${tab}socket_send_string("GET POS", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}_raw = socket_read_string("rq_srv", timeout=0.1)`);
         
-        // Find exactly where "POS " starts in the string, skipping any "ack" clutter
+        // Increase timeout to give the hardware a realistic window to reply
+        L.push(`${tab}_raw = socket_read_string("rq_srv", timeout=0.3)`);
+        
+        // Force the log to print the raw data, wrapping it cleanly
+        L.push(`${tab}textmsg("RAW_DATA_FOUND_IS:", _raw)`);
+        
         L.push(`${tab}_pos_idx = str_find(_raw, "POS ")`);
-        
-        // If "POS " was found anywhere in the message
         L.push(`${tab}if (_pos_idx != -1):`);
-        // Slice out everything immediately following "POS " (which is index + 4)
         L.push(`${tab}${T}_start_bit = _pos_idx + 4`);
         L.push(`${tab}${T}_clean_len = str_len(_raw) - _start_bit`);
         L.push(`${tab}${T}${s.varName ?? 'part_size'} = to_num(str_sub(_raw, _start_bit, _clean_len))`);
         L.push(`${tab}else:`);
+        // If it returns 0, print a specific log so we know it hit the safety fallback
+        L.push(`${tab}${T}textmsg("CRITICAL: POS not found in string, defaulting to 0")`);
         L.push(`${tab}${T}${s.varName ?? 'part_size'} = 0`);
         L.push(`${tab}end`);
         break;
