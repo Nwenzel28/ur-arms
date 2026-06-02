@@ -1081,23 +1081,24 @@ function buildCode() {
         break;
       }
       case 'guarded_move':
-          // The URScript compiler requires '#' for comments, not '//'
-          L.push(`${tab}# --- Move Until Contact (Official UR Manual Implementation) ---`);
-          
-          // Use 'local' instead of 'global' so multiple seek blocks don't conflict
+          L.push(`${tab}# --- Move Until Contact (Patched) ---`);
           L.push(`${tab}local search_dir = [0.0, 0.0, -1.0, 0.0, 0.0, 0.0]`);
           
           L.push(`${tab}while (True):`);
-          // It is safest to explicitly name the parameter: direction=search_dir
           L.push(`${tab}${T}step_back = tool_contact(direction=search_dir)`);
           
           L.push(`${tab}${T}if (step_back <= 0):`);
           L.push(`${tab}${T}${T}speedl([0, 0, -${s.speed || 0.02}, 0, 0, 0], 0.5, t=get_steptime())`);
           
           L.push(`${tab}${T}else:`);
+          // Get the joint positions at the moment of contact (Returns a List)
           L.push(`${tab}${T}${T}q = get_actual_joint_positions_history(step_back)`);
           L.push(`${tab}${T}${T}stopl(3.0)`);
-          L.push(`${tab}${T}${T}movel(q)`);
+          
+          // CONVERSION FIX: Convert the joint list to a Pose using forward kinematics
+          L.push(`${tab}${T}${T}contact_pose = get_forward_kin(q)`);
+          L.push(`${tab}${T}${T}movel(contact_pose)`);
+          
           L.push(`${tab}${T}${T}break`);
           L.push(`${tab}${T}end`); // end if
           
