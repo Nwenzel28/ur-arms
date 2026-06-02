@@ -1081,22 +1081,34 @@ function buildCode() {
         break;
       }
       case 'guarded_move':
-          L.push(`${tab}// --- Native Move Until Contact (Z-Axis Downward) ---`);
-          // A 3-axis vector is cleaner and fully supported for base-frame Z downward
-          L.push(`${tab}global search_dir = [0.0, 0.0, -1.0]`);
+          L.push(`${tab}// --- Move Until Contact (Official UR Manual Implementation) ---`);
+          // direction vector: Detect contact on the Z-axis downward
+          L.push(`${tab}global search_dir = [0.0, 0.0, -1.0, 0.0, 0.0, 0.0]`);
           
-          // Loop until contact is detected
-          L.push(`${tab}while (tool_contact(search_dir) == 0):`);
-          // speedl without a time parameter runs continuously until overridden
-          L.push(`${tab}${T}speedl([0, 0, -${s.speed || 0.02}, 0, 0, 0], 0.5)`);
-          // sync() is REQUIRED in URScript while-loops to prevent CPU crashes
-          L.push(`${tab}${T}sync()`); 
-          L.push(`${tab}end`);
+          L.push(`${tab}while (True):`);
+          L.push(`${tab}${T}step_back = tool_contact(search_dir)`);
           
-          // Braking deceleration (Higher = faster stop)
-          L.push(`${tab}stopl(3.0)`);
-          break;
-      // ── GRIPPER BLOCKS ──
+          L.push(`${tab}${T}if (step_back <= 0):`);
+          // No contact: Continue moving downward. 
+          // Uses get_steptime() to perfectly sync the loop to the controller's cycle rate.
+          L.push(`${tab}${T}${T}speedl([0, 0, -${s.speed || 0.02}, 0, 0, 0], 0.5, t=get_steptime())`);
+          
+          L.push(`${tab}${T}else:`);
+          // Contact detected!
+          // 1. Fetch the exact joint positions from the millisecond contact was made
+          L.push(`${tab}${T}${T}q = get_actual_joint_positions_history(step_back)`);
+          // 2. Halt the downward momentum
+          L.push(`${tab}${T}${T}stopl(3.0)`);
+          // 3. Move back to the exact contact point to relieve downward pressure
+          L.push(`${tab}${T}${T}movel(q)`);
+          // 4. Exit the search loop
+          L.push(`${tab}${T}${T}break`);
+          L.push(`${tab}${T}end`); // end if
+          
+          L.push(`${tab}end`); // end while
+          break; 
+ 
+          // ── GRIPPER BLOCKS ──
       case 'activate_gripper':
         L.push(`${tab}socket_open("127.0.0.1", 63352, "rq_srv")`);
         L.push(`${tab}socket_send_string("SET ACT 1", "rq_srv")`);
