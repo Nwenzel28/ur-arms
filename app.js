@@ -1060,14 +1060,14 @@ function buildCode() {
 
       case 'read_gripper':
         // Try to open the clean channel instantly
-        //L.push(`${tab}_opened = socket_open("127.0.0.1", 63352, "rq_srv")`);
+        L.push(`${tab}_opened = socket_open("127.0.0.1", 63352, "rq_srv")`);
         
         L.push(`${tab}if (_opened):`);
         L.push(`${tab}${T}socket_send_string("GET POS", "rq_srv")`);
         L.push(`${tab}${T}socket_send_byte(10, "rq_srv")`);
         
         L.push(`${tab}${T}_raw = socket_read_string("rq_srv", timeout=0.3)`);
-        //L.push(`${tab}${T}socket_close("rq_srv")`);
+        L.push(`${tab}${T}socket_close("rq_srv")`);
         
         L.push(`${tab}${T}if (str_len(_raw) > 0):`);
         
