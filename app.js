@@ -1054,39 +1054,51 @@ function buildCode() {
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
         L.push(`${tab}_raw = socket_read_string("rq_srv", timeout=0.5)`);
         
+        // ALWAYS PRINT: Let's see exactly what came out of the network wire
+        L.push(`${tab}textmsg("DEBUG 1: Raw network data read = ", _raw)`);
+        
         L.push(`${tab}_pos_idx = str_find(_raw, "POS ")`);
         L.push(`${tab}if (_pos_idx != -1):`);
         L.push(`${tab}${T}_start_bit = _pos_idx + 4`);
         L.push(`${tab}${T}_tail = str_sub(_raw, _start_bit, str_len(_raw) - _start_bit)`);
         
-        // Loop through the tail character-by-character to extract ONLY digits
+        // Loop through character-by-character to extract ONLY digits
         L.push(`${tab}${T}_clean_num_str = ""`);
         L.push(`${tab}${T}_i = 0`);
         L.push(`${tab}${T}while (_i < str_len(_tail)):`);
         L.push(`${tab}${T}${T}_char = str_sub(_tail, _i, 1)`);
-        // Check if the character is a valid digit between 0 and 9
+        
         L.push(`${tab}${T}${T}if (_char == "0" or _char == "1" or _char == "2" or _char == "3" or _char == "4" or _char == "5" or _char == "6" or _char == "7" or _char == "8" or _char == "9"):`);
         L.push(`${tab}${T}${T}${T}_clean_num_str = _clean_num_str + _char`);
         L.push(`${tab}${T}${T}else:`);
-        // The moment we hit a space, an 'a' from 'ack', or a hidden '\r', stop collecting
         L.push(`${tab}${T}${T}${T}break`);
         L.push(`${tab}${T}${T}end`);
         L.push(`${tab}${T}${T}_i = _i + 1`);
         L.push(`${tab}${T}end`);
         
-        // Final safety check: Convert to number only if we successfully built a digit string
         L.push(`${tab}${T}if (str_len(_clean_num_str) > 0):`);
         L.push(`${tab}${T}${T}${s.varName ?? 'part_size'} = to_num(_clean_num_str)`);
+        // ALWAYS PRINT: Success path
+        L.push(`${tab}${T}${T}textmsg("DEBUG 2: Successfully converted number = ", ${s.varName ?? 'part_size'})`);
         L.push(`${tab}${T}else:`);
         L.push(`${tab}${T}${T}${s.varName ?? 'part_size'} = 0`);
+        // ALWAYS PRINT: Found POS, but no digits followed it
+        L.push(`${tab}${T}${T}textmsg("DEBUG 2: Found 'POS ' token, but zero digits were attached to it.")`);
         L.push(`${tab}${T}end`);
         
         L.push(`${tab}else:`);
         L.push(`${tab}${T}${s.varName ?? 'part_size'} = 0`);
+        // ALWAYS PRINT: Failed path (This is likely why it was silent before)
+        L.push(`${tab}${T}textmsg("DEBUG 2: 'POS ' token missing completely from string. Defaulted to 0.")`);
         L.push(`${tab}end`);
-        break;      
-        // ── NEW LOGIC CONTAINERS ──
-      case 'loop_start':
+        break;        // ── NEW LOGIC CONTAINERS ──
+      
+      
+      
+      
+      
+      
+        case 'loop_start':
         if (s.loopType === 'times') {
           s._si = si; 
           L.push(`${tab}loop_var_${si} = 0`);
