@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 let cfgOpen = true;
 let _uid = 0;
+let draggedStepIndex = null;
 const uid = () => 'u' + (_uid++);
 
 let positions = [
@@ -644,6 +645,58 @@ function setToCurrent(pid) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// DRAG AND DROP HANDLERS
+// ═══════════════════════════════════════════════════════════
+
+function handleDragStart(e, index) {
+  draggedStepIndex = index;
+  // Targets the card wrapper cleanly
+  e.currentTarget.classList.add('dragging'); 
+  e.dataTransfer.effectAllowed = 'move';
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const targetCard = e.target.closest('.step'); 
+  if (targetCard && !targetCard.classList.contains('dragging')) {
+    targetCard.classList.add('drag-over');
+  }
+}
+
+function handleDragLeave(e) {
+  const targetCard = e.target.closest('.step');
+  if (targetCard) {
+    targetCard.classList.remove('drag-over');
+  }
+}
+
+function handleDrop(e, dropIndex) {
+  e.preventDefault();
+  const targetCard = e.target.closest('.step');
+  if (targetCard) {
+    targetCard.classList.remove('drag-over');
+  }
+
+  if (draggedStepIndex === null || draggedStepIndex === dropIndex) return;
+
+  // Re-order the global state array
+  const movedStep = steps.splice(draggedStepIndex, 1)[0];
+  steps.splice(dropIndex, 0, movedStep);
+
+  renderSteps(); 
+  refreshCode(); // Compiles new URScript flawlessly
+}
+
+function handleDragEnd(e) {
+  e.currentTarget.classList.remove('dragging');
+  draggedStepIndex = null;
+  document.querySelectorAll('.step').forEach(card => {
+    card.classList.remove('drag-over');
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
 // STEP DEPTHS
 // ═══════════════════════════════════════════════════════════
 const OPENERS = ['loop_n','loop_forever','loop_while','if_din'];
@@ -796,7 +849,13 @@ function renderSteps() {
                    : s.type==='else_block'      ? 'else-row' : '';
     return `<div class="step-row">
       <div class="step-indent">${indent}</div>
-      <div class="step ${extraCls}" id="st-${s.id}">
+      <div class="step ${extraCls}" id="st-${s.id}"
+           draggable="true"
+           ondragstart="handleDragStart(event, ${si})"
+           ondragover="handleDragOver(event)"
+           ondragleave="handleDragLeave(event)"
+           ondrop="handleDrop(event, ${si})"
+           ondragend="handleDragEnd(event)">
         <span class="step-n">${si+1}</span>
         <span class="step-tag ${tagCls}">${tag}</span>
         <select class="step-sel" onchange="changeType('${s.id}',this.value)" style="font-size:10px;max-width:100px">
