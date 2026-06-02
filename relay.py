@@ -7,6 +7,10 @@ ROBOT_PORT   = 30002   # URScript injection
 STATE_PORT   = 30003   # Real-time client (robot telemetry)
 GRIPPER_PORT = 63352   # Robotiq 2F-85 URCap Modbus TCP daemon
 
+# ── 💬 Popup State ──────────────────────────────────────────────────────
+popup_msg = None
+popup_resolved = False
+
 # ── 🌟 Global State (Digital Twin Caching) ──────────────────────────────
 target_ip = None
 
@@ -245,7 +249,17 @@ class Handler(BaseHTTPRequestHandler):
 
             except Exception as e:
                 resp = json.dumps({"ok": False, "error": str(e)}).encode()
+
+        elif action == 'check_popup':
+                # The UI polls this endpoint to see if a message is waiting
+                resp = json.dumps({"ok": True, "msg": popup_msg}).encode()
                 
+        elif action == 'resolve_popup':
+                # The UI sends this when the user clicks 'Continue'
+                global popup_resolved
+                popup_resolved = True
+                resp = json.dumps({"ok": True}).encode()
+
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -253,7 +267,39 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(resp)
 
     def log_message(self, *a):
-        pass  
+        pass
+     
+def popup_server():
+    """Listens for popup messages from the URScript socket."""
+    global popup_msg, popup_resolved
+    
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # Bind to all interfaces on port 50000
+    server.bind(('0.0.0.0', 50000))
+    server.listen(1)
+    print("💬 [Popup] Listening for robot messages on port 50000...")
+    
+    while True:
+        try:
+            conn, addr = server.accept()
+            data = conn.recv(1024).decode('utf-8')
+            if data:
+                print(f"📩 [Popup] Received: {data}")
+                popup_msg = data
+                popup_resolved = False
+                
+                # Halt this thread until the web UI says "Continue"
+                while not popup_resolved:
+                    time.sleep(0.1)
+                
+                # Send the confirmation back to the robot so it can resume
+                conn.sendall(b"continue")
+                popup_msg = None # Clear the message
+                
+            conn.close()
+        except Exception as e:
+            print(f"⚠️ [Popup] Error: {e}")
+
 
 if __name__ == '__main__':
     print("╔══════════════════════════════════════╗")
@@ -263,5 +309,6 @@ if __name__ == '__main__':
     # Start both background threads safely
     threading.Thread(target=state_monitor, daemon=True).start()
     threading.Thread(target=dashboard_monitor, daemon=True).start()
+    threading.Thread(target=popup_server, daemon=True).start() # <--- ADD THIS LINE
     
     HTTPServer(('', 5678), Handler).serve_forever()

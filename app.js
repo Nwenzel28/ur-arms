@@ -1496,6 +1496,52 @@ function startGripperTelemetry() {
   });
 }
 
+
+// ═══════════════════════════════════════════════════════════
+// UI POPUP SYSTEM
+// ═══════════════════════════════════════════════════════════
+
+function checkPopups() {
+  fetch(RELAY, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'check_popup' })
+  })
+  .then(r => r.json())
+  .then(data => {
+    const modal = document.getElementById('ui-modal');
+    const msgEl = document.getElementById('ui-modal-msg');
+    
+    // If there is an active message, show it. Otherwise, hide the modal.
+    if (data.ok && data.msg) {
+      msgEl.innerText = data.msg;
+      modal.style.display = 'flex';
+    } else {
+      modal.style.display = 'none';
+    }
+  })
+  .catch(err => console.log("Popup poll error:", err))
+  .finally(() => {
+    // Check again in 500ms
+    setTimeout(checkPopups, 500); 
+  });
+}
+
+function resolvePopup() {
+  // Hide the modal instantly for a snappy UI feel
+  document.getElementById('ui-modal').style.display = 'none'; 
+  
+  // Tell the relay to unblock the robot
+  fetch(RELAY, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'resolve_popup' })
+  });
+}
+
+// Start polling as soon as the page loads
+setTimeout(checkPopups, 1000);
+
 // ═══════════════════════════════════════════════════════════
 // BOOT
 // ═══════════════════════════════════════════════════════════
