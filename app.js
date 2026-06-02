@@ -1229,29 +1229,44 @@ function exportProject() {
   a.click();
 }
 
-function importProject(fileInput) {
-  const file = fileInput.files[0];
+function importProject(input) {
+  const file = input.files[0];
   if (!file) return;
+  
   const reader = new FileReader();
-  reader.onload = function(e) {
+  reader.onload = (e) => {
     try {
-      const d = JSON.parse(e.target.result);
-      if (d.positions) positions = d.positions;
-      if (d.steps)     steps     = d.steps;
-      if (d.settings) {
-        if (d.settings.js) document.getElementById('js').value = d.settings.js;
-        if (d.settings.ja) document.getElementById('ja').value = d.settings.ja;
-        if (d.settings.ls) document.getElementById('ls').value = d.settings.ls;
-        if (d.settings.la) document.getElementById('la').value = d.settings.la;
+      const data = JSON.parse(e.target.result);
+      
+      // 1. Restore positions
+      if (data.positions) {
+        positions = data.positions;
       }
-      renderPositions(); renderSteps(); refreshCode();
-      alert('Project loaded successfully!');
-    } catch(err) {
-      alert('Error parsing project file: ' + err.message);
+      
+      // 2. Restore steps & FIX THE ID GLITCH
+      if (data.steps) {
+        steps = data.steps;
+        
+        // Loop through every imported step and give it an ID if it's missing one
+        steps.forEach(s => {
+          if (!s.id) {
+            s.id = uid(); // Uses your existing unique ID generator!
+          }
+        });
+      }
+      
+      // 3. Re-render the UI
+      renderPositions();
+      renderSteps();
+      buildCode();
+      
+    } catch (err) {
+      alert("Error loading project: " + err);
     }
   };
+  
   reader.readAsText(file);
-  fileInput.value = '';
+  input.value = ''; // Resets the file input so you can load the same file again if needed
 }
 
 // ═══════════════════════════════════════════════════════════
