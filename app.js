@@ -1016,72 +1016,36 @@ function buildCode() {
       case 'activate_gripper':
         L.push(`${tab}socket_send_string("SET ACT 1", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}_dump = socket_read_string("rq_srv", timeout=0.1)`);
-        
+        L.push(`${tab}sync()`);
         L.push(`${tab}socket_send_string("SET GTO 1", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}_dump = socket_read_string("rq_srv", timeout=0.1)`);
-        
-        L.push(`${tab}_sta = 0`);
-        // Loop until STA is 3 (Activation Complete)
-        L.push(`${tab}while (_sta != 3):`);
-        L.push(`${tab}${T}socket_send_string("GET STA", "rq_srv")`);
-        L.push(`${tab}${T}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}${T}_raw = socket_read_string("rq_srv", timeout=0.1)`);
-        L.push(`${tab}${T}# Slice "STA 3" -> "3" and convert to number`);
-        L.push(`${tab}${T}_sta = to_num(str_sub(_raw, 4, 1))`);
-        L.push(`${tab}${T}sync()`);
-        L.push(`${tab}end`);
+        L.push(`${tab}sync()`);
         L.push(`${tab}textmsg("GRIPPER:ACTIVATED")`);
         break;
 
       case 'open_gripper':
         L.push(`${tab}socket_send_string("SET SPE 255", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}_dump = socket_read_string("rq_srv", timeout=0.1)`);
-        
+        L.push(`${tab}sync()`);
         L.push(`${tab}socket_send_string("SET FOR 255", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}_dump = socket_read_string("rq_srv", timeout=0.1)`);
-        
+        L.push(`${tab}sync()`);
         L.push(`${tab}socket_send_string("SET POS 0", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}_dump = socket_read_string("rq_srv", timeout=0.1)`);
-        
-        L.push(`${tab}_obj = 0`);
-        // Loop until OBJ is 1, 2, or 3 (Motion finished)
-        L.push(`${tab}while (_obj != 1 and _obj != 2 and _obj != 3):`);
-        L.push(`${tab}${T}socket_send_string("GET OBJ", "rq_srv")`);
-        L.push(`${tab}${T}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}${T}_raw = socket_read_string("rq_srv", timeout=0.1)`);
-        L.push(`${tab}${T}_obj = to_num(str_sub(_raw, 4, 1))`);
-        L.push(`${tab}${T}sync()`);
-        L.push(`${tab}end`);
+        L.push(`${tab}sync()`);
         L.push(`${tab}textmsg("GRIPPER:OPEN")`);
         break;
 
       case 'close_gripper':
         L.push(`${tab}socket_send_string("SET SPE 255", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}_dump = socket_read_string("rq_srv", timeout=0.1)`);
-        
+        L.push(`${tab}sync()`);
         L.push(`${tab}socket_send_string("SET FOR 255", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}_dump = socket_read_string("rq_srv", timeout=0.1)`);
-        
+        L.push(`${tab}sync()`);
         L.push(`${tab}socket_send_string("SET POS 255", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}_dump = socket_read_string("rq_srv", timeout=0.1)`);
-        
-        L.push(`${tab}_obj = 0`);
-        // Loop until OBJ is 1, 2, or 3 (Contact or finished)
-        L.push(`${tab}while (_obj != 1 and _obj != 2 and _obj != 3):`);
-        L.push(`${tab}${T}socket_send_string("GET OBJ", "rq_srv")`);
-        L.push(`${tab}${T}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}${T}_raw = socket_read_string("rq_srv", timeout=0.1)`);
-        L.push(`${tab}${T}_obj = to_num(str_sub(_raw, 4, 1))`);
-        L.push(`${tab}${T}sync()`);
-        L.push(`${tab}end`);
+        L.push(`${tab}sync()`);
         L.push(`${tab}textmsg("GRIPPER:CLOSE")`);
         break;
 
@@ -1089,9 +1053,13 @@ function buildCode() {
         L.push(`${tab}socket_send_string("GET POS", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
         L.push(`${tab}_raw = socket_read_string("rq_srv", timeout=0.1)`);
-        L.push(`${tab}# Slice "POS 125" -> "125" and convert to number`);
-        L.push(`${tab}${s.varName ?? 'part_size'} = to_num(str_sub(_raw, 4, 3))`);
-        break;      
+        
+        L.push(`${tab}if (str_len(_raw) >= 5):`);
+        L.push(`${tab}${T}${s.varName ?? 'part_size'} = to_num(str_sub(_raw, 4, str_len(_raw) - 4))`);
+        L.push(`${tab}else:`);
+        L.push(`${tab}${T}${s.varName ?? 'part_size'} = 0`);
+        L.push(`${tab}end`);
+        break; 
 
       // ── NEW LOGIC CONTAINERS ──
       case 'loop_start':
