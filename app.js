@@ -1052,40 +1052,39 @@ function buildCode() {
       case 'read_gripper':
         L.push(`${tab}socket_send_string("GET POS", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}_raw = socket_read_string("rq_srv", timeout=0.5)`); // Bumped to 0.5s for maximum safety
-        
-        // 1. Log exactly what came out of the socket
-        L.push(`${tab}textmsg("1_RAW_SOCKET_DATA:", _raw)`);
+        L.push(`${tab}_raw = socket_read_string("rq_srv", timeout=0.5)`);
         
         L.push(`${tab}_pos_idx = str_find(_raw, "POS ")`);
         L.push(`${tab}if (_pos_idx != -1):`);
         L.push(`${tab}${T}_start_bit = _pos_idx + 4`);
-        
         L.push(`${tab}${T}_tail = str_sub(_raw, _start_bit, str_len(_raw) - _start_bit)`);
-        // 2. Log what the isolated numbers + trailing text looks like
-        L.push(`${tab}${T}textmsg("2_TAIL_ISOLATED:", _tail)`);
         
-        L.push(`${tab}${T}_ack_idx = str_find(_tail, "ack")`);
-        L.push(`${tab}${T}if (_ack_idx != -1):`);
-        // 3. Log if an "ack" was found in the tail
-        L.push(`${tab}${T}${T}textmsg("3_FOUND_TRAILING_ACK_AT:", _ack_idx)`);
-        L.push(`${tab}${T}${T}${s.varName ?? 'part_size'} = to_num(str_sub(_tail, 0, _ack_idx))`);
+        // Loop through the tail character-by-character to extract ONLY digits
+        L.push(`${tab}${T}_clean_num_str = ""`);
+        L.push(`${tab}${T}_i = 0`);
+        L.push(`${tab}${T}while (_i < str_len(_tail)):`);
+        L.push(`${tab}${T}${T}_char = str_sub(_tail, _i, 1)`);
+        // Check if the character is a valid digit between 0 and 9
+        L.push(`${tab}${T}${T}if (_char == "0" or _char == "1" or _char == "2" or _char == "3" or _char == "4" or _char == "5" or _char == "6" or _char == "7" or _char == "8" or _char == "9"):`);
+        L.push(`${tab}${T}${T}${T}_clean_num_str = _clean_num_str + _char`);
+        L.push(`${tab}${T}${T}else:`);
+        // The moment we hit a space, an 'a' from 'ack', or a hidden '\r', stop collecting
+        L.push(`${tab}${T}${T}${T}break`);
+        L.push(`${tab}${T}${T}end`);
+        L.push(`${tab}${T}${T}_i = _i + 1`);
+        L.push(`${tab}${T}end`);
+        
+        // Final safety check: Convert to number only if we successfully built a digit string
+        L.push(`${tab}${T}if (str_len(_clean_num_str) > 0):`);
+        L.push(`${tab}${T}${T}${s.varName ?? 'part_size'} = to_num(_clean_num_str)`);
         L.push(`${tab}${T}else:`);
-        // 4. Log if the tail was already clean
-        L.push(`${tab}${T}${T}textmsg("3_NO_TRAILING_ACK_FOUND")`);
-        L.push(`${tab}${T}${T}${s.varName ?? 'part_size'} = to_num(_tail)`);
+        L.push(`${tab}${T}${T}${s.varName ?? 'part_size'} = 0`);
         L.push(`${tab}${T}end`);
         
         L.push(`${tab}else:`);
-        // 5. Log if "POS " wasn't found at all
-        L.push(`${tab}${T}textmsg("ERR: 'POS ' token not found in string")`);
         L.push(`${tab}${T}${s.varName ?? 'part_size'} = 0`);
         L.push(`${tab}end`);
-        
-        // 6. Log the final integer output
-        L.push(`${tab}textmsg("4_FINAL_PART_SIZE_OUTPUT:", ${s.varName ?? 'part_size'})`);
         break;      
-      
         // ── NEW LOGIC CONTAINERS ──
       case 'loop_start':
         if (s.loopType === 'times') {
