@@ -1082,11 +1082,10 @@ function buildCode() {
       }
       case 'guarded_move':
           L.push(`${tab}# --- Minimal Move Until Contact ---`);
-          L.push(`${tab}local search_dir = [0.0, 0.0, -1.0, 0.0, 0.0, 0.0]`);
           
-          // Loop will run as long as contact is NOT detected (returns 0)
-          L.push(`${tab}while (tool_contact(direction=search_dir) <= 0):`);
-          // speedl perfectly accepts a List for the speed vector
+          // Calling tool_contact() without arguments automatically detects contact 
+          // in the direction of TCP movement, bypassing the firmware's buggy type-checker!
+          L.push(`${tab}while (tool_contact() <= 0):`);
           L.push(`${tab}${T}speedl([0, 0, -${s.speed || 0.02}, 0, 0, 0], 0.5, t=get_steptime())`);
           L.push(`${tab}end`);
           
