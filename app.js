@@ -1082,19 +1082,20 @@ function buildCode() {
       }
       case 'guarded_move':
           L.push(`${tab}// --- Native Move Until Contact (Z-Axis Downward) ---`);
-          // direction vector: [X, Y, Z, Rx, Ry, Rz]
-          L.push(`${tab}global search_dir = [0.0, 0.0, -1.0, 0.0, 0.0, 0.0]`);
+          // A 3-axis vector is cleaner and fully supported for base-frame Z downward
+          L.push(`${tab}global search_dir = [0.0, 0.0, -1.0]`);
           
-          // tool_contact() returns 0 if no contact, or >0 if contact is found
+          // Loop until contact is detected
           L.push(`${tab}while (tool_contact(search_dir) == 0):`);
-          // FIXED: Removed the invalid "a=" and "t=" syntax. URScript requires raw positional values.
-          L.push(`${tab}${T}speedl([0, 0, -${s.speed || 0.02}, 0, 0, 0], 0.5, 0.016)`);
+          // speedl without a time parameter runs continuously until overridden
+          L.push(`${tab}${T}speedl([0, 0, -${s.speed || 0.02}, 0, 0, 0], 0.5)`);
+          // sync() is REQUIRED in URScript while-loops to prevent CPU crashes
+          L.push(`${tab}${T}sync()`); 
           L.push(`${tab}end`);
           
-          // Stop instantly when contact is made
-          L.push(`${tab}stopl(2.0)`);
+          // Braking deceleration (Higher = faster stop)
+          L.push(`${tab}stopl(3.0)`);
           break;
-
       // ── GRIPPER BLOCKS ──
       case 'activate_gripper':
         L.push(`${tab}socket_open("127.0.0.1", 63352, "rq_srv")`);
