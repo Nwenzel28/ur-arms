@@ -724,6 +724,7 @@ const TAG_INFO = {
   movej:            ['MOVEJ','tag-move'],
   movel:            ['MOVEL','tag-move'],
   movec:            ['MOVEC','tag-move'],
+  guarded_move:     ['UNTIL', 'tag-move'], 
   open_gripper:     ['GRIP', 'tag-grip'],
   close_gripper:    ['GRIP', 'tag-grip'],
   activate_gripper: ['GRIP', 'tag-grip'],
@@ -767,6 +768,11 @@ function stepParams(s) {
         <span style="font-size:10px;color:var(--tx3)">to</span>
         <select class="step-sel" onchange="upd(${si},'to',this.value)">${mk(s.to)}</select>`;
     }
+    case 'guarded_move':
+      return `
+        <span style="font-size:10px;color:var(--tx3)">Speed (m/s)</span>
+        <input class="step-inp" type="number" step="0.01" min="0.01" value="${s.speed}" style="width:60px" oninput="upd(${si},'speed',+this.value)">
+      `;
     case 'sleep':
       return `<input class="step-inp" type="number" min="0" step="0.1" value="${s.sec??1}" style="width:60px"
               oninput="upd(${si},'sec',+this.value)">
@@ -910,6 +916,7 @@ function defaultStep(type) {
   if (type==='movej') s.pid = positions.find(p=>p.type==='joint')?.id ?? positions[0]?.id ?? null;
   if (type==='movel') s.pid = positions.find(p=>p.type==='cart')?.id ?? null;
   if (type==='movec') { s.via = positions.find(p=>p.type==='cart')?.id ?? null; s.to = s.via; }
+  if (type==='guarded_move') { s.speed = 0.02; }
   if (type==='sleep') s.sec = 1;
   if (type==='textmsg'||type==='popup') s.msg = '';
   if (type==='set_digital_out') { s.port=0; s.val=true; }
@@ -1073,6 +1080,20 @@ function buildCode() {
         L.push(`${tab}movec(${v?v.name+'_C':'UNKNOWN'}, ${t?t.name+'_C':'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED)`);
         break;
       }
+      case 'guarded_move':
+          L.push(`${tab}// --- Native Move Until Contact (Z-Axis Downward) ---`);
+          // direction vector: [X, Y, Z, Rx, Ry, Rz]
+          L.push(`${tab}global search_dir = [0.0, 0.0, -1.0, 0.0, 0.0, 0.0]`);
+          
+          // tool_contact() returns 0 if no contact, or >0 if contact is found
+          L.push(`${tab}while (tool_contact(search_dir) == 0):`);
+          // Move downward at the user's requested speed
+          L.push(`${tab}${T}speedl([0, 0, -${s.speed || 0.02}, 0, 0, 0], a=0.5, t=0.016)`);
+          L.push(`${tab}end`);
+          
+          // Stop instantly when contact is made
+          L.push(`${tab}stopl(2.0)`);
+          break;
 
       // ── GRIPPER BLOCKS ──
       case 'activate_gripper':
