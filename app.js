@@ -1052,25 +1052,32 @@ function buildCode() {
       case 'read_gripper':
         L.push(`${tab}socket_send_string("GET POS", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        
-        // Increase timeout to give the hardware a realistic window to reply
         L.push(`${tab}_raw = socket_read_string("rq_srv", timeout=0.3)`);
         
-        // Force the log to print the raw data, wrapping it cleanly
-        L.push(`${tab}textmsg("RAW_DATA_FOUND_IS:", _raw)`);
-        
+        // 1. Find the start of the position numbers
         L.push(`${tab}_pos_idx = str_find(_raw, "POS ")`);
+        
         L.push(`${tab}if (_pos_idx != -1):`);
         L.push(`${tab}${T}_start_bit = _pos_idx + 4`);
-        L.push(`${tab}${T}_clean_len = str_len(_raw) - _start_bit`);
-        L.push(`${tab}${T}${s.varName ?? 'part_size'} = to_num(str_sub(_raw, _start_bit, _clean_len))`);
+        
+        // 2. Isolate everything from the numbers onward
+        L.push(`${tab}${T}_tail = str_sub(_raw, _start_bit, str_len(_raw) - _start_bit)`);
+        
+        // 3. Find where the trailing "ack" starts in this tail section
+        L.push(`${tab}${T}_ack_idx = str_find(_tail, "ack")`);
+        
+        L.push(`${tab}${T}if (_ack_idx != -1):`);
+        // If "ack" is found after the numbers, slice exactly up to it
+        L.push(`${tab}${T}${T}${s.varName ?? 'part_size'} = to_num(str_sub(_tail, 0, _ack_idx))`);
+        L.push(`${tab}${T}else:`);
+        // If no "ack" is trailing, the tail is already clean numbers
+        L.push(`${tab}${T}${T}${s.varName ?? 'part_size'} = to_num(_tail)`);
+        L.push(`${tab}${T}end`);
+        
         L.push(`${tab}else:`);
-        // If it returns 0, print a specific log so we know it hit the safety fallback
-        L.push(`${tab}${T}textmsg("CRITICAL: POS not found in string, defaulting to 0")`);
         L.push(`${tab}${T}${s.varName ?? 'part_size'} = 0`);
         L.push(`${tab}end`);
-        break;
-      
+        break;      
       
       
         // ── NEW LOGIC CONTAINERS ──
