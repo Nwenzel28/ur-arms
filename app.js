@@ -1050,13 +1050,9 @@ function buildCode() {
         L.push(`${tab}textmsg("GRIPPER:CLOSE")`);
         break;
       case 'read_gripper':
-        // Asks the gripper daemon for the position and safely parses the ASCII number!
-        L.push(`${tab}socket_send_string("GET POS", "rq_srv")`);
-        L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}_res = socket_read_ascii_float(1, "rq_srv")`);
-        L.push(`${tab}${s.varName ?? 'part_size'} = _res[1]`);
+        // Uses the native Robotiq URCap function to get the true physical position
+        L.push(`${tab}${s.varName ?? 'part_size'} = rq_get_pos()`);
         break;
-
 
       // ── NEW LOGIC CONTAINERS ──
       case 'loop_start':
