@@ -1052,33 +1052,39 @@ function buildCode() {
       case 'read_gripper':
         L.push(`${tab}socket_send_string("GET POS", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}_raw = socket_read_string("rq_srv", timeout=0.3)`);
+        L.push(`${tab}_raw = socket_read_string("rq_srv", timeout=0.5)`); // Bumped to 0.5s for maximum safety
         
-        // 1. Find the start of the position numbers
+        // 1. Log exactly what came out of the socket
+        L.push(`${tab}textmsg("1_RAW_SOCKET_DATA:", _raw)`);
+        
         L.push(`${tab}_pos_idx = str_find(_raw, "POS ")`);
-        
         L.push(`${tab}if (_pos_idx != -1):`);
         L.push(`${tab}${T}_start_bit = _pos_idx + 4`);
         
-        // 2. Isolate everything from the numbers onward
         L.push(`${tab}${T}_tail = str_sub(_raw, _start_bit, str_len(_raw) - _start_bit)`);
+        // 2. Log what the isolated numbers + trailing text looks like
+        L.push(`${tab}${T}textmsg("2_TAIL_ISOLATED:", _tail)`);
         
-        // 3. Find where the trailing "ack" starts in this tail section
         L.push(`${tab}${T}_ack_idx = str_find(_tail, "ack")`);
-        
         L.push(`${tab}${T}if (_ack_idx != -1):`);
-        // If "ack" is found after the numbers, slice exactly up to it
+        // 3. Log if an "ack" was found in the tail
+        L.push(`${tab}${T}${T}textmsg("3_FOUND_TRAILING_ACK_AT:", _ack_idx)`);
         L.push(`${tab}${T}${T}${s.varName ?? 'part_size'} = to_num(str_sub(_tail, 0, _ack_idx))`);
         L.push(`${tab}${T}else:`);
-        // If no "ack" is trailing, the tail is already clean numbers
+        // 4. Log if the tail was already clean
+        L.push(`${tab}${T}${T}textmsg("3_NO_TRAILING_ACK_FOUND")`);
         L.push(`${tab}${T}${T}${s.varName ?? 'part_size'} = to_num(_tail)`);
         L.push(`${tab}${T}end`);
         
         L.push(`${tab}else:`);
+        // 5. Log if "POS " wasn't found at all
+        L.push(`${tab}${T}textmsg("ERR: 'POS ' token not found in string")`);
         L.push(`${tab}${T}${s.varName ?? 'part_size'} = 0`);
         L.push(`${tab}end`);
+        
+        // 6. Log the final integer output
+        L.push(`${tab}textmsg("4_FINAL_PART_SIZE_OUTPUT:", ${s.varName ?? 'part_size'})`);
         break;      
-      
       
         // ── NEW LOGIC CONTAINERS ──
       case 'loop_start':
