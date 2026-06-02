@@ -674,6 +674,7 @@ const TAG_INFO = {
   open_gripper:     ['GRIP', 'tag-grip'],
   close_gripper:    ['GRIP', 'tag-grip'],
   activate_gripper: ['GRIP', 'tag-grip'],
+  read_gripper: ['GRIP?', 'tag-util'],
   sleep:            ['WAIT', 'tag-util'],
   textmsg:          ['LOG',  'tag-util'],
   popup:            ['POP',  'tag-util'],
@@ -752,6 +753,8 @@ function stepParams(s) {
       return `Name: <input class="step-inp" type="text" value="${s.threadName}" style="width:100px" oninput="upd(${si},'threadName',this.value)">`;
     
     // ── Variables & Utils ──
+    case 'read_gripper':
+      return `Save pos to: <input class="step-inp" type="text" value="${s.varName}" style="width:100px" oninput="upd(${si},'varName',this.value)">`;
     case 'assign':
       return `<input class="step-inp" type="text" value="${s.varName}" style="width:70px" oninput="upd(${si},'varName',this.value)"> =
               <input class="step-inp" type="text" value="${s.varValue}" style="width:90px" oninput="upd(${si},'varValue',this.value)">`;
@@ -853,6 +856,7 @@ function defaultStep(type) {
   if (type==='set_tcp') s.pose = '0,0,0,0,0,0';
   if (type==='loop_start') { s.loopType = 'forever'; s.loopCount = 5; }
   if (type==='if_start') { s.condition = 'get_digital_in(1) == True'; }
+  if (type==='read_gripper') s.varName = 'part_size';
   if (type==='wait_cond') { s.condition = 'get_digital_in(1) == True'; }
   if (type==='assign') { s.varName = 'my_var'; s.varValue = '0'; }
   if (type==='timer') { s.timerAct = 'start'; s.timerVar = 'timer_1'; }
@@ -1045,6 +1049,14 @@ function buildCode() {
         L.push(`${tab}sleep(0.8)`);
         L.push(`${tab}textmsg("GRIPPER:CLOSE")`);
         break;
+      case 'read_gripper':
+        // Asks the gripper daemon for the position and safely parses the ASCII number!
+        L.push(`${tab}socket_send_string("GET POS", "rq_srv")`);
+        L.push(`${tab}socket_send_byte(10, "rq_srv")`);
+        L.push(`${tab}_res = socket_read_ascii_float(1, "rq_srv")`);
+        L.push(`${tab}${s.varName ?? 'part_size'} = _res[1]`);
+        break;
+
 
       // ── NEW LOGIC CONTAINERS ──
       case 'loop_start':
