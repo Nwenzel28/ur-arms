@@ -1087,8 +1087,8 @@ function buildCode() {
           
           // tool_contact() returns 0 if no contact, or >0 if contact is found
           L.push(`${tab}while (tool_contact(search_dir) == 0):`);
-          // Move downward at the user's requested speed
-          L.push(`${tab}${T}speedl([0, 0, -${s.speed || 0.02}, 0, 0, 0], a=0.5, t=0.016)`);
+          // FIXED: Removed the invalid "a=" and "t=" syntax. URScript requires raw positional values.
+          L.push(`${tab}${T}speedl([0, 0, -${s.speed || 0.02}, 0, 0, 0], 0.5, 0.016)`);
           L.push(`${tab}end`);
           
           // Stop instantly when contact is made
