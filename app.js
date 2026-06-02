@@ -771,7 +771,10 @@ function stepParams(s) {
     case 'guarded_move':
       return `
         <span style="font-size:10px;color:var(--tx3)">Speed (m/s)</span>
-        <input class="step-inp" type="number" step="0.01" min="0.01" value="${s.speed}" style="width:60px" oninput="upd(${si},'speed',+this.value)">
+        <input class="step-inp" type="number" step="0.01" min="0.01" value="${s.speed}" style="width:50px" oninput="upd(${si},'speed',+this.value)">
+        
+        <span style="font-size:10px;color:var(--tx3);margin-left:8px;">Retract (mm)</span>
+        <input class="step-inp" type="number" step="0.1" min="0" value="${s.retract || 0}" style="width:50px" oninput="upd(${si},'retract',+this.value)">
       `;
     case 'sleep':
       return `<input class="step-inp" type="number" min="0" step="0.1" value="${s.sec??1}" style="width:60px"
@@ -916,7 +919,7 @@ function defaultStep(type) {
   if (type==='movej') s.pid = positions.find(p=>p.type==='joint')?.id ?? positions[0]?.id ?? null;
   if (type==='movel') s.pid = positions.find(p=>p.type==='cart')?.id ?? null;
   if (type==='movec') { s.via = positions.find(p=>p.type==='cart')?.id ?? null; s.to = s.via; }
-  if (type==='guarded_move') { s.speed = 0.02; }
+  if (type==='guarded_move') { s.speed = 0.02; s.retract = 0.0; }
   if (type==='sleep') s.sec = 1;
   if (type==='textmsg'||type==='popup') s.msg = '';
   if (type==='set_digital_out') { s.port=0; s.val=true; }
@@ -1081,16 +1084,27 @@ function buildCode() {
         break;
       }
       case 'guarded_move':
-          L.push(`${tab}# --- Minimal Move Until Contact ---`);
-          
-          // Calling tool_contact() without arguments automatically detects contact 
-          // in the direction of TCP movement, bypassing the firmware's buggy type-checker!
+          L.push(`${tab}# --- Move Until Contact ---`);
           L.push(`${tab}while (tool_contact() <= 0):`);
           L.push(`${tab}${T}speedl([0, 0, -${s.speed || 0.02}, 0, 0, 0], 0.5, t=get_steptime())`);
           L.push(`${tab}end`);
-          
-          // Instantly brake the moment contact is felt
           L.push(`${tab}stopl(3.0)`);
+          
+          // --- NEW RETRACTION LOGIC ---
+          if (s.retract && s.retract > 0) {
+            // Convert millimeters to meters for URScript
+            const retract_m = (s.retract / 1000).toFixed(4);
+            
+            L.push(`${tab}# Retract ${s.retract}mm upward to relieve pressure`);
+            // 1. Get the current exact XYZ pose where the robot stopped
+            L.push(`${tab}local contact_pose = get_actual_tcp_pose()`);
+            
+            // 2. pose_add adds X,Y,Z components perfectly. We add positive Z to move up.
+            L.push(`${tab}local retract_pose = pose_add(contact_pose, p[0.0, 0.0, ${retract_m}, 0.0, 0.0, 0.0])`);
+            
+            // 3. Move slowly back to the retracted pose
+            L.push(`${tab}movel(retract_pose, a=0.5, v=0.05)`);
+          }
           break; 
  
           // ── GRIPPER BLOCKS ──
