@@ -683,6 +683,7 @@ const TAG_INFO = {
   set_tcp:          ['TCP',  'tag-util'],
   loop_start:   ['LOOP', 'tag-logic'],
   if_start:     ['IF', 'tag-logic'],
+  else_if:       ['ELSEIF','tag-logic'],
   else:         ['ELSE', 'tag-logic'],
   wait_cond:    ['WAIT', 'tag-logic'],
   halt:         ['HALT', 'tag-logic'],
@@ -747,6 +748,7 @@ function stepParams(s) {
               </select>
               ${s.loopType==='times' ? `<input class="step-inp" type="number" value="${s.loopCount}" style="width:50px" oninput="upd(${si},'loopCount',this.value)">` : ''}`;
     case 'if_start':
+    case 'else_if':
     case 'wait_cond':
       return `Cond: <input class="step-inp" type="text" value="${s.condition}" style="width:140px" placeholder="e.g. get_digital_in(1)" oninput="upd(${si},'condition',this.value)">`;
     case 'thread_start':
@@ -856,6 +858,7 @@ function defaultStep(type) {
   if (type==='set_tcp') s.pose = '0,0,0,0,0,0';
   if (type==='loop_start') { s.loopType = 'forever'; s.loopCount = 5; }
   if (type==='if_start') { s.condition = 'get_digital_in(1) == True'; }
+  if (type==='else_if') { s.condition = 'get_digital_in(1) == False'; }
   if (type==='read_gripper') s.varName = 'part_size';
   if (type==='wait_cond') { s.condition = 'get_digital_in(1) == True'; }
   if (type==='assign') { s.varName = 'my_var'; s.varValue = '0'; }
@@ -1099,6 +1102,11 @@ function buildCode() {
         L.push(`${tab}if (${s.condition}):`);
         stack.push(s);
         ind++;
+        break;
+
+      case 'else_if':
+        // URScript uses 'elif' for else-if statements
+        L.push(`${tab}elif (${step.condition}):`);
         break;
 
       case 'thread_start':
