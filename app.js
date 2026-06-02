@@ -1081,27 +1081,23 @@ function buildCode() {
         break;
       }
       case 'guarded_move':
-          L.push(`${tab}// --- Move Until Contact (Official UR Manual Implementation) ---`);
-          // direction vector: Detect contact on the Z-axis downward
-          L.push(`${tab}global search_dir = [0.0, 0.0, -1.0, 0.0, 0.0, 0.0]`);
+          // The URScript compiler requires '#' for comments, not '//'
+          L.push(`${tab}# --- Move Until Contact (Official UR Manual Implementation) ---`);
+          
+          // Use 'local' instead of 'global' so multiple seek blocks don't conflict
+          L.push(`${tab}local search_dir = [0.0, 0.0, -1.0, 0.0, 0.0, 0.0]`);
           
           L.push(`${tab}while (True):`);
-          L.push(`${tab}${T}step_back = tool_contact(search_dir)`);
+          // It is safest to explicitly name the parameter: direction=search_dir
+          L.push(`${tab}${T}step_back = tool_contact(direction=search_dir)`);
           
           L.push(`${tab}${T}if (step_back <= 0):`);
-          // No contact: Continue moving downward. 
-          // Uses get_steptime() to perfectly sync the loop to the controller's cycle rate.
           L.push(`${tab}${T}${T}speedl([0, 0, -${s.speed || 0.02}, 0, 0, 0], 0.5, t=get_steptime())`);
           
           L.push(`${tab}${T}else:`);
-          // Contact detected!
-          // 1. Fetch the exact joint positions from the millisecond contact was made
           L.push(`${tab}${T}${T}q = get_actual_joint_positions_history(step_back)`);
-          // 2. Halt the downward momentum
           L.push(`${tab}${T}${T}stopl(3.0)`);
-          // 3. Move back to the exact contact point to relieve downward pressure
           L.push(`${tab}${T}${T}movel(q)`);
-          // 4. Exit the search loop
           L.push(`${tab}${T}${T}break`);
           L.push(`${tab}${T}end`); // end if
           
