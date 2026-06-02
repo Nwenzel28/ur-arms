@@ -770,21 +770,8 @@ function stepParams(s) {
     }
     case 'guarded_move':
       return `
-        <select class="step-sel" onchange="upd(${si},'dir',this.value)">
-          <option value="Z-" ${(s.dir??'Z-')==='Z-'?'selected':''}>Z- (down)</option>
-          <option value="Z+" ${(s.dir??'Z-')==='Z+'?'selected':''}>Z+ (up)</option>
-          <option value="X+" ${(s.dir??'Z-')==='X+'?'selected':''}>X+</option>
-          <option value="X-" ${(s.dir??'Z-')==='X-'?'selected':''}>X-</option>
-          <option value="Y+" ${(s.dir??'Z-')==='Y+'?'selected':''}>Y+</option>
-          <option value="Y-" ${(s.dir??'Z-')==='Y-'?'selected':''}>Y-</option>
-        </select>
-        <span style="font-size:10px;color:var(--tx3)">spd</span>
-        <input class="step-inp" type="number" step="0.005" min="0.005" value="${s.speed??0.05}" style="width:52px"
-          oninput="upd(${si},'speed',+this.value)">
-        <span style="font-size:10px;color:var(--tx3)">m/s  retract</span>
-        <input class="step-inp" type="number" step="0.005" min="0" value="${s.retract??0.02}" style="width:52px"
-          oninput="upd(${si},'retract',+this.value)">
-        <span style="font-size:10px;color:var(--tx3)">m</span>
+        <span style="font-size:10px;color:var(--tx3)">Speed (m/s)</span>
+        <input class="step-inp" type="number" step="0.01" min="0.01" value="${s.speed}" style="width:60px" oninput="upd(${si},'speed',+this.value)">
       `;
     case 'sleep':
       return `<input class="step-inp" type="number" min="0" step="0.1" value="${s.sec??1}" style="width:60px"
@@ -929,7 +916,7 @@ function defaultStep(type) {
   if (type==='movej') s.pid = positions.find(p=>p.type==='joint')?.id ?? positions[0]?.id ?? null;
   if (type==='movel') s.pid = positions.find(p=>p.type==='cart')?.id ?? null;
   if (type==='movec') { s.via = positions.find(p=>p.type==='cart')?.id ?? null; s.to = s.via; }
-  if (type==='guarded_move') { s.dir = 'Z-'; s.speed = 0.05; s.retract = 0.02; s.maxDist = 1.0; }
+  if (type==='guarded_move') { s.speed = 0.02; }
   if (type==='sleep') s.sec = 1;
   if (type==='textmsg'||type==='popup') s.msg = '';
   if (type==='set_digital_out') { s.port=0; s.val=true; }
@@ -992,19 +979,7 @@ function buildCode() {
   const isTCPSet = tcx||tcy||tcz||tcrx||tcry||tcrz;
   const L = [];
 
-  // Helper function for move-until-contact (matches teach pendant output exactly)
-  L.push('def calculate_point_to_move_towards(feature, direction, position_distance):');
-  L.push('  local posDir=[direction[0], direction[1], direction[2]]');
-  L.push('  if (norm(posDir) < 1e-6):');
-  L.push('    return get_target_waypoint()');
-  L.push('  end');
-  L.push('  local dir_norm=normalize(posDir)');
-  L.push('  local disp=p[dir_norm[0]*position_distance, dir_norm[1]*position_distance, dir_norm[2]*position_distance, 0, 0, 0]');
-  L.push('  local delta=pose_sub(pose_trans(feature, disp), feature)');
-  L.push('  return pose_add(get_target_waypoint(), delta)');
-  L.push('end');
-  L.push('');
-    L.push('def master_program():');
+  L.push('def master_program():');
   L.push(`${T}# Motion parameters`);
   L.push(`${T}global JOINT_SPEED  = ${js}`);
   L.push(`${T}global JOINT_ACCEL  = ${ja}`);
@@ -1105,56 +1080,20 @@ function buildCode() {
         L.push(`${tab}movec(${v?v.name+'_C':'UNKNOWN'}, ${t?t.name+'_C':'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED)`);
         break;
       }
-      case 'guarded_move': {
-          // Exact pattern from PolyScope "Move Until" node.
-          // A movel runs in a background thread toward a far point.
-          // The main thread polls tool_contact(); on contact it kills
-          // the thread, backtracks to the contact pose, and retracts.
-          const dirMap = {
-            'Z-': [0,0,-1], 'Z+': [0,0,1],
-            'X+': [1,0,0],  'X-': [-1,0,0],
-            'Y+': [0,1,0],  'Y-': [0,-1,0]
-          };
-          const dv    = dirMap[s.dir ?? 'Z-'];
-          const spd   = s.speed   ?? 0.05;
-          const ret   = s.retract ?? 0.02;
-          const maxMM = (s.maxDist ?? 1.0) * 1000; // convert m → mm for the helper
-          const idx   = si; // unique per step — si is the step index from forEach
-
-          L.push(`${tab}# --- Move Until Contact (${s.dir ?? 'Z-'}) ---`);
-          L.push(`${tab}global _mu_flag_${idx} = 0`);
-          L.push(`${tab}thread _mu_thr_${idx}():`);
-          L.push(`${tab}${T}enter_critical`);
-          L.push(`${tab}${T}_mu_flag_${idx} = 1`);
-          L.push(`${tab}${T}local _mu_tp = calculate_point_to_move_towards(p[0,0,0,0,0,0], [${dv.join(',')}], ${maxMM})`);
-          L.push(`${tab}${T}movel(_mu_tp, a=1.2, v=${spd})`);
-          L.push(`${tab}${T}_mu_flag_${idx} = 2`);
-          L.push(`${tab}${T}exit_critical`);
+      case 'guarded_move':
+          L.push(`${tab}// --- Native Move Until Contact (Z-Axis Downward) ---`);
+          // direction vector: [X, Y, Z, Rx, Ry, Rz]
+          L.push(`${tab}global search_dir = [0.0, 0.0, -1.0, 0.0, 0.0, 0.0]`);
+          
+          // tool_contact() returns 0 if no contact, or >0 if contact is found
+          L.push(`${tab}while (tool_contact(search_dir) == 0):`);
+          // FIXED: Removed the invalid "a=" and "t=" syntax. URScript requires raw positional values.
+          L.push(`${tab}${T}speedl([0, 0, -${s.speed || 0.02}, 0, 0, 0], 0.5, 0.016)`);
           L.push(`${tab}end`);
-          L.push(`${tab}_mu_flag_${idx} = 0`);
-          L.push(`${tab}_mu_han_${idx} = run _mu_thr_${idx}()`);
-          L.push(`${tab}while (True):`);
-          L.push(`${tab}${T}local _mu_spd = get_target_tcp_speed()`);
-          L.push(`${tab}${T}local _mu_n = tool_contact(direction=_mu_spd)`);
-          L.push(`${tab}${T}if (_mu_n > 0):`);
-          L.push(`${tab}${T}${T}kill _mu_han_${idx}`);
-          L.push(`${tab}${T}${T}stopl(3.0)`);
-          L.push(`${tab}${T}${T}local _mu_back = get_actual_joint_positions_history(_mu_n)`);
-          L.push(`${tab}${T}${T}local _mu_pose = get_forward_kin(_mu_back)`);
-          L.push(`${tab}${T}${T}local _mu_dir  = [_mu_spd[0], _mu_spd[1], _mu_spd[2]]`);
-          L.push(`${tab}${T}${T}local _mu_ret  = _mu_pose`);
-          L.push(`${tab}${T}${T}if (norm(_mu_dir) > 1e-6):`);
-          L.push(`${tab}${T}${T}${T}local _mu_nrm   = normalize(_mu_dir)`);
-          L.push(`${tab}${T}${T}${T}local _mu_delta = p[_mu_nrm[0]*${ret}, _mu_nrm[1]*${ret}, _mu_nrm[2]*${ret}, 0, 0, 0]`);
-          L.push(`${tab}${T}${T}${T}_mu_ret = pose_sub(_mu_pose, _mu_delta)`);
-          L.push(`${tab}${T}${T}end`);
-          L.push(`${tab}${T}${T}movel(_mu_ret, a=3.0, v=0.1)`);
-          L.push(`${tab}${T}${T}break`);
-          L.push(`${tab}${T}end`);
-          L.push(`${tab}${T}sync()`);
-          L.push(`${tab}end`);
+          
+          // Stop instantly when contact is made
+          L.push(`${tab}stopl(2.0)`);
           break;
-      }
 
       // ── GRIPPER BLOCKS ──
       case 'activate_gripper':
