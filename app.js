@@ -1050,16 +1050,26 @@ function buildCode() {
         break;
 
       case 'read_gripper':
+        // 1. Instantly flush the entire buffer queue by recycling the connection
+        L.push(`${tab}socket_close("rq_srv")`);
+        L.push(`${tab}socket_open("127.0.0.1", 63352, "rq_srv")`);
+        
+        // 2. Send the clean query on a fresh connection
         L.push(`${tab}socket_send_string("GET POS", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}_raw = socket_read_string("rq_srv", timeout=0.1)`);
+        L.push(`${tab}_raw = socket_read_string("rq_srv", timeout=0.2)`);
         
+        // 3. Direct firewall check: Only parse if the string explicitly starts with "POS"
         L.push(`${tab}if (str_len(_raw) >= 5):`);
-        L.push(`${tab}${T}${s.varName ?? 'part_size'} = to_num(str_sub(_raw, 4, str_len(_raw) - 4))`);
+        L.push(`${tab}${T}if (str_sub(_raw, 0, 3) == "POS"):`);
+        L.push(`${tab}${T}${T}${s.varName ?? 'part_size'} = to_num(str_sub(_raw, 4, str_len(_raw) - 4))`);
+        L.push(`${tab}${T}else:`);
+        L.push(`${tab}${T}${T}${s.varName ?? 'part_size'} = 0`);
+        L.push(`${tab}${T}end`);
         L.push(`${tab}else:`);
         L.push(`${tab}${T}${s.varName ?? 'part_size'} = 0`);
         L.push(`${tab}end`);
-        break; 
+        break;
 
       // ── NEW LOGIC CONTAINERS ──
       case 'loop_start':
