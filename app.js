@@ -1067,7 +1067,7 @@ function buildCode() {
         L.push(`${tab}${T}socket_send_byte(10, "rq_srv")`);
         
         L.push(`${tab}${T}_raw = socket_read_string("rq_srv", timeout=0.3)`);
-        L.push(`${tab}${T}socket_close("rq_srv")`);
+        //L.push(`${tab}${T}socket_close("rq_srv")`);
         
         L.push(`${tab}${T}if (str_len(_raw) > 0):`);
         
