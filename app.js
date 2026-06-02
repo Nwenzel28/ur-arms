@@ -1056,21 +1056,23 @@ function buildCode() {
         break;
 
       case 'read_gripper':
-        // 1. Open a perfectly clean channel
-        L.push(`${tab}socket_open("127.0.0.1", 63352, "rq_srv")`);
-        L.push(`${tab}socket_send_string("GET POS", "rq_srv")`);
-        L.push(`${tab}socket_send_byte(10, "rq_srv")`);
+        // Try to open the clean channel instantly
+        L.push(`${tab}_opened = socket_open("127.0.0.1", 63352, "rq_srv")`);
         
-        // 2. Read the response (which is now just the raw number string)
-        L.push(`${tab}_raw = socket_read_string("rq_srv", timeout=0.3)`);
-        L.push(`${tab}textmsg("DEBUG: Pure Raw Data = ", _raw)`);
+        L.push(`${tab}if (_opened):`);
+        L.push(`${tab}${T}socket_send_string("GET POS", "rq_srv")`);
+        L.push(`${tab}${T}socket_send_byte(10, "rq_srv")`);
         
-        // 3. Close the socket immediately
-        L.push(`${tab}socket_close("rq_srv")`);
+        L.push(`${tab}${T}_raw = socket_read_string("rq_srv", timeout=0.3)`);
+        L.push(`${tab}${T}socket_close("rq_srv")`);
         
-        // 4. Directly convert the clean string to a number
-        L.push(`${tab}if (str_len(_raw) > 0):`);
-        L.push(`${tab}${T}${s.varName ?? 'part_size'} = to_num(_raw)`);
+        // Direct conversion
+        L.push(`${tab}${T}if (str_len(_raw) > 0):`);
+        L.push(`${tab}${T}${T}${s.varName ?? 'part_size'} = to_num(_raw)`);
+        L.push(`${tab}${T}else:`);
+        L.push(`${tab}${T}${T}${s.varName ?? 'part_size'} = 0`);
+        L.push(`${tab}${T}end`);
+        
         L.push(`${tab}else:`);
         L.push(`${tab}${T}${s.varName ?? 'part_size'} = 0`);
         L.push(`${tab}end`);
