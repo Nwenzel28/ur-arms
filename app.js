@@ -1014,16 +1014,19 @@ function buildCode() {
 
       // ── GRIPPER BLOCKS ──
       case 'activate_gripper':
+        L.push(`${tab}socket_open("127.0.0.1", 63352, "rq_srv")`);
         L.push(`${tab}socket_send_string("SET ACT 1", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
         L.push(`${tab}sync()`);
         L.push(`${tab}socket_send_string("SET GTO 1", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
         L.push(`${tab}sync()`);
+        L.push(`${tab}socket_close("rq_srv")`); // <--- Drops the connection and wipes out the acks instantly
         L.push(`${tab}textmsg("GRIPPER:ACTIVATED")`);
         break;
 
       case 'open_gripper':
+        L.push(`${tab}socket_open("127.0.0.1", 63352, "rq_srv")`);
         L.push(`${tab}socket_send_string("SET SPE 255", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
         L.push(`${tab}sync()`);
@@ -1033,10 +1036,12 @@ function buildCode() {
         L.push(`${tab}socket_send_string("SET POS 0", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
         L.push(`${tab}sync()`);
+        L.push(`${tab}socket_close("rq_srv")`); // <--- Drops the connection and wipes out the acks instantly
         L.push(`${tab}textmsg("GRIPPER:OPEN")`);
         break;
 
       case 'close_gripper':
+        L.push(`${tab}socket_open("127.0.0.1", 63352, "rq_srv")`);
         L.push(`${tab}socket_send_string("SET SPE 255", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
         L.push(`${tab}sync()`);
@@ -1046,53 +1051,33 @@ function buildCode() {
         L.push(`${tab}socket_send_string("SET POS 255", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
         L.push(`${tab}sync()`);
+        L.push(`${tab}socket_close("rq_srv")`); // <--- Drops the connection and wipes out the acks instantly
         L.push(`${tab}textmsg("GRIPPER:CLOSE")`);
         break;
 
       case 'read_gripper':
+        // 1. Open a perfectly clean, brand new channel
+        L.push(`${tab}socket_open("127.0.0.1", 63352, "rq_srv")`);
         L.push(`${tab}socket_send_string("GET POS", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}_raw = socket_read_string("rq_srv", timeout=0.5)`);
         
-        // ALWAYS PRINT: Let's see exactly what came out of the network wire
-        L.push(`${tab}textmsg("DEBUG 1: Raw network data read = ", _raw)`);
+        // 2. Read the response (it is guaranteed to be only the POS string)
+        L.push(`${tab}_raw = socket_read_string("rq_srv", timeout=0.3)`);
+        L.push(`${tab}textmsg("DEBUG: Pure Raw Data = ", _raw)`);
         
+        // 3. Close the socket immediately so it stays clean
+        L.push(`${tab}socket_close("rq_srv")`);
+        
+        // 4. Simple parsing without complex filtering loops
         L.push(`${tab}_pos_idx = str_find(_raw, "POS ")`);
         L.push(`${tab}if (_pos_idx != -1):`);
         L.push(`${tab}${T}_start_bit = _pos_idx + 4`);
-        L.push(`${tab}${T}_tail = str_sub(_raw, _start_bit, str_len(_raw) - _start_bit)`);
-        
-        // Loop through character-by-character to extract ONLY digits
-        L.push(`${tab}${T}_clean_num_str = ""`);
-        L.push(`${tab}${T}_i = 0`);
-        L.push(`${tab}${T}while (_i < str_len(_tail)):`);
-        L.push(`${tab}${T}${T}_char = str_sub(_tail, _i, 1)`);
-        
-        L.push(`${tab}${T}${T}if (_char == "0" or _char == "1" or _char == "2" or _char == "3" or _char == "4" or _char == "5" or _char == "6" or _char == "7" or _char == "8" or _char == "9"):`);
-        L.push(`${tab}${T}${T}${T}_clean_num_str = _clean_num_str + _char`);
-        L.push(`${tab}${T}${T}else:`);
-        L.push(`${tab}${T}${T}${T}break`);
-        L.push(`${tab}${T}${T}end`);
-        L.push(`${tab}${T}${T}_i = _i + 1`);
-        L.push(`${tab}${T}end`);
-        
-        L.push(`${tab}${T}if (str_len(_clean_num_str) > 0):`);
-        L.push(`${tab}${T}${T}${s.varName ?? 'part_size'} = to_num(_clean_num_str)`);
-        // ALWAYS PRINT: Success path
-        L.push(`${tab}${T}${T}textmsg("DEBUG 2: Successfully converted number = ", ${s.varName ?? 'part_size'})`);
-        L.push(`${tab}${T}else:`);
-        L.push(`${tab}${T}${T}${s.varName ?? 'part_size'} = 0`);
-        // ALWAYS PRINT: Found POS, but no digits followed it
-        L.push(`${tab}${T}${T}textmsg("DEBUG 2: Found 'POS ' token, but zero digits were attached to it.")`);
-        L.push(`${tab}${T}end`);
-        
+        L.push(`${tab}${T}${s.varName ?? 'part_size'} = to_num(str_sub(_raw, _start_bit, 3))`);
         L.push(`${tab}else:`);
         L.push(`${tab}${T}${s.varName ?? 'part_size'} = 0`);
-        // ALWAYS PRINT: Failed path (This is likely why it was silent before)
-        L.push(`${tab}${T}textmsg("DEBUG 2: 'POS ' token missing completely from string. Defaulted to 0.")`);
         L.push(`${tab}end`);
-        break;        // ── NEW LOGIC CONTAINERS ──
-      
+        L.push(`${tab}textmsg("DEBUG: Final Result = ", ${s.varName ?? 'part_size'})`);
+        break;      
       
       
       
