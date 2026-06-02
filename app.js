@@ -1014,89 +1014,84 @@ function buildCode() {
 
       // ── GRIPPER BLOCKS ──
       case 'activate_gripper':
-        // 1. Send the activation commands (just like the UI)
         L.push(`${tab}socket_send_string("SET ACT 1", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}sync()`);
+        L.push(`${tab}_dump = socket_read_string("rq_srv", timeout=0.1)`);
+        
         L.push(`${tab}socket_send_string("SET GTO 1", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}sync()`);
-        L.push(`${tab}_ack = socket_read_string("rq_srv", timeout=0.1)`);
+        L.push(`${tab}_dump = socket_read_string("rq_srv", timeout=0.1)`);
         
-        // 2. Wait for STA === 3 (just like the UI checkStatus loop)
         L.push(`${tab}_sta = 0`);
+        // Loop until STA is 3 (Activation Complete)
         L.push(`${tab}while (_sta != 3):`);
         L.push(`${tab}${T}socket_send_string("GET STA", "rq_srv")`);
         L.push(`${tab}${T}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}${T}_res = socket_read_ascii_float(1, "rq_srv")`);
-        L.push(`${tab}${T}_sta = _res[1]`);
+        L.push(`${tab}${T}_raw = socket_read_string("rq_srv", timeout=0.1)`);
+        L.push(`${tab}${T}# Slice "STA 3" -> "3" and convert to number`);
+        L.push(`${tab}${T}_sta = to_num(str_sub(_raw, 4, 1))`);
         L.push(`${tab}${T}sync()`);
         L.push(`${tab}end`);
-        
         L.push(`${tab}textmsg("GRIPPER:ACTIVATED")`);
         break;
 
       case 'open_gripper':
-        // 1. Send the open commands (just like the UI)
         L.push(`${tab}socket_send_string("SET SPE 255", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}sync()`);
+        L.push(`${tab}_dump = socket_read_string("rq_srv", timeout=0.1)`);
+        
         L.push(`${tab}socket_send_string("SET FOR 255", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}sync()`);
+        L.push(`${tab}_dump = socket_read_string("rq_srv", timeout=0.1)`);
+        
         L.push(`${tab}socket_send_string("SET POS 0", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}sync()`);
-        L.push(`${tab}_ack = socket_read_string("rq_srv", timeout=0.1)`);
+        L.push(`${tab}_dump = socket_read_string("rq_srv", timeout=0.1)`);
         
-        // 2. Wait for OBJ !== 0 (just like the UI checkStatus loop)
         L.push(`${tab}_obj = 0`);
-        L.push(`${tab}while (_obj == 0):`);
+        // Loop until OBJ is 1, 2, or 3 (Motion finished)
+        L.push(`${tab}while (_obj != 1 and _obj != 2 and _obj != 3):`);
         L.push(`${tab}${T}socket_send_string("GET OBJ", "rq_srv")`);
         L.push(`${tab}${T}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}${T}_res = socket_read_ascii_float(1, "rq_srv")`);
-        L.push(`${tab}${T}_obj = _res[1]`);
+        L.push(`${tab}${T}_raw = socket_read_string("rq_srv", timeout=0.1)`);
+        L.push(`${tab}${T}_obj = to_num(str_sub(_raw, 4, 1))`);
         L.push(`${tab}${T}sync()`);
         L.push(`${tab}end`);
-        
         L.push(`${tab}textmsg("GRIPPER:OPEN")`);
         break;
 
       case 'close_gripper':
-        // 1. Send the close commands (just like the UI)
         L.push(`${tab}socket_send_string("SET SPE 255", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}sync()`);
+        L.push(`${tab}_dump = socket_read_string("rq_srv", timeout=0.1)`);
+        
         L.push(`${tab}socket_send_string("SET FOR 255", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}sync()`);
+        L.push(`${tab}_dump = socket_read_string("rq_srv", timeout=0.1)`);
+        
         L.push(`${tab}socket_send_string("SET POS 255", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}sync()`);
-        L.push(`${tab}_ack = socket_read_string("rq_srv", timeout=0.1)`);
+        L.push(`${tab}_dump = socket_read_string("rq_srv", timeout=0.1)`);
         
-        // 2. Wait for OBJ !== 0 (just like the UI checkStatus loop)
         L.push(`${tab}_obj = 0`);
-        L.push(`${tab}while (_obj == 0):`);
+        // Loop until OBJ is 1, 2, or 3 (Contact or finished)
+        L.push(`${tab}while (_obj != 1 and _obj != 2 and _obj != 3):`);
         L.push(`${tab}${T}socket_send_string("GET OBJ", "rq_srv")`);
         L.push(`${tab}${T}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}${T}_res = socket_read_ascii_float(1, "rq_srv")`);
-        L.push(`${tab}${T}_obj = _res[1]`);
+        L.push(`${tab}${T}_raw = socket_read_string("rq_srv", timeout=0.1)`);
+        L.push(`${tab}${T}_obj = to_num(str_sub(_raw, 4, 1))`);
         L.push(`${tab}${T}sync()`);
         L.push(`${tab}end`);
-        
         L.push(`${tab}textmsg("GRIPPER:CLOSE")`);
         break;
+
       case 'read_gripper':
-        // Ask the gripper for its final resting position
         L.push(`${tab}socket_send_string("GET POS", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        
-        // Read the float reply and save it to the user's variable
-        L.push(`${tab}_res = socket_read_ascii_float(1, "rq_srv")`);
-        L.push(`${tab}${s.varName ?? 'part_size'} = _res[1]`);
-        break;
-
+        L.push(`${tab}_raw = socket_read_string("rq_srv", timeout=0.1)`);
+        L.push(`${tab}# Slice "POS 125" -> "125" and convert to number`);
+        L.push(`${tab}${s.varName ?? 'part_size'} = to_num(str_sub(_raw, 4, 3))`);
+        break;      
 
       // ── NEW LOGIC CONTAINERS ──
       case 'loop_start':
