@@ -1084,27 +1084,43 @@ function buildCode() {
         break;
       }
       case 'guarded_move':
-          L.push(`${tab}# --- Move Until Contact ---`);
-          L.push(`${tab}while (tool_contact() <= 0):`);
-          L.push(`${tab}${T}speedl([0, 0, -${s.speed || 0.02}, 0, 0, 0], 0.5, t=get_steptime())`);
-          L.push(`${tab}end`);
-          L.push(`${tab}stopl(3.0)`);
+          L.push(`${tab}# --- Move Until Contact (With Precise Backtrack) ---`);
           
-          // --- NEW RETRACTION LOGIC ---
+          L.push(`${tab}while (True):`);
+          // Calling tool_contact() without arguments bypasses the firmware bug
+          // and returns the 'step_back' history index when contact happens.
+          L.push(`${tab}${T}step_back = tool_contact()`);
+          
+          L.push(`${tab}${T}if (step_back <= 0):`);
+          // No contact: keep seeking
+          L.push(`${tab}${T}${T}speedl([0, 0, -${s.speed || 0.02}, 0, 0, 0], 0.5, t=get_steptime())`);
+          
+          L.push(`${tab}${T}else:`);
+          // Contact detected!
+          // 1. Fetch exact joint positions from the millisecond contact was made
+          L.push(`${tab}${T}${T}q = get_actual_joint_positions_history(step_back)`);
+          // 2. Halt the downward momentum
+          L.push(`${tab}${T}${T}stopl(3.0)`);
+          
+          // 3. Convert historical joint list to an exact Cartesian Pose
+          L.push(`${tab}${T}${T}contact_pose = get_forward_kin(q)`);
+          
           if (s.retract && s.retract > 0) {
-            // Convert millimeters to meters for URScript
+            // Apply user retraction on top of the exact contact point
             const retract_m = (s.retract / 1000).toFixed(4);
-            
-            L.push(`${tab}# Retract ${s.retract}mm upward to relieve pressure`);
-            // 1. Get the current exact XYZ pose where the robot stopped
-            L.push(`${tab}local contact_pose = get_actual_tcp_pose()`);
-            
-            // 2. pose_add adds X,Y,Z components perfectly. We add positive Z to move up.
-            L.push(`${tab}local retract_pose = pose_add(contact_pose, p[0.0, 0.0, ${retract_m}, 0.0, 0.0, 0.0])`);
-            
-            // 3. Move slowly back to the retracted pose
-            L.push(`${tab}movel(retract_pose, a=0.5, v=0.05)`);
+            L.push(`${tab}${T}${T}# Apply user retraction of ${s.retract}mm from contact point`);
+            L.push(`${tab}${T}${T}target_pose = pose_add(contact_pose, p[0.0, 0.0, ${retract_m}, 0.0, 0.0, 0.0])`);
+            L.push(`${tab}${T}${T}movel(target_pose, a=0.5, v=0.05)`);
+          } else {
+            // If user retraction is 0, just backtrack the overshoot to relieve pressure
+            L.push(`${tab}${T}${T}# Backtrack exact overshoot distance to relieve pressure`);
+            L.push(`${tab}${T}${T}movel(contact_pose, a=0.5, v=0.05)`);
           }
+          
+          L.push(`${tab}${T}${T}break`);
+          L.push(`${tab}${T}end`); // end if
+          
+          L.push(`${tab}end`); // end while
           break; 
  
           // ── GRIPPER BLOCKS ──
