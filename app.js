@@ -932,17 +932,22 @@ function buildCode() {
   if (isTCPSet) L.push(`${T}set_tcp(p[${tcx},${tcy},${tcz},${tcrx},${tcry},${tcrz}])`);
   L.push(`${T}set_payload(${plw}, [${plx}, ${ply}, ${plz}])`);
   L.push('');
-  L.push(`${T}# Gripper init — one persistent socket for the entire program`);
-  L.push(`${T}socket_close("rq_srv")`);               // kill any zombie from a previous run
+  L.push(`${T}# Gripper init`);
+  
+  // 1. ZOMBIE SOCKET KILLER: Force close any hanging connections from previous runs
+  L.push(`${T}socket_close("rq_srv")`);
   L.push(`${T}socket_open("127.0.0.1", 63352, "rq_srv")`);
+  
+  // 2. VALID ACTIVATION SEQUENCE
   L.push(`${T}socket_send_string("SET ACT 1", "rq_srv")`);
   L.push(`${T}socket_send_byte(10, "rq_srv")`);
   L.push(`${T}sync()`);
   L.push(`${T}socket_send_string("SET GTO 1", "rq_srv")`);
   L.push(`${T}socket_send_byte(10, "rq_srv")`);
   L.push(`${T}sync()`);
-  L.push(`${T}sleep(3.0)`);                             // wait for fingers to calibrate
-  // NOTE: socket stays open — close only happens at program end
+  
+  // 3. INCREASED TIMEOUT: Wait 3 seconds for the physical fingers to calibrate
+  L.push(`${T}sleep(3.0)`);
   L.push('');
   L.push('');
   L.push(`${T}# Main sequence`);
@@ -1012,19 +1017,19 @@ function buildCode() {
 
       // ── GRIPPER BLOCKS ──
       case 'activate_gripper':
-        // Uses the persistent socket opened in setup — no open/close here
+        L.push(`${tab}socket_open("127.0.0.1", 63352, "rq_srv")`);
         L.push(`${tab}socket_send_string("SET ACT 1", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
         L.push(`${tab}sync()`);
         L.push(`${tab}socket_send_string("SET GTO 1", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
         L.push(`${tab}sync()`);
-        L.push(`${tab}sleep(2.0)`);
+        L.push(`${tab}socket_close("rq_srv")`); // <--- Drops the connection and wipes out the acks instantly
         L.push(`${tab}textmsg("GRIPPER:ACTIVATED")`);
         break;
 
       case 'open_gripper':
-        // Uses the persistent socket opened in setup
+        L.push(`${tab}socket_open("127.0.0.1", 63352, "rq_srv")`);
         L.push(`${tab}socket_send_string("SET SPE 255", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
         L.push(`${tab}sync()`);
@@ -1034,12 +1039,12 @@ function buildCode() {
         L.push(`${tab}socket_send_string("SET POS 0", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
         L.push(`${tab}sync()`);
-        L.push(`${tab}sleep(0.8)`);
+        L.push(`${tab}socket_close("rq_srv")`); // <--- Drops the connection and wipes out the acks instantly
         L.push(`${tab}textmsg("GRIPPER:OPEN")`);
         break;
 
       case 'close_gripper':
-        // Uses the persistent socket opened in setup
+        L.push(`${tab}socket_open("127.0.0.1", 63352, "rq_srv")`);
         L.push(`${tab}socket_send_string("SET SPE 255", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
         L.push(`${tab}sync()`);
@@ -1049,27 +1054,59 @@ function buildCode() {
         L.push(`${tab}socket_send_string("SET POS 255", "rq_srv")`);
         L.push(`${tab}socket_send_byte(10, "rq_srv")`);
         L.push(`${tab}sync()`);
-        L.push(`${tab}sleep(0.8)`);
+        L.push(`${tab}socket_close("rq_srv")`); // <--- Drops the connection and wipes out the acks instantly
         L.push(`${tab}textmsg("GRIPPER:CLOSE")`);
         break;
 
-      case 'read_gripper': {
-        // Uses the persistent socket — no open/close here.
-        // Protocol: send GET POS\n, Robotiq replies "POS 127\n"
-        // socket_read_line() reads until \n — correct for ASCII protocol.
-        // str_sub(str, start, len) is valid URScript (manual §18).
-        // "POS " is always 4 chars, so the number starts at index 4.
-        const vn = s.varName ?? 'part_size';
-        L.push(`${tab}socket_send_string("GET POS", "rq_srv")`);
-        L.push(`${tab}socket_send_byte(10, "rq_srv")`);
-        L.push(`${tab}sync()`);
-        L.push(`${tab}_rg_raw = socket_read_line("rq_srv", timeout=1.0)`);
-        L.push(`${tab}textmsg("DBG read_gripper raw: ", _rg_raw)`);
-        L.push(`${tab}${vn} = to_num(str_sub(_rg_raw, 4, str_len(_rg_raw) - 4))`);
-        L.push(`${tab}textmsg("DBG read_gripper parsed: ", ${vn})`);
-        break;
-      }      
-      
+      case 'read_gripper':
+        // Try to open the clean channel instantly
+        L.push(`${tab}_opened = socket_open("127.0.0.1", 63352, "rq_srv")`);
+        
+        L.push(`${tab}if (_opened):`);
+        L.push(`${tab}${T}socket_send_string("GET POS", "rq_srv")`);
+        L.push(`${tab}${T}socket_send_byte(10, "rq_srv")`);
+        
+        L.push(`${tab}${T}_raw = socket_read_string("rq_srv", timeout=0.3)`);
+        L.push(`${tab}${T}socket_close("rq_srv")`);
+        
+        L.push(`${tab}${T}if (str_len(_raw) > 0):`);
+        
+        // 1. Strip the "POS " prefix if it exists
+        L.push(`${tab}${T}${T}if (str_at(_raw, 0) == "P"):`);
+        L.push(`${tab}${T}${T}${T}_raw = str_sub(_raw, 4)`);
+        L.push(`${tab}${T}${T}end`);
+        
+        // 2. Loop through and extract ONLY numbers (ignores trailing \r, \n, spaces, etc.)
+        L.push(`${tab}${T}${T}_clean = ""`);
+        L.push(`${tab}${T}${T}_i = 0`);
+        L.push(`${tab}${T}${T}while (_i < str_len(_raw)):`);
+        L.push(`${tab}${T}${T}${T}_char = str_sub(_raw, _i, 1)`);
+        L.push(`${tab}${T}${T}${T}if (_char == "0" or _char == "1" or _char == "2" or _char == "3" or _char == "4" or _char == "5" or _char == "6" or _char == "7" or _char == "8" or _char == "9"):`);
+        L.push(`${tab}${T}${T}${T}${T}_clean = _clean + _char`);
+        L.push(`${tab}${T}${T}${T}else:`);
+        L.push(`${tab}${T}${T}${T}${T}break`); // Stopped by hidden carriage return or newline, exit string build safely
+        L.push(`${tab}${T}${T}${T}end`);
+        L.push(`${tab}${T}${T}${T}_i = _i + 1`);
+        L.push(`${tab}${T}${T}end`);
+        
+        // 3. Convert safely if we built a digit string
+        L.push(`${tab}${T}${T}if (str_len(_clean) > 0):`);
+        L.push(`${tab}${T}${T}${T}${s.varName ?? 'part_size'} = to_num(_clean)`);
+        L.push(`${tab}${T}${T}else:`);
+        L.push(`${tab}${T}${T}${T}${s.varName ?? 'part_size'} = 0`);
+        L.push(`${tab}${T}${T}end`);
+        
+        L.push(`${tab}${T}else:`);
+        L.push(`${tab}${T}${T}${s.varName ?? 'part_size'} = 0`);
+        L.push(`${tab}${T}end`);
+        
+        L.push(`${tab}else:`);
+        L.push(`${tab}${T}${s.varName ?? 'part_size'} = 0`);
+        L.push(`${tab}end`);
+        
+        // --- RESTORED LOGGING ---
+        L.push(`${tab}textmsg("DEBUG: Final Result = ", ${s.varName ?? 'part_size'})`);
+        break;    
       
       
       
@@ -1160,7 +1197,7 @@ function buildCode() {
     }
   });
 
-  L.push(`${T}socket_close("rq_srv")`);   // close the persistent gripper socket
+  L.push(`${T}socket_close("rq_srv")`);
   L.push(`${T}textmsg("=== Program Complete ===")`);
   L.push('end');
   L.push('master_program()');
