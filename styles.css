@@ -170,30 +170,41 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font:
 .fd-ax-btn{border:1px solid var(--bd2);background:var(--sf2);color:var(--tx3);font:600 10px var(--mono);padding:4px 0;text-align:center;border-radius:4px;cursor:pointer;transition:.15s}
 .fd-ax-btn.on{background:var(--aclo);border-color:var(--ac);color:var(--ac)}
 
-/* ── PolyScope Layout Overrides & Dynamic Pages ─────────────────────────── */
+/* ── Tabs ────────────────────────────────────────────────── */
+.tab-bar {
+  display: flex;
+  border-bottom: 1px solid var(--bd);
+  background: var(--sf2);
+  flex-shrink: 0;
+}
+.tab {
+  padding: 8px 14px;
+  font: 500 11px var(--mono);
+  color: var(--tx3);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: .15s;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.tab:hover {
+  color: var(--tx2);
+}
+.tab.on {
+  color: var(--ac);
+  border-bottom-color: var(--ac);
+}
 
-/* 1. HIDE ONLY THE MAIN CONTENT PANES BY DEFAULT (Leaves the header tab buttons alone) */
-div.tab-pane {
+/* 1. FORCE ALL TAB PANES TO HIDE BY DEFAULT */
+.tab-pane {
   display: none !important;
 }
 
-/* 2. FORCE ONLY THE ACTIVE MAIN PANE TO SHOW AS A SIDE-BY-SIDE CONTAINER */
-div#tab-positions.tab-pane.on,
-div#tab-program.tab-pane.on,
-div#tab-run.tab-pane.on {
+/* 2. FORCE ONLY THE ACTIVE TAB TO SHOW AS A SIDE-BY-SIDE CONTAINER */
+#tab-positions.tab-pane.on,
+#tab-program.tab-pane.on,
+#tab-run.tab-pane.on {
   display: flex !important;
   width: 100%;
   height: 100%;
-}
-
-/* Clear focus outlines from ranges and ensure proper spacing */
-input[type="range"] {
-  accent-color: var(--ac);
-  cursor: pointer;
-}
-
-/* Ensure code logs keep standard formatting colors */
-#live-logs {
-  font-family: var(--mono);
-  line-height: 1.6;
 }
