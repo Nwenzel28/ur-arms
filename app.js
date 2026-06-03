@@ -1297,7 +1297,8 @@ function buildCode() {
           // Halt the robot safely and wait for the UI 'Continue' button
           L.push(`${tab}local ui_response = ""`);
           L.push(`${tab}while (ui_response != "continue"):`);
-          L.push(`${tab}${T}ui_response = socket_read_string("ui_socket")`);
+          L.push(`${tab}${T}ui_response = socket_read_string("ui_socket", timeout=0)`);
+          
           L.push(`${tab}${T}sleep(0.1)`);
           L.push(`${tab}end`);
           
