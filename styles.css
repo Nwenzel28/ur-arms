@@ -172,15 +172,15 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font:
 
 /* ── PolyScope Layout Overrides & Dynamic Pages ─────────────────────────── */
 
-/* 1. FORCE ALL TAB PANES TO HIDE BY DEFAULT */
-.tab-pane {
+/* 1. HIDE ONLY THE MAIN CONTENT PANES BY DEFAULT (Leaves the header tab buttons alone) */
+div.tab-pane {
   display: none !important;
 }
 
-/* 2. FORCE ONLY THE ACTIVE TAB TO SHOW AS A SIDE-BY-SIDE CONTAINER */
-#tab-positions.tab-pane.on,
-#tab-program.tab-pane.on,
-#tab-run.tab-pane.on {
+/* 2. FORCE ONLY THE ACTIVE MAIN PANE TO SHOW AS A SIDE-BY-SIDE CONTAINER */
+div#tab-positions.tab-pane.on,
+div#tab-program.tab-pane.on,
+div#tab-run.tab-pane.on {
   display: flex !important;
   width: 100%;
   height: 100%;
