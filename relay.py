@@ -72,7 +72,7 @@ def state_monitor():
 
 # ── 🧵 Background Thread 2: Dashboard (Port 29999) ────────────────────
 def dashboard_monitor():
-    """Background thread preventing socket exhaustion on the Dashboard Server while polling state & popups."""
+    """Background thread preventing socket exhaustion on the Dashboard Server while polling state & safety."""
     global target_ip, robot_dashboard_state, popup_msg, popup_resolved
     current_socket = None
 
@@ -88,28 +88,32 @@ def dashboard_monitor():
                 current_socket.settimeout(2.0)
                 current_socket.connect((target_ip, 29999))
                 current_socket.settimeout(5.0)
-                # Clear welcome message
                 current_socket.recv(1024) 
                 print(f"✅ [Dashboard] Connected!")
 
-            # 1. Poll Program State (Your Original Code)
+            # 1. Poll Program State
             current_socket.sendall(b"programState\n")
-            raw_prog = current_socket.recv(1024).decode('utf-8', errors='ignore')
-            robot_dashboard_state["prog"] = raw_prog.strip()
+            robot_dashboard_state["prog"] = current_socket.recv(1024).decode('utf-8', errors='ignore').strip()
+
+            # 2. Poll Robot Mode
+            current_socket.sendall(b"robotmode\n")
+            robot_dashboard_state["mode"] = current_socket.recv(1024).decode('utf-8', errors='ignore').strip()
+
+            # 3. Poll Safety Status (THE REAL FIX)
+            current_socket.sendall(b"safetystatus\n")
+            raw_safety = current_socket.recv(1024).decode('utf-8', errors='ignore').strip()
             
-            # --- Popup Interception Check ---
-            # If the response contains a popup or error notification instead of just the program state
-            if "Popup:" in raw_prog or "Warning:" in raw_prog or "Error:" in raw_prog:
-                clean_msg = raw_prog.replace("Popup:", "").replace("Warning:", "").strip()
-                print(f"🚨 [Native Pendant Alert] Intercepted: {clean_msg}")
-                popup_msg = f"[Pendant System Alert] {clean_msg}"
+            # Trigger custom popups based on the native safety states
+            if "PROTECTIVE_STOP" in raw_safety and (not popup_msg or "Protective Stop" not in popup_msg):
+                print(f"🚨 [Safety Alert] Intercepted: {raw_safety}")
+                popup_msg = "⚠️ Protective Stop Triggered! The robot detected a collision or excessive force."
+                popup_resolved = False
+                
+            elif "EMERGENCY_STOP" in raw_safety and (not popup_msg or "EMERGENCY STOP" not in popup_msg):
+                print(f"🚨 [Safety Alert] Intercepted: {raw_safety}")
+                popup_msg = "🚨 EMERGENCY STOP ENGAGED! Release the physical E-Stop button to continue."
                 popup_resolved = False
 
-            # 2. Poll Robot Mode (Your Original Code)
-            current_socket.sendall(b"robotmode\n")
-            robot_dashboard_state["mode"] = current_socket.recv(1024).decode('utf-8').strip()
-
-            # Poll safely 4x a second (Your Original Code)
             time.sleep(0.25) 
 
         except Exception as e:
@@ -120,6 +124,7 @@ def dashboard_monitor():
                 except: pass
                 current_socket = None
             time.sleep(2.0)
+
 
 # ── Reliable socket reader ─────────────────────────────────────────────
 def recv_exact(sock, n):
@@ -264,20 +269,25 @@ class Handler(BaseHTTPRequestHandler):
                 resp = json.dumps({"ok": True, "msg": popup_msg}).encode()
                 
         elif action == 'resolve_popup':
-                # The UI sends this when the user clicks 'Continue'
                 global popup_resolved
                 popup_resolved = True
-                resp = json.dumps({"ok": True}).encode()
-
+                
+                # Auto-dismiss pendant popups AND clear protective stops
                 if target_ip:
                     try:
                         dash_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                         dash_sock.connect((target_ip, 29999))
-                        # Send the native dashboard command to clear any active popups
+                        
+                        # Command sequence to clear standard popups and safety faults
                         dash_sock.sendall(b"close popup\n")
+                        dash_sock.sendall(b"close safety popup\n")
+                        dash_sock.sendall(b"unlock protective stop\n")
+                        
                         dash_sock.close()
                     except Exception as e:
                         print(f"Failed to auto-dismiss pendant popup: {e}")
+                
+                resp = json.dumps({"ok": True}).encode()
 
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
