@@ -169,3 +169,24 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font:
 .fd-mask-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;padding:4px 10px 10px;background:var(--bg);border-bottom:1px solid var(--bd)}
 .fd-ax-btn{border:1px solid var(--bd2);background:var(--sf2);color:var(--tx3);font:600 10px var(--mono);padding:4px 0;text-align:center;border-radius:4px;cursor:pointer;transition:.15s}
 .fd-ax-btn.on{background:var(--aclo);border-color:var(--ac);color:var(--ac)}
+
+/* ── PolyScope Layout Overrides ─────────────────────────── */
+
+/* Force layout containers to display properly when enabled */
+#tab-positions.tab-pane.on,
+#tab-program.tab-pane.on,
+#tab-run.tab-pane.on {
+  display: flex !important;
+}
+
+/* Clear focus outlines from ranges and ensure proper spacing */
+input[type="range"] {
+  accent-color: var(--ac);
+  cursor: pointer;
+}
+
+/* Ensure code logs keep standard formatting colors */
+#live-logs {
+  font-family: var(--mono);
+  line-height: 1.6;
+}
