@@ -31,8 +31,9 @@ export function initRunTab() {
 }
 
 /**
- * PLAY: Compiles the sequence from Tab 2 and sends it directly to Port 30002.
- * Acts exactly like the "Send to Robot" button from V1.
+ * SMART PLAY: 
+ * If the robot is paused, it resumes via Port 29999.
+ * If stopped/idle, it compiles and sends fresh code to Port 30002.
  */
 async function playProgram() {
   const ip = document.getElementById('robot-ip').value.trim();
@@ -44,17 +45,54 @@ async function playProgram() {
   const btn = document.getElementById('dash-play');
   const originalText = btn.innerHTML;
   
-  // UI Loading State
+  // 1. Check if the robot is currently in a paused state
+  const logs = document.getElementById('live-logs');
+  const isPaused = logs && logs._lastStatus && logs._lastStatus.toLowerCase().includes('paused');
+
+  if (isPaused) {
+    // ── RESUME EXISTING PROGRAM (Port 29999) ──
+    btn.innerHTML = '▶︎ RESUMING...';
+    btn.disabled = true;
+    logLine('Resuming paused program...');
+    
+    try {
+      const res = await fetch(RELAY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'dashboard_play', ip: ip })
+      });
+      const data = await res.json();
+      
+      if (data.ok) {
+        btn.innerHTML = '▶︎ RUNNING!';
+        btn.style.background = 'var(--gn)';
+        btn.style.borderColor = 'var(--gn)';
+        logLine('Program resumed successfully.');
+      } else {
+        throw new Error(data.error);
+      }
+    } catch(e) {
+      logLine(`Error resuming program: ${e.message}`);
+    } finally {
+      setTimeout(() => {
+        btn.innerHTML = originalText;
+        btn.style.background = '';
+        btn.style.borderColor = '';
+        btn.disabled = false;
+      }, 2500);
+    }
+    return; // Exit early so we don't send the new script!
+  }
+
+  // ── COMPILE AND SEND NEW PROGRAM (Port 30002) ──
   btn.innerHTML = '▶︎ SENDING...';
   btn.disabled = true;
   setDot('sending');
-  logLine('Compiling and sending program to robot...');
+  logLine('Compiling and sending new program to robot...');
 
   try {
-    // Grab the latest generated URScript from the Program Builder
     const compiledCode = buildCode(); 
     
-    // Post it to the Python relay (which forwards it to Port 30002)
     const res = await fetch(RELAY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -64,24 +102,21 @@ async function playProgram() {
     const data = await res.json();
     
     if (data.ok) {
-      // Success UI Feedback
       setDot('ok');
       btn.innerHTML = '▶︎ RUNNING!';
-      btn.style.background = 'var(--gn)';     // Turn button green
+      btn.style.background = 'var(--gn)';
       btn.style.borderColor = 'var(--gn)';
       logLine('Program accepted. Execution started.');
     } else {
       throw new Error(data.error || 'Robot rejected the script');
     }
   } catch(e) {
-    // Error UI Feedback
     setDot('err');
     btn.innerHTML = '✕ FAILED';
     btn.style.background = 'var(--rd)';
     logLine(`Error sending program: ${e.message}`);
     alert(`Failed to send program:\n${e.message}`);
   } finally {
-    // Reset the button back to normal after 2.5 seconds
     setTimeout(() => {
       btn.innerHTML = originalText;
       btn.style.background = '';

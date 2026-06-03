@@ -232,9 +232,9 @@ class Handler(BaseHTTPRequestHandler):
             }).encode()
 
         # ── Dashboard Server Execution Controls ────────────────────────
-        elif action in ['dashboard_pause', 'dashboard_stop']:
+        elif action in ['dashboard_pause', 'dashboard_stop', 'dashboard_play']:
             try:
-                # This neatly extracts "pause\n" or "stop\n"
+                # This neatly extracts "pause\n", "stop\n", or "play\n"
                 cmd = action.split('_')[1] + "\n" 
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.settimeout(2.0)
