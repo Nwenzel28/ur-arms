@@ -92,7 +92,7 @@ def dashboard_monitor():
                 current_socket.recv(1024) 
                 print(f"✅ [Dashboard] Connected!")
 
-            import time
+            
 
             # 1. Poll Program State
             current_socket.sendall(b"programState\n")
@@ -289,7 +289,6 @@ class Handler(BaseHTTPRequestHandler):
                 popup_msg = None  # Clear the message so the UI drops it
                 
                 # Blindfold the monitor for 2 seconds so the robot has time to close the window
-                import time
                 ignore_popups_until = time.time() + 2.0
                 
                 # Auto-dismiss pendant popups AND clear protective stops
