@@ -286,9 +286,7 @@ class Handler(BaseHTTPRequestHandler):
                 
         elif action == 'resolve_popup':
                 popup_resolved = True
-                # NOTE: popup_msg is intentionally NOT cleared here.
-                # popup_server clears it after sending "continue" back to the robot,
-                # preventing a race where the robot never receives the ack.
+                popup_msg = None  # Clear the message so the UI drops it
                 
                 # Blindfold the monitor for 2 seconds so the robot has time to close the window
                 ignore_popups_until = time.time() + 2.0
