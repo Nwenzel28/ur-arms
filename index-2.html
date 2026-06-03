@@ -46,19 +46,35 @@
   </div>
 </header>
 
-<div class="tab-bar" style="display: flex; height: 44px; background: var(--sf2); border-bottom: 1px solid var(--bd); width: 100%;">
-  <div class="tab on" data-target="tab-positions" style="flex: 1; justify-content: center; font-size: 13px; font-weight: bold; border-right: 1px solid var(--bd);">
-    Positions
+<header class="hdr" style="display: flex; align-items: center; justify-content: space-between; height: 52px; min-width: 900px; padding: 0 16px;">
+  
+  <div style="display: flex; align-items: center; gap: 10px; flex: 1;">
+    <div class="brand-title">UR3e Web Pendant</div>
+    <div class="brand-sub">Robotiq 2F-85</div>
   </div>
-  <div class="tab" data-target="tab-program" style="flex: 1; justify-content: center; font-size: 13px; font-weight: bold; border-right: 1px solid var(--bd);">
-    Program
+  
+  <div class="tab-bar" style="display: flex; height: 100%; border: none; background: transparent; flex-shrink: 0;">
+    <div class="tab on" data-target="tab-positions" style="display: flex; align-items: center; justify-content: center; width: 110px; font-size: 13px; font-weight: bold;">
+      Positions
+    </div>
+    <div class="tab" data-target="tab-program" style="display: flex; align-items: center; justify-content: center; width: 110px; font-size: 13px; font-weight: bold;">
+      Program
+    </div>
+    <div class="tab" data-target="tab-run" style="display: flex; align-items: center; justify-content: center; width: 110px; font-size: 13px; font-weight: bold;">
+      Run
+    </div>
   </div>
-  <div class="tab" data-target="tab-run" style="flex: 1; justify-content: center; font-size: 13px; font-weight: bold;">
-    Run
-  </div>
-</div>
 
-<div class="main-content" style="display: flex; flex: 1; height: calc(100vh - 96px); overflow: hidden;">
+  <div class="robot-bar" style="display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex: 1; height: 36px;">
+    <div class="robot-dot" id="robot-dot"></div>
+    <input class="robot-ip" id="robot-ip" type="text" value="169.254.190.160" placeholder="Robot IP" style="width: 130px;">
+    <button class="btn btn-sm" id="ping-btn">Ping</button>
+    <div class="hsep" style="height: 24px; margin: 0 4px; border-left: 1px solid var(--bd);"></div>
+    <button class="btn-estop" id="global-estop">E-STOP</button>
+  </div>
+</header>
+
+<div class="main-content" style="display: flex; flex: 1; height: calc(100vh - 52px); overflow: hidden;">
 
   <div id="tab-positions" class="tab-pane on" style="width: 100%; height: 100%; display: flex; padding: 16px; gap: 16px;">
     
