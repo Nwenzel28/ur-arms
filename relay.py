@@ -10,6 +10,7 @@ GRIPPER_PORT = 63352   # Robotiq 2F-85 URCap Modbus TCP daemon
 # ── 💬 Popup State ──────────────────────────────────────────────────────
 popup_msg = None
 popup_resolved = False
+ignore_popups_until = 0   # <--- ADD THIS LINE
 
 # ── 🌟 Global State (Digital Twin Caching) ──────────────────────────────
 target_ip = None
@@ -73,7 +74,7 @@ def state_monitor():
 # ── 🧵 Background Thread 2: Dashboard (Port 29999) ────────────────────
 def dashboard_monitor():
     """Background thread preventing socket exhaustion on the Dashboard Server while polling state & safety."""
-    global target_ip, robot_dashboard_state, popup_msg, popup_resolved
+    global target_ip, robot_dashboard_state, popup_msg, popup_resolved, ignore_popups_until
     current_socket = None
 
     while True:
@@ -91,28 +92,41 @@ def dashboard_monitor():
                 current_socket.recv(1024) 
                 print(f"✅ [Dashboard] Connected!")
 
+            import time
+
             # 1. Poll Program State
             current_socket.sendall(b"programState\n")
-            robot_dashboard_state["prog"] = current_socket.recv(1024).decode('utf-8', errors='ignore').strip()
+            raw_prog = current_socket.recv(1024).decode('utf-8', errors='ignore').strip()
+            robot_dashboard_state["prog"] = raw_prog
+
+            # --- Native Popup Interception Check ---
+            # Only intercept if we are NOT in the 2-second UI dismiss cooldown period
+            if time.time() > ignore_popups_until:
+                if "Popup:" in raw_prog or "Warning:" in raw_prog or "Error:" in raw_prog:
+                    clean_msg = raw_prog.replace("Popup:", "").replace("Warning:", "").strip()
+                    print(f"🚨 [Native Pendant Alert] Intercepted: {clean_msg}")
+                    popup_msg = f"[Pendant System Alert] {clean_msg}"
+                    popup_resolved = False
 
             # 2. Poll Robot Mode
             current_socket.sendall(b"robotmode\n")
             robot_dashboard_state["mode"] = current_socket.recv(1024).decode('utf-8', errors='ignore').strip()
 
-            # 3. Poll Safety Status (THE REAL FIX)
+            # 3. Poll Safety Status (Protective & E-Stops)
             current_socket.sendall(b"safetystatus\n")
             raw_safety = current_socket.recv(1024).decode('utf-8', errors='ignore').strip()
             
-            # Trigger custom popups based on the native safety states
-            if "PROTECTIVE_STOP" in raw_safety and (not popup_msg or "Protective Stop" not in popup_msg):
-                print(f"🚨 [Safety Alert] Intercepted: {raw_safety}")
-                popup_msg = "⚠️ Protective Stop Triggered! The robot detected a collision or excessive force."
-                popup_resolved = False
-                
-            elif "EMERGENCY_STOP" in raw_safety and (not popup_msg or "EMERGENCY STOP" not in popup_msg):
-                print(f"🚨 [Safety Alert] Intercepted: {raw_safety}")
-                popup_msg = "🚨 EMERGENCY STOP ENGAGED! Release the physical E-Stop button to continue."
-                popup_resolved = False
+            # Trigger custom popups based on the native safety states, respecting cooldown
+            if time.time() > ignore_popups_until:
+                if "PROTECTIVE_STOP" in raw_safety and (not popup_msg or "Protective Stop" not in popup_msg):
+                    print(f"🚨 [Safety Alert] Intercepted: {raw_safety}")
+                    popup_msg = "⚠️ Protective Stop Triggered! The robot detected a collision or excessive force."
+                    popup_resolved = False
+                    
+                elif "EMERGENCY_STOP" in raw_safety and (not popup_msg or "EMERGENCY STOP" not in popup_msg):
+                    print(f"🚨 [Safety Alert] Intercepted: {raw_safety}")
+                    popup_msg = "🚨 EMERGENCY STOP ENGAGED! Release the physical E-Stop button to continue."
+                    popup_resolved = False
 
             time.sleep(0.25) 
 
@@ -124,7 +138,6 @@ def dashboard_monitor():
                 except: pass
                 current_socket = None
             time.sleep(2.0)
-
 
 # ── Reliable socket reader ─────────────────────────────────────────────
 def recv_exact(sock, n):
@@ -269,8 +282,13 @@ class Handler(BaseHTTPRequestHandler):
                 resp = json.dumps({"ok": True, "msg": popup_msg}).encode()
                 
         elif action == 'resolve_popup':
-                global popup_resolved
+                global popup_resolved, popup_msg, ignore_popups_until
                 popup_resolved = True
+                popup_msg = None  # <--- FIX 1: Clear the message so the UI drops it
+                
+                # FIX 2: Blindfold the monitor for 2 seconds so the robot has time to close the window
+                import time
+                ignore_popups_until = time.time() + 2.0
                 
                 # Auto-dismiss pendant popups AND clear protective stops
                 if target_ip:
