@@ -1002,6 +1002,15 @@ function buildCode() {
   L.push(`${T}set_payload(${plw}, [${plx}, ${ply}, ${plz}])`);
   L.push('');
   L.push(`${T}# Gripper init`);
+
+  L.push(`${T}global _master_clock = 0.0`);
+  L.push(`${T}thread _clock_thread():`);
+  L.push(`${T}${T}while True:`);
+  L.push(`${T}${T}${T}_master_clock = _master_clock + get_steptime()`);
+  L.push(`${T}${T}${T}sync()`);
+  L.push(`${T}${T}end`);
+  L.push(`${T}end`);
+  L.push(`${T}run _clock_thread()`);
   
   // 1. ZOMBIE SOCKET KILLER: Force close any hanging connections from previous runs
   L.push(`${T}socket_close("rq_srv")`);
@@ -1271,9 +1280,14 @@ function buildCode() {
 
       case 'timer':
         if (s.timerAct === 'start') {
-          L.push(`${tab}${s.timerVar}_start = get_system_time()`);
+          // Record the exact clock value at this exact moment
+          L.push(`${tab}global ${s.timerVar}_start = _master_clock`);
         } else {
-          L.push(`${tab}${s.timerVar} = get_system_time() - ${s.timerVar}_start`);
+          // Read the elapsed time and save it to the global variable
+          L.push(`${tab}global ${s.timerVar} = _master_clock - ${s.timerVar}_start`);
+          
+          // Optional: Echo the time to the log so you can see it on the teach pendant!
+          L.push(`${tab}textmsg("Timer ${s.timerVar}: ", ${s.timerVar})`);
         }
         break;
 
