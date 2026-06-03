@@ -72,8 +72,8 @@ def state_monitor():
 
 # ── 🧵 Background Thread 2: Dashboard (Port 29999) ────────────────────
 def dashboard_monitor():
-    """Background thread preventing socket exhaustion on the Dashboard Server."""
-    global target_ip, robot_dashboard_state
+    """Background thread preventing socket exhaustion on the Dashboard Server while polling state & popups."""
+    global target_ip, robot_dashboard_state, popup_msg, popup_resolved
     current_socket = None
 
     while True:
@@ -92,15 +92,24 @@ def dashboard_monitor():
                 current_socket.recv(1024) 
                 print(f"✅ [Dashboard] Connected!")
 
-            # Poll Program State
+            # 1. Poll Program State (Your Original Code)
             current_socket.sendall(b"programState\n")
-            robot_dashboard_state["prog"] = current_socket.recv(1024).decode('utf-8').strip()
+            raw_prog = current_socket.recv(1024).decode('utf-8', errors='ignore')
+            robot_dashboard_state["prog"] = raw_prog.strip()
             
-            # Poll Robot Mode (Physical Teach Pendant Button Check)
+            # --- Popup Interception Check ---
+            # If the response contains a popup or error notification instead of just the program state
+            if "Popup:" in raw_prog or "Warning:" in raw_prog or "Error:" in raw_prog:
+                clean_msg = raw_prog.replace("Popup:", "").replace("Warning:", "").strip()
+                print(f"🚨 [Native Pendant Alert] Intercepted: {clean_msg}")
+                popup_msg = f"[Pendant System Alert] {clean_msg}"
+                popup_resolved = False
+
+            # 2. Poll Robot Mode (Your Original Code)
             current_socket.sendall(b"robotmode\n")
             robot_dashboard_state["mode"] = current_socket.recv(1024).decode('utf-8').strip()
 
-            # Poll safely 4x a second
+            # Poll safely 4x a second (Your Original Code)
             time.sleep(0.25) 
 
         except Exception as e:
@@ -259,6 +268,16 @@ class Handler(BaseHTTPRequestHandler):
                 global popup_resolved
                 popup_resolved = True
                 resp = json.dumps({"ok": True}).encode()
+
+                if target_ip:
+                    try:
+                        dash_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        dash_sock.connect((target_ip, 29999))
+                        # Send the native dashboard command to clear any active popups
+                        dash_sock.sendall(b"close popup\n")
+                        dash_sock.close()
+                    except Exception as e:
+                        print(f"Failed to auto-dismiss pendant popup: {e}")
 
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
