@@ -2,9 +2,9 @@
 // TAB-RUN — dashboard controls, log viewer, save/load
 // ═══════════════════════════════════════════════════════════
 import { positions, steps, setPositions, setSteps, uid } from './state.js';
-import { RELAY, dashPlay, dashPause, dashStop, dashSpeed } from './network.js';
+import { RELAY, dashPause, dashStop, dashSpeed, setDot } from './network.js';
 import { renderPositions } from './tab-setup.js';
-import { renderSteps, refreshCode } from './tab-program.js';
+import { renderSteps, refreshCode, buildCode } from './tab-program.js';
 
 export function initRunTab() {
   // Speed slider
@@ -18,7 +18,7 @@ export function initRunTab() {
   }
 
   // Dashboard play/pause/stop
-  document.getElementById('dash-play')?.addEventListener('click',  dashPlay);
+  document.getElementById('dash-play')?.addEventListener('click',  playProgram); // ◄ Changed to our new compile & send function
   document.getElementById('dash-pause')?.addEventListener('click', dashPause);
   document.getElementById('dash-stop')?.addEventListener('click',  dashStop);
 
@@ -28,6 +28,67 @@ export function initRunTab() {
 
   // Start log polling
   startLogPoller();
+}
+
+/**
+ * PLAY: Compiles the sequence from Tab 2 and sends it directly to Port 30002.
+ * Acts exactly like the "Send to Robot" button from V1.
+ */
+async function playProgram() {
+  const ip = document.getElementById('robot-ip').value.trim();
+  if (!ip) { 
+    alert('Enter the robot IP address first.'); 
+    return; 
+  }
+  
+  const btn = document.getElementById('dash-play');
+  const originalText = btn.innerHTML;
+  
+  // UI Loading State
+  btn.innerHTML = '▶︎ SENDING...';
+  btn.disabled = true;
+  setDot('sending');
+  logLine('Compiling and sending program to robot...');
+
+  try {
+    // Grab the latest generated URScript from the Program Builder
+    const compiledCode = buildCode(); 
+    
+    // Post it to the Python relay (which forwards it to Port 30002)
+    const res = await fetch(RELAY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ip: ip, code: compiledCode })
+    });
+    
+    const data = await res.json();
+    
+    if (data.ok) {
+      // Success UI Feedback
+      setDot('ok');
+      btn.innerHTML = '▶︎ RUNNING!';
+      btn.style.background = 'var(--gn)';     // Turn button green
+      btn.style.borderColor = 'var(--gn)';
+      logLine('Program accepted. Execution started.');
+    } else {
+      throw new Error(data.error || 'Robot rejected the script');
+    }
+  } catch(e) {
+    // Error UI Feedback
+    setDot('err');
+    btn.innerHTML = '✕ FAILED';
+    btn.style.background = 'var(--rd)';
+    logLine(`Error sending program: ${e.message}`);
+    alert(`Failed to send program:\n${e.message}`);
+  } finally {
+    // Reset the button back to normal after 2.5 seconds
+    setTimeout(() => {
+      btn.innerHTML = originalText;
+      btn.style.background = '';
+      btn.style.borderColor = '';
+      btn.disabled = false;
+    }, 2500);
+  }
 }
 
 function exportProject() {
