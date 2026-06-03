@@ -424,10 +424,10 @@ function startFreedriveDetection() {
   })
   .then(r => r.json())
   .then(data => {
-    if (data.ok && data.raw) {
+    if (data.ok && data.prog) {
       // If you jog the robot, hit E-Stop, or press Stop/Pause on the pendant, 
       // the script dies. We must turn the UI button OFF to match reality.
-      if (data.raw.includes("STOPPED") || data.raw.includes("PAUSED")) {
+      if (data.prog.includes("STOPPED") || data.prog.includes("PAUSED")) {
         resetFreedriveUI();
       }
     }
@@ -612,7 +612,7 @@ function startMoveHere(pid) {
 
   // Generate a Cartesian move command (movel)
   const cartStr = pos.c.map(v => v.toFixed(4)).join(',');
-  const urscript = `def move_here():\n  movej(p[${cartStr}], a=${la}, v=${ls})\nend\n`;
+  const urscript = `def move_here():\n  movel(p[${cartStr}], a=${la}, v=${ls})\nend\n`;
   
   resetFreedriveUI();
   sendDirect(urscript);
@@ -734,6 +734,9 @@ const TAG_INFO = {
   popup:            ['POP',  'tag-util'],
   set_digital_out:  ['DOUT', 'tag-util'],
   set_payload:      ['LOAD', 'tag-util'],
+  set_gravity:      ['GRAV', 'tag-util'],
+  zero_ftsensor:    ['F/T0', 'tag-util'],
+  set_baselight:    ['LITE', 'tag-util'],
   set_tcp:          ['TCP',  'tag-util'],
   loop_start:   ['LOOP', 'tag-logic'],
   if_start:     ['IF', 'tag-logic'],
@@ -781,10 +784,7 @@ function stepParams(s) {
               oninput="upd(${si},'sec',+this.value)">
               <span style="font-size:10px;color:var(--tx3)">sec</span>`;
     case 'textmsg':
-    case 'popup':
-      return `<input class="step-inp" type="text" value="${esc(s.msg??'')}" style="width:200px"
-        placeholder="${s.type==='popup'?'Pendant message...':'Log message...'}"
-        oninput="upd(${si},'msg',this.value)">`;
+    // popup handled below
     case 'set_digital_out':
       return `<span style="font-size:10px;color:var(--tx3)">D.OUT</span>
         <input class="step-inp" type="number" min="0" max="15" value="${s.port??0}" style="width:44px"
@@ -800,7 +800,15 @@ function stepParams(s) {
     case 'set_tcp':
       return `<input class="step-inp" type="text" value="${s.pose??'0,0,0,0,0,0'}" style="width:160px"
         placeholder="x,y,z,rx,ry,rz" oninput="upd(${si},'pose',this.value)">`;
-    default: return '';
+    case 'set_gravity':
+      return `<input class="step-inp" type="text" value="${s.gravVec??'0,0,9.82'}" style="width:140px"
+        placeholder="x,y,z (m/s²)" oninput="upd(${si},'gravVec',this.value)">`;
+    case 'zero_ftsensor':
+      return `<span style="font-size:10px;color:var(--tx3)">Zeroes the F/T sensor at runtime.</span>`;
+    case 'set_baselight':
+      return `<span style="font-size:10px;color:var(--tx3)">Brightness:</span>
+        <input class="step-inp" type="number" min="0" max="255" value="${s.brightness??128}" style="width:55px"
+          oninput="upd(${si},'brightness',+this.value)">`;
 
     // ── Logic Blocks ──
     case 'loop_start':
@@ -843,6 +851,7 @@ function stepParams(s) {
     case 'else':
     case 'end':
       return `<span style="font-size:10px;color:var(--tx3)">No parameters needed.</span>`;
+    default: return '';
   }
 }
 
@@ -935,6 +944,9 @@ function defaultStep(type) {
   if (type==='thread_start') { s.threadName = 'thread_1'; }
   if (type==='folder') { s.folderName = 'My Folder'; }
   if (type==='comment') { s.commentTxt = 'Note here'; }
+  if (type==='set_gravity') { s.gravVec = '0,0,9.82'; }
+  if (type==='zero_ftsensor') { /* no params */ }
+  if (type==='set_baselight') { s.brightness = 128; }
   
   // Make sure your popup has the updated properties
   if (type==='popup') { s.msg = 'Hello'; s.pType = 'msg'; }
@@ -1315,6 +1327,15 @@ function buildCode() {
       case 'set_tcp':         
         L.push(`${tab}set_tcp(p[${s.pose ?? '0,0,0,0,0,0'}])`); 
         break;
+      case 'set_gravity':
+        L.push(`${tab}set_gravity([${s.gravVec ?? '0,0,9.82'}])`);
+        break;
+      case 'zero_ftsensor':
+        L.push(`${tab}zero_ftsensor()`);
+        break;
+      case 'set_baselight':
+        L.push(`${tab}set_analog_out(2, ${((s.brightness ?? 128) / 255).toFixed(3)})`);
+        break;
       case 'comment':
         L.push(`${tab}# ${s.commentTxt ?? ''}`);
         break;
@@ -1451,7 +1472,7 @@ function importProject(input) {
       // 3. Re-render the UI
       renderPositions();
       renderSteps();
-      buildCode();
+      refreshCode();
       
     } catch (err) {
       alert("Error loading project: " + err);
@@ -1566,4 +1587,4 @@ renderPositions();
 renderSteps();
 refreshCode();
 startGripperTelemetry();
-startStateDetection();
+startFreedriveDetection();
