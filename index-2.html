@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UR3e Program Builder V2</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+  
+  <style>
+    /* Utility classes for the new 3-column PolyScope layout */
+    .col-left { width: 250px; display: flex; flex-direction: column; flex-shrink: 0; gap: 16px; }
+    .col-center { flex: 1; display: flex; flex-direction: column; min-width: 0; gap: 16px; }
+    .col-right { width: 220px; display: flex; flex-direction: column; flex-shrink: 0; gap: 16px; }
+    
+    .btn-estop {
+      background: var(--rd);
+      color: white;
+      font-weight: bold;
+      font-size: 16px;
+      border: none;
+      padding: 0 24px;
+      height: 100%;
+      border-radius: var(--r);
+      cursor: pointer;
+    }
+    .btn-estop:hover { background: #dc2626; }
+  </style>
+</head>
+<body>
+
+<header class="hdr">
+  <div>
+    <div class="brand-title">UR3e Web Pendant</div>
+    <div class="brand-sub">Robotiq 2F-85</div>
+  </div>
+  
+  <div class="hsep"></div>
+  
+  <div class="tab-bar" style="border-bottom: none; background: transparent; height: 100%;">
+    <div class="tab on" data-target="tab-positions" style="height: 100%; display: flex; align-items: center;">Positions</div>
+    <div class="tab" data-target="tab-program" style="height: 100%; display: flex; align-items: center;">Program</div>
+    <div class="tab" data-target="tab-run" style="height: 100%; display: flex; align-items: center;">Run</div>
+  </div>
+
+  <div class="hspace"></div>
+
+  <div class="robot-bar" style="height: 36px;">
+    <div class="robot-dot" id="robot-dot"></div>
+    <input class="robot-ip" id="robot-ip" type="text" value="169.254.190.160" placeholder="Robot IP">
+    <button class="btn btn-sm" id="ping-btn">Ping</button>
+    <div class="hsep" style="height: 24px; margin: 0 8px;"></div>
+    <button class="btn-estop" id="global-estop">E-STOP</button>
+  </div>
+</header>
+
+<div class="main-content" style="display: flex; flex: 1; height: calc(100vh - 52px); overflow: hidden;">
+
+  <div id="tab-positions" class="tab-pane on" style="width: 100%; height: 100%; display: flex; padding: 16px; gap: 16px;">
+    
+    <div class="card col-left">
+      <div class="card-hdr"><span class="card-title">Saved Positions</span></div>
+      <div class="card-body" id="positions-list" style="padding: 8px; overflow-y: auto; flex: 1;">
+        </div>
+    </div>
+
+    <div class="card col-center">
+      <div class="card-hdr">
+        <span class="card-title">Live Robot Viewer</span>
+        <span id="telemetry-status" style="color: var(--rd); font-size: 11px;">Disconnected</span>
+      </div>
+      <div id="robot-3d-view" style="flex: 1; background: var(--bg); border-radius: 0 0 var(--r) var(--r); display: flex; align-items: center; justify-content: center; color: var(--tx3);">
+        [ 3D Model / Image Viewer ]
+      </div>
+    </div>
+
+    <div class="card col-right">
+      <div class="card-hdr"><span class="card-title">Robot Controls</span></div>
+      <div class="card-body" style="padding: 12px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto;">
+        <button class="btn btn-ac" id="btn-freedrive" style="padding: 12px;">Freedrive</button>
+        <button class="btn" id="btn-get-current" style="padding: 12px;">Get Current Pose</button>
+        <button class="btn" id="btn-record-waypoint" style="padding: 12px;">Record Sequence</button>
+        <div style="height: 1px; background: var(--bd); margin: 8px 0;"></div>
+        <button class="btn" id="btn-open-gripper" style="padding: 12px;">Open Gripper</button>
+        <button class="btn" id="btn-close-gripper" style="padding: 12px;">Close Gripper</button>
+      </div>
+    </div>
+
+  </div>
+
+
+  <div id="tab-program" class="tab-pane" style="width: 100%; height: 100%; display: flex; padding: 16px; gap: 16px;">
+    
+    <div class="card col-left">
+      <div class="card-hdr"><span class="card-title">Configure Element</span></div>
+      <div class="card-body" id="node-config-panel" style="padding: 12px; overflow-y: auto; flex: 1;">
+        <div style="color: var(--tx3); text-align: center; margin-top: 20px;">
+          Select a program element in the center sequence to edit its properties here.
+        </div>
+        </div>
+    </div>
+
+    <div class="card program-card col-center">
+      <div class="card-hdr"><span class="card-title">Program Sequence</span></div>
+      <div class="card-body steps-body" id="program-sequence" style="padding: 12px; overflow-y: auto; flex: 1;">
+        <div style="color: var(--tx3); text-align: center; margin-top: 40px;">
+          Drag and drop program elements here...
+        </div>
+      </div>
+    </div>
+
+    <div class="card col-right">
+      <div class="card-hdr"><span class="card-title">Add Elements</span></div>
+      <div class="card-body" id="block-palette" style="padding: 12px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto;">
+        <div style="color: var(--tx3); font-size: 11px; text-transform: uppercase;">Motion</div>
+        <button class="btn">+ Move J</button>
+        <button class="btn">+ Move L</button>
+        
+        <div style="color: var(--tx3); font-size: 11px; text-transform: uppercase; margin-top: 8px;">Hardware</div>
+        <button class="btn">+ Gripper Action</button>
+        
+        <div style="color: var(--tx3); font-size: 11px; text-transform: uppercase; margin-top: 8px;">Logic</div>
+        <button class="btn">+ Sleep</button>
+        <button class="btn">+ Folder</button>
+      </div>
+    </div>
+
+  </div>
+
+
+  <div id="tab-run" class="tab-pane" style="width: 100%; height: 100%; display: flex; padding: 16px; gap: 16px;">
+    
+    <div class="col-center" style="max-width: 800px; margin: 0 auto; width: 100%;">
+      
+      <div class="card">
+        <div class="card-hdr"><span class="card-title">Execution Controls</span></div>
+        <div class="card-body" style="padding: 24px; text-align: center; background: var(--sf2);">
+          <div style="display: flex; justify-content: center; gap: 16px;">
+            <button class="btn btn-send" id="dash-play" style="font-size: 20px; padding: 16px 32px;">▶︎ PLAY</button>
+            <button class="btn" id="dash-pause" style="font-size: 20px; padding: 16px 32px;">|| PAUSE</button>
+            <button class="btn" id="dash-stop" style="font-size: 20px; padding: 16px 32px; border-color: var(--rdlo); color: var(--rd);">■ STOP</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 16px; flex: 1; min-height: 250px;">
+        <div class="card" style="flex: 1; display: flex; flex-direction: column;">
+          <div class="card-hdr"><span class="card-title">Live Variables</span></div>
+          <div class="card-body" id="live-variables" style="padding: 12px; overflow-y: auto; flex: 1; font-family: var(--mono); font-size: 12px;">
+            </div>
+        </div>
+        
+        <div class="card" style="flex: 2; display: flex; flex-direction: column;">
+          <div class="card-hdr"><span class="card-title">System Log</span></div>
+          <div class="card-body" id="live-logs" style="padding: 12px; overflow-y: auto; flex: 1; font-family: var(--mono); font-size: 11px; background: #000; color: #aaa;">
+            System initialized. Waiting for robot output...
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="card col-right">
+      <div class="card-hdr"><span class="card-title">Project Settings</span></div>
+      <div class="card-body" style="padding: 16px; display: flex; flex-direction: column; gap: 24px; flex: 1;">
+        
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <button class="btn btn-ac" id="btn-save-project" style="padding: 10px;">💾 Save Project</button>
+          <label class="btn" style="cursor:pointer; text-align: center; padding: 10px;">
+            📂 Load Project
+            <input type="file" accept=".json" id="file-import-project" style="display:none;">
+          </label>
+        </div>
+
+        <div style="height: 1px; background: var(--bd);"></div>
+
+        <div>
+          <label style="display: flex; justify-content: space-between; margin-bottom: 8px; font-weight: 500;">
+            <span>Speed Override:</span>
+            <span id="speed-label" style="color: var(--ac);">100%</span>
+          </label>
+          <input type="range" id="dash-speed-slider" min="0" max="100" value="100" style="width: 100%; margin-top: 8px;">
+          <div style="color: var(--tx3); font-size: 11px; margin-top: 8px; line-height: 1.4;">
+            Adjusts the global execution speed of the robot in real-time.
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<div id="ui-modal" style="display:none; position:fixed; top:30%; left:calc(50% - 225px); z-index:9999; box-shadow: 0 10px 30px rgba(0,0,0,0.6);">
+  <div class="card" style="padding:24px; width:450px; text-align:center; border:2px solid var(--ac); background:var(--sf2);">
+    <div style="color:var(--ac); font-size:24px; font-weight:600; margin-bottom:16px;">ROBOT MESSAGE</div>
+    <div id="ui-modal-msg" style="font-size:16px; margin-bottom:24px;"></div>
+    <button class="btn btn-ac" id="btn-resolve-popup" style="width:100%; padding:12px; font-size:16px;">Continue</button>
+  </div>
+</div>
+
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
