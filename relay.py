@@ -10,7 +10,7 @@ GRIPPER_PORT = 63352   # Robotiq 2F-85 URCap Modbus TCP daemon
 # ── 💬 Popup State ──────────────────────────────────────────────────────
 popup_msg = None
 popup_resolved = False
-ignore_popups_until = 0   # <--- ADD THIS LINE
+ignore_popups_until = 0
 
 # ── 🌟 Global State (Digital Twin Caching) ──────────────────────────────
 target_ip = None
@@ -165,6 +165,9 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
+        # --- All globals declared ONCE at the very top of the function ---
+        global target_ip, popup_msg, popup_resolved, ignore_popups_until
+        
         content_length = int(self.headers.get('Content-Length', 0))
         body = self.rfile.read(content_length)
         data = json.loads(body) if body else {}
@@ -198,7 +201,6 @@ class Handler(BaseHTTPRequestHandler):
 
         # ── Get Live Position (INSTANT CACHE READ) ─────────────────────
         elif action in ['state', 'get_position']:
-            global target_ip
             req_ip = data.get('ip', '')
             
             if req_ip and target_ip != req_ip:
@@ -277,16 +279,16 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 resp = json.dumps({"ok": False, "error": str(e)}).encode()
 
+        # ── Popups ─────────────────────────────────────────────────────
         elif action == 'check_popup':
                 # The UI polls this endpoint to see if a message is waiting
                 resp = json.dumps({"ok": True, "msg": popup_msg}).encode()
                 
         elif action == 'resolve_popup':
-                global popup_resolved, popup_msg, ignore_popups_until
                 popup_resolved = True
-                popup_msg = None  # <--- FIX 1: Clear the message so the UI drops it
+                popup_msg = None  # Clear the message so the UI drops it
                 
-                # FIX 2: Blindfold the monitor for 2 seconds so the robot has time to close the window
+                # Blindfold the monitor for 2 seconds so the robot has time to close the window
                 import time
                 ignore_popups_until = time.time() + 2.0
                 
@@ -353,9 +355,9 @@ if __name__ == '__main__':
     print("║     UR3e Relay  —  localhost:5678    ║")
     print("╚══════════════════════════════════════╝")
     
-    # Start both background threads safely
+    # Start all background threads safely
     threading.Thread(target=state_monitor, daemon=True).start()
     threading.Thread(target=dashboard_monitor, daemon=True).start()
-    threading.Thread(target=popup_server, daemon=True).start() # <--- ADD THIS LINE
+    threading.Thread(target=popup_server, daemon=True).start()
     
     HTTPServer(('', 5678), Handler).serve_forever()
