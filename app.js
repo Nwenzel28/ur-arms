@@ -1239,7 +1239,7 @@ function buildCode() {
 
       case 'else_if':
         // URScript uses 'elif' for else-if statements
-        L.push(`${tab}elif (${step.condition}):`);
+        L.push(`${tab}elif (${s.condition}):`);
         break;
 
       case 'thread_start':
