@@ -170,13 +170,20 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font:
 .fd-ax-btn{border:1px solid var(--bd2);background:var(--sf2);color:var(--tx3);font:600 10px var(--mono);padding:4px 0;text-align:center;border-radius:4px;cursor:pointer;transition:.15s}
 .fd-ax-btn.on{background:var(--aclo);border-color:var(--ac);color:var(--ac)}
 
-/* ── PolyScope Layout Overrides ─────────────────────────── */
+/* ── PolyScope Layout Overrides & Dynamic Pages ─────────────────────────── */
 
-/* Force layout containers to display properly when enabled */
+/* 1. FORCE ALL TAB PANES TO HIDE BY DEFAULT */
+.tab-pane {
+  display: none !important;
+}
+
+/* 2. FORCE ONLY THE ACTIVE TAB TO SHOW AS A SIDE-BY-SIDE CONTAINER */
 #tab-positions.tab-pane.on,
 #tab-program.tab-pane.on,
 #tab-run.tab-pane.on {
   display: flex !important;
+  width: 100%;
+  height: 100%;
 }
 
 /* Clear focus outlines from ranges and ensure proper spacing */
