@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // NETWORK — all fetch() calls to relay.py
 // ═══════════════════════════════════════════════════════════
-import { steps, positions, isJogging, setIsJogging, setIsFreedrive, fdAxes } from './state.js';
+import { steps, positions, isJogging, setIsJogging, setIsFreedrive, fdAxes, isJointJogging, setIsJointJogging } from './state.js';
 import { buildCode } from './tab-program.js';
 
 export const RELAY = 'http://localhost:5678';
@@ -148,6 +148,28 @@ export async function fetchRobotState() {
       updateText('live-j4', toDisp(joints[4]));
       updateText('live-j5', toDisp(joints[5]));
     }
+
+    // ── Populate Live Variables panel (Run tab) ──
+    const liveVars = document.getElementById('live-variables');
+    if (liveVars && tcp && joints) {
+      const toD = rad => (rad * 180 / Math.PI).toFixed(2);
+      const row = (label, val, color) =>
+        `<div style="display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px solid var(--bd);">`+
+        `<span style="color:${color};font-weight:bold;min-width:48px;">${label}</span>`+
+        `<span style="color:var(--tx);font-family:var(--mono);">${val}</span></div>`;
+      liveVars.innerHTML =
+        `<div style="font-size:9px;color:var(--tx3);text-transform:uppercase;font-weight:bold;margin-bottom:6px;">TCP Position (m / rad)</div>`+
+        row('X',  tcp[0]?.toFixed(4) ?? '—', 'var(--ac)')+
+        row('Y',  tcp[1]?.toFixed(4) ?? '—', 'var(--ac)')+
+        row('Z',  tcp[2]?.toFixed(4) ?? '—', 'var(--ac)')+
+        row('Rx', tcp[3]?.toFixed(4) ?? '—', '#a78bfa')+
+        row('Ry', tcp[4]?.toFixed(4) ?? '—', '#a78bfa')+
+        row('Rz', tcp[5]?.toFixed(4) ?? '—', '#a78bfa')+
+        `<div style="font-size:9px;color:var(--tx3);text-transform:uppercase;font-weight:bold;margin:8px 0 6px;">Joint Angles (°)</div>`+
+        ['Base','Shoulder','Elbow','W1','W2','W3'].map((name, i) =>
+          row(name, toD(joints[i]) + '°', 'var(--gn)')
+        ).join('');
+    }
     return { tcp, joints };
   } catch(e) {
     console.error('Failed to read robot state', e);
@@ -255,6 +277,21 @@ export function stopJog() {
   if (!isJogging) return;
   setIsJogging(false);
   sendDirect("def stop_jog():\n  stopl(2.5)\nend\n");
+}
+
+export function startJogJoint(jointIdx, direction) {
+  setIsJointJogging(true);
+  resetFreedriveUI();
+  let qd = [0, 0, 0, 0, 0, 0];
+  qd[jointIdx] = direction * 0.3; // 0.3 rad/s
+  const cmd = `def jog_j():\n  while True:\n    speedj([${qd.join(',')}], a=1.5, t=0.1)\n  end\nend\n`;
+  sendDirect(cmd);
+}
+
+export function stopJogJoint() {
+  if (!isJointJogging) return;
+  setIsJointJogging(false);
+  sendDirect("def stop_jog_j():\n  stopj(2.5)\nend\n");
 }
 
 export async function dashPlay()  { const ip = document.getElementById('robot-ip').value.trim(); if (!ip) return; fetch(RELAY,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'dashboard_play',ip})}); }

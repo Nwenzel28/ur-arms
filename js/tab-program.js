@@ -100,33 +100,69 @@ export function upd(sid, key, val) {
 }
 
 // ── RENDER ──
+let _sortable = null;
+
 export function renderSteps() {
   const list = document.getElementById('program-sequence');
   if (!list) return;
 
   if (steps.length === 0) {
     list.innerHTML = `<div style="color:var(--tx3);text-align:center;margin-top:40px;font-size:13px;">Add elements from the right panel →</div>`;
+    if (_sortable) { _sortable.destroy(); _sortable = null; }
     return;
   }
 
+  // ── Compute depth array ──
+  // Also track max depth for guide coloring
+  const depths = [];
+  let depth = 0;
+  for (const s of steps) {
+    if (s.type === 'end') {
+      depth = Math.max(0, depth - 1);
+      depths.push(depth);
+    } else if (s.type === 'else' || s.type === 'else_if') {
+      depths.push(Math.max(0, depth - 1));
+    } else {
+      depths.push(depth);
+      if (OPENERS.includes(s.type)) depth++;
+    }
+  }
+
+  // Indent guide colors cycle through accent shades
+  const GUIDE_COLORS = ['var(--ac)', '#a78bfa', '#34d399', '#fb923c', '#f472b6', '#60a5fa'];
+
   list.innerHTML = steps.map((s, si) => {
-    const tag = TAG_INFO[s.type] || '?';
-    const tagCls = TAG_COLOR[s.type] || 'tag-util';
+    const tag      = TAG_INFO[s.type] || '?';
+    const tagCls   = TAG_COLOR[s.type] || 'tag-util';
     const isSelected = (s.id === selectedStepId);
-    
+    const d = depths[si];
+
+    // Build indent guide bars
+    let guideHtml = '';
+    for (let g = 0; g < d; g++) {
+      guideHtml += `<div style="
+        width:2px; flex-shrink:0; align-self:stretch;
+        background:${GUIDE_COLORS[g % GUIDE_COLORS.length]};
+        opacity:0.45; border-radius:1px; margin-right:${g === d-1 ? 6 : 4}px;
+      "></div>`;
+    }
+
+    const indentPx = d * 14; // extra left padding per level
+
     return `<div class="step ${isSelected ? 'on' : ''}" id="st-${s.id}" draggable="true"
+        data-sortable-id="${s.id}"
         onclick="window._prog.selectStep('${s.id}')"
-        style="cursor: pointer; ${isSelected ? 'border: 1px solid var(--ac); box-shadow: 0 0 4px var(--ac);' : ''}"
+        style="cursor:pointer; padding-left:${8 + indentPx}px; ${isSelected ? 'border:1px solid var(--ac); box-shadow:0 0 4px var(--aclo,rgba(99,102,241,.35));' : ''}"
         ondragstart="window._prog.dragStart(event,${si})"
         ondragover="window._prog.dragOver(event)"
         ondragleave="window._prog.dragLeave(event)"
         ondrop="window._prog.dragDrop(event,${si})"
         ondragend="window._prog.dragEnd(event)">
+      ${guideHtml}
       <span class="step-n">${si+1}</span>
       <span class="step-tag ${tagCls}">${tag}</span>
       <span style="font-size:11px;color:var(--tx3);min-width:60px;font-weight:bold;">${s.type}</span>
-      <span style="font-size:11px;color:var(--tx2);margin-left:8px;">${getStepDescription(s)}</span>
-      <span style="flex:1"></span>
+      <span style="font-size:11px;color:var(--tx2);margin-left:8px;flex:1;">${getStepDescription(s)}</span>
       <div class="step-controls">
         <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation(); window._prog.moveStep('${s.id}',-1)" ${si===0?'disabled':''}>↑</button>
         <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation(); window._prog.moveStep('${s.id}',1)" ${si===steps.length-1?'disabled':''}>↓</button>
@@ -134,6 +170,26 @@ export function renderSteps() {
       </div>
     </div>`;
   }).join('');
+
+  // ── Initialise / refresh SortableJS ──
+  if (_sortable) _sortable.destroy();
+  if (typeof Sortable !== 'undefined') {
+    _sortable = Sortable.create(list, {
+      animation: 150,
+      ghostClass: 'sortable-ghost',
+      chosenClass: 'sortable-chosen',
+      dragClass: 'sortable-drag',
+      handle: '.step-n',            // drag handle = the step number badge
+      onEnd(evt) {
+        if (evt.oldIndex === evt.newIndex) return;
+        const moved = steps.splice(evt.oldIndex, 1)[0];
+        steps.splice(evt.newIndex, 0, moved);
+        refreshCode();
+        // Re-render to recompute depths + re-init Sortable
+        renderSteps();
+      }
+    });
+  }
 }
 
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }

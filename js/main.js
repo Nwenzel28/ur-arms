@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // MAIN — global init, tab switching, event wiring
 // ═══════════════════════════════════════════════════════════
-import { pingRobot, emergencyStop, startFreedriveDetection, startPopupPoller, resolvePopup, startJog, stopJog } from './network.js';
+import { pingRobot, emergencyStop, startFreedriveDetection, startPopupPoller, resolvePopup, startJog, stopJog, startJogJoint, stopJogJoint } from './network.js';
 import { renderPositions, exposeSetup, addPos, toggleFreedrive, openGripper, closeGripper, recordLivePosition } from './tab-setup.js';
 import { renderSteps, refreshCode, exposeProgram, addStep, sendToRobot } from './tab-program.js';
 import { initRunTab } from './tab-run.js';
@@ -51,7 +51,7 @@ function initPositionsTab() {
     });
   }
 
-  // Jog Controls
+  // Jog Controls (Cartesian)
   document.querySelectorAll('.jog-btn').forEach(btn => {
     const axis = parseInt(btn.dataset.axis);
     const dir = parseInt(btn.dataset.dir);
@@ -64,6 +64,27 @@ function initPositionsTab() {
     btn.addEventListener('mouseleave', () => {
       import('./network.js').then(net => net.stopJog());
     });
+  });
+
+  // Jog Controls (Joint)
+  document.querySelectorAll('.joint-jog-btn').forEach(btn => {
+    const joint = parseInt(btn.dataset.joint);
+    const dir   = parseInt(btn.dataset.dir);
+    btn.addEventListener('mousedown', () => {
+      import('./network.js').then(net => net.startJogJoint(joint, dir));
+    });
+    btn.addEventListener('mouseup', () => {
+      import('./network.js').then(net => net.stopJogJoint());
+    });
+    btn.addEventListener('mouseleave', () => {
+      import('./network.js').then(net => net.stopJogJoint());
+    });
+  });
+
+  // Prevent touch hold from triggering drag
+  document.querySelectorAll('.jog-btn, .joint-jog-btn').forEach(btn => {
+    btn.addEventListener('touchstart', e => { e.preventDefault(); btn.dispatchEvent(new Event('mousedown')); });
+    btn.addEventListener('touchend',   e => { e.preventDefault(); btn.dispatchEvent(new Event('mouseup')); });
   });
 
   // Add position button

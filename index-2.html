@@ -27,7 +27,33 @@
       cursor: pointer;
     }
     .btn-estop:hover { background: #dc2626; }
+    /* Joint jog tab active state */
+    #jog-tab-cart.active-jog-tab, #jog-tab-joint.active-jog-tab {
+      background: var(--ac) !important;
+      color: #000 !important;
+    }
   </style>
+  <script>
+    // Jog mode tab switcher — runs inline so it's available before modules load
+    window._jogTab = function(mode) {
+      const cart  = document.getElementById('jog-panel-cart');
+      const joint = document.getElementById('jog-panel-joint');
+      const tCart  = document.getElementById('jog-tab-cart');
+      const tJoint = document.getElementById('jog-tab-joint');
+      if (mode === 'cart') {
+        cart.style.display  = 'flex';
+        joint.style.display = 'none';
+        tCart.style.background  = 'var(--ac)'; tCart.style.color  = '#000';
+        tJoint.style.background = '';           tJoint.style.color = '';
+      } else {
+        cart.style.display  = 'none';
+        joint.style.display = 'flex';
+        tJoint.style.background = 'var(--ac)'; tJoint.style.color = '#000';
+        tCart.style.background  = '';           tCart.style.color  = '';
+      }
+    };
+  </script>
+
 </head>
 <body>
 
@@ -138,24 +164,53 @@
         <!-- Jogging Controls -->
         <div style="height: 1px; background: var(--bd); margin: 4px 0;"></div>
         <div style="display: flex; flex-direction: column; gap: 6px;">
-          <div style="font-size: 9px; color: var(--tx3); text-transform: uppercase; font-weight: bold; text-align: center; margin-bottom: 2px;">Jog TCP Position</div>
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;">
-            <button class="btn btn-sm jog-btn" data-axis="0" data-dir="1">X+</button>
-            <button class="btn btn-sm jog-btn" data-axis="1" data-dir="1">Y+</button>
-            <button class="btn btn-sm jog-btn" data-axis="2" data-dir="1">Z+</button>
-            <button class="btn btn-sm jog-btn" data-axis="0" data-dir="-1">X-</button>
-            <button class="btn btn-sm jog-btn" data-axis="1" data-dir="-1">Y-</button>
-            <button class="btn btn-sm jog-btn" data-axis="2" data-dir="-1">Z-</button>
+          <!-- Jog Mode Toggle -->
+          <div style="display: flex; gap: 0; border: 1px solid var(--bd); border-radius: var(--r); overflow: hidden; flex-shrink: 0;">
+            <button id="jog-tab-cart" class="btn btn-sm" onclick="window._jogTab('cart')" 
+              style="flex:1; border-radius:0; border:none; background:var(--ac); color:#000; font-size:9px; font-weight:bold; padding:4px;">Cartesian</button>
+            <button id="jog-tab-joint" class="btn btn-sm btn-ghost" onclick="window._jogTab('joint')" 
+              style="flex:1; border-radius:0; border:none; font-size:9px; font-weight:bold; padding:4px;">Joint</button>
           </div>
-          
-          <div style="font-size: 9px; color: var(--tx3); text-transform: uppercase; font-weight: bold; text-align: center; margin-top: 4px; margin-bottom: 2px;">Jog TCP Orientation</div>
-          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;">
-            <button class="btn btn-sm jog-btn" data-axis="3" data-dir="1">Rx+</button>
-            <button class="btn btn-sm jog-btn" data-axis="4" data-dir="1">Ry+</button>
-            <button class="btn btn-sm jog-btn" data-axis="5" data-dir="1">Rz+</button>
-            <button class="btn btn-sm jog-btn" data-axis="3" data-dir="-1">Rx-</button>
-            <button class="btn btn-sm jog-btn" data-axis="4" data-dir="-1">Ry-</button>
-            <button class="btn btn-sm jog-btn" data-axis="5" data-dir="-1">Rz-</button>
+
+          <!-- Cartesian Jog Panel -->
+          <div id="jog-panel-cart" style="display: flex; flex-direction: column; gap: 4px;">
+            <div style="font-size: 9px; color: var(--tx3); text-transform: uppercase; font-weight: bold; text-align: center;">Position (m)</div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;">
+              <button class="btn btn-sm jog-btn" data-axis="0" data-dir="1">X+</button>
+              <button class="btn btn-sm jog-btn" data-axis="1" data-dir="1">Y+</button>
+              <button class="btn btn-sm jog-btn" data-axis="2" data-dir="1">Z+</button>
+              <button class="btn btn-sm jog-btn" data-axis="0" data-dir="-1">X−</button>
+              <button class="btn btn-sm jog-btn" data-axis="1" data-dir="-1">Y−</button>
+              <button class="btn btn-sm jog-btn" data-axis="2" data-dir="-1">Z−</button>
+            </div>
+            <div style="font-size: 9px; color: var(--tx3); text-transform: uppercase; font-weight: bold; text-align: center; margin-top: 2px;">Orientation (rad)</div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px;">
+              <button class="btn btn-sm jog-btn" data-axis="3" data-dir="1">Rx+</button>
+              <button class="btn btn-sm jog-btn" data-axis="4" data-dir="1">Ry+</button>
+              <button class="btn btn-sm jog-btn" data-axis="5" data-dir="1">Rz+</button>
+              <button class="btn btn-sm jog-btn" data-axis="3" data-dir="-1">Rx−</button>
+              <button class="btn btn-sm jog-btn" data-axis="4" data-dir="-1">Ry−</button>
+              <button class="btn btn-sm jog-btn" data-axis="5" data-dir="-1">Rz−</button>
+            </div>
+          </div>
+
+          <!-- Joint Jog Panel -->
+          <div id="jog-panel-joint" style="display: none; flex-direction: column; gap: 4px;">
+            <div style="font-size: 9px; color: var(--tx3); text-transform: uppercase; font-weight: bold; text-align: center;">Joints (rad/s)</div>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;">
+              <button class="btn btn-sm joint-jog-btn" data-joint="0" data-dir="1" style="font-size:10px;">J0 +</button>
+              <button class="btn btn-sm joint-jog-btn" data-joint="0" data-dir="-1" style="font-size:10px;">J0 −</button>
+              <button class="btn btn-sm joint-jog-btn" data-joint="1" data-dir="1" style="font-size:10px;">J1 +</button>
+              <button class="btn btn-sm joint-jog-btn" data-joint="1" data-dir="-1" style="font-size:10px;">J1 −</button>
+              <button class="btn btn-sm joint-jog-btn" data-joint="2" data-dir="1" style="font-size:10px;">J2 +</button>
+              <button class="btn btn-sm joint-jog-btn" data-joint="2" data-dir="-1" style="font-size:10px;">J2 −</button>
+              <button class="btn btn-sm joint-jog-btn" data-joint="3" data-dir="1" style="font-size:10px;">J3 +</button>
+              <button class="btn btn-sm joint-jog-btn" data-joint="3" data-dir="-1" style="font-size:10px;">J3 −</button>
+              <button class="btn btn-sm joint-jog-btn" data-joint="4" data-dir="1" style="font-size:10px;">J4 +</button>
+              <button class="btn btn-sm joint-jog-btn" data-joint="4" data-dir="-1" style="font-size:10px;">J4 −</button>
+              <button class="btn btn-sm joint-jog-btn" data-joint="5" data-dir="1" style="font-size:10px;">J5 +</button>
+              <button class="btn btn-sm joint-jog-btn" data-joint="5" data-dir="-1" style="font-size:10px;">J5 −</button>
+            </div>
           </div>
         </div>
 

@@ -240,3 +240,39 @@ input[type="range"] {
   font-family: var(--mono);
   line-height: 1.6;
 }
+
+/* ── SortableJS classes ───────────────────────────────────── */
+.sortable-ghost {
+  opacity: 0.25;
+  background: var(--aclo);
+  border: 1px dashed var(--ac) !important;
+}
+
+.sortable-chosen {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  border-color: var(--ac) !important;
+  background: var(--sf2) !important;
+  z-index: 10;
+}
+
+.sortable-drag {
+  opacity: 0.9;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+
+/* Step number badge doubles as drag handle */
+.step .step-n {
+  cursor: grab;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: var(--sf2);
+  border: 1px solid var(--bd2);
+  user-select: none;
+  transition: background .15s, color .15s;
+}
+.step .step-n:hover {
+  background: var(--aclo);
+  color: var(--ac);
+  border-color: var(--ac);
+}
+.step .step-n:active { cursor: grabbing; }

@@ -26,9 +26,13 @@ export function setLatestTcp(v)    { latestTcp    = v; }
 export let isFreedrive = false;
 export function setIsFreedrive(v) { isFreedrive = v; }
 
-// Jogging
+// Jogging (Cartesian — speedl)
 export let isJogging = false;
 export function setIsJogging(v) { isJogging = v; }
+
+// Jogging (Joint — speedj)
+export let isJointJogging = false;
+export function setIsJointJogging(v) { isJointJogging = v; }
 
 export let fdAxes = [1,1,1,1,1,1];
 export function setFdAxis(index, val) { fdAxes[index] = val; }
