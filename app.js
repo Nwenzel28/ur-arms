@@ -1303,7 +1303,7 @@ function buildCode() {
           
           // IMPORTANT: Replace "192.168.1.100" with the EXACT IP address of the computer running relay.py
           // Since your robot is on 169.254.190.160, your PC's IP is likely 169.254.x.x
-          L.push(`${tab}socket_open("169.254.231.213", 50000, "ui_socket")`);
+          L.push(`${tab}socket_open("169.254.202.31", 50000, "ui_socket")`);
           
           // Send the message to the Python relay
           L.push(`${tab}socket_send_string("${s.msg}", "ui_socket")`);
