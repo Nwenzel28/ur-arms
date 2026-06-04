@@ -654,7 +654,8 @@ export function buildCode() {
         L.push(`${tab}socket_close("rq_srv")`);
         break;
       case 'popup':
-        L.push(`${tab}socket_open("169.254.231.213", 50000, "ui_socket")`);
+        // CHANGE IP ADDRESS TO MATCH COMPUTER NETWORK
+        L.push(`${tab}socket_open("169.254.9.203", 50000, "ui_socket")`);
         L.push(`${tab}socket_send_string("${s.msg}", "ui_socket")`);
         L.push(`${tab}local ui_response = ""`);
         L.push(`${tab}while (ui_response != "continue"):`);
