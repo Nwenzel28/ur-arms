@@ -1,7 +1,5 @@
-// ═══════════════════════════════════════════════════════════
-// TAB-PROGRAM — sequence builder + URScript compiler
-// ═══════════════════════════════════════════════════════════
-import { positions, steps, setSteps, uid } from './state.js';
+// ── CONSTANTS ──
+import { positions, steps, setSteps, uid, selectedStepId, globalSettings, setSelectedStepId } from './state.js';
 
 // ── CONSTANTS ──
 const OPENERS = ['loop_start','loop_n','loop_forever','loop_while','if_start','if_din','thread_start','folder'];
@@ -54,13 +52,28 @@ export function defaultStep(type) {
 
 // ── STEP MUTATIONS ──
 export function addStep(type) {
-  steps.push(defaultStep(type));
-  renderSteps(); refreshCode();
+  const newS = defaultStep(type);
+  steps.push(newS);
+  setSelectedStepId(newS.id);
+  renderSteps();
+  renderNodeConfig();
+  refreshCode();
 }
 
 export function deleteStep(sid) {
   setSteps(steps.filter(s=>s.id!==sid));
-  renderSteps(); refreshCode();
+  if (selectedStepId === sid) {
+    setSelectedStepId(null);
+  }
+  renderSteps();
+  renderNodeConfig();
+  refreshCode();
+}
+
+export function selectStep(sid) {
+  setSelectedStepId(sid);
+  renderSteps();
+  renderNodeConfig();
 }
 
 export function moveStep(sid, dir) {
@@ -78,7 +91,12 @@ export function changeType(sid, type) {
 
 export function upd(sid, key, val) {
   const s = steps.find(x=>x.id===sid);
-  if (s) { s[key]=val; refreshCode(); }
+  if (s) {
+    s[key]=val;
+    refreshCode();
+    renderSteps();
+    renderNodeConfig();
+  }
 }
 
 // ── RENDER ──
@@ -94,7 +112,11 @@ export function renderSteps() {
   list.innerHTML = steps.map((s, si) => {
     const tag = TAG_INFO[s.type] || '?';
     const tagCls = TAG_COLOR[s.type] || 'tag-util';
-    return `<div class="step" id="st-${s.id}" draggable="true"
+    const isSelected = (s.id === selectedStepId);
+    
+    return `<div class="step ${isSelected ? 'on' : ''}" id="st-${s.id}" draggable="true"
+        onclick="window._prog.selectStep('${s.id}')"
+        style="cursor: pointer; ${isSelected ? 'border: 1px solid var(--ac); box-shadow: 0 0 4px var(--ac);' : ''}"
         ondragstart="window._prog.dragStart(event,${si})"
         ondragover="window._prog.dragOver(event)"
         ondragleave="window._prog.dragLeave(event)"
@@ -102,13 +124,13 @@ export function renderSteps() {
         ondragend="window._prog.dragEnd(event)">
       <span class="step-n">${si+1}</span>
       <span class="step-tag ${tagCls}">${tag}</span>
-      <span style="font-size:11px;color:var(--tx3);min-width:60px;">${s.type}</span>
-      ${stepInlineParams(s)}
+      <span style="font-size:11px;color:var(--tx3);min-width:60px;font-weight:bold;">${s.type}</span>
+      <span style="font-size:11px;color:var(--tx2);margin-left:8px;">${getStepDescription(s)}</span>
       <span style="flex:1"></span>
       <div class="step-controls">
-        <button class="btn btn-sm btn-ghost" onclick="window._prog.moveStep('${s.id}',-1)" ${si===0?'disabled':''}>↑</button>
-        <button class="btn btn-sm btn-ghost" onclick="window._prog.moveStep('${s.id}',1)" ${si===steps.length-1?'disabled':''}>↓</button>
-        <button class="btn btn-sm" style="color:var(--rd);border-color:var(--rdlo);" onclick="window._prog.deleteStep('${s.id}')">✕</button>
+        <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation(); window._prog.moveStep('${s.id}',-1)" ${si===0?'disabled':''}>↑</button>
+        <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation(); window._prog.moveStep('${s.id}',1)" ${si===steps.length-1?'disabled':''}>↓</button>
+        <button class="btn btn-sm" style="color:var(--rd);border-color:var(--rdlo);" onclick="event.stopPropagation(); window._prog.deleteStep('${s.id}')">✕</button>
       </div>
     </div>`;
   }).join('');
@@ -116,43 +138,335 @@ export function renderSteps() {
 
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-function stepInlineParams(s) {
-  const si = `'${s.id}'`;
-  const posOpts = positions.map(p=>`<option value="${p.id}" ${s.pid===p.id?'selected':''}>${p.name}</option>`).join('');
+function getStepDescription(s) {
   switch(s.type) {
-    case 'movej': case 'movel':
-      return `<select class="step-sel" onchange="window._prog.upd(${si},'pid',this.value)">${posOpts}</select>`;
-    case 'movec': {
-      const mk = sel => positions.map(p=>`<option value="${p.id}" ${sel===p.id?'selected':''}>${p.name}</option>`).join('');
-      return `<span style="font-size:10px;color:var(--tx3)">via</span>
-        <select class="step-sel" onchange="window._prog.upd(${si},'via',this.value)">${mk(s.via)}</select>
-        <span style="font-size:10px;color:var(--tx3)">to</span>
-        <select class="step-sel" onchange="window._prog.upd(${si},'to',this.value)">${mk(s.to)}</select>`;
+    case 'movej': {
+      const p = positions.find(x => x.id === s.pid);
+      return `to <strong>${p ? p.name : 'none'}</strong> (Joint)`;
     }
+    case 'movel': {
+      const p = positions.find(x => x.id === s.pid);
+      return `to <strong>${p ? p.name : 'none'}</strong> (Linear)`;
+    }
+    case 'movec': {
+      const v = positions.find(x => x.id === s.via);
+      const t = positions.find(x => x.id === s.to);
+      return `via <strong>${v ? v.name : 'none'}</strong> to <strong>${t ? t.name : 'none'}</strong>`;
+    }
+    case 'guarded_move':
+      return `at <strong>${s.speed ?? 0.02}</strong> m/s (Retract: ${s.retract ?? 0} mm)`;
     case 'sleep':
-      return `<input class="step-inp" type="number" min="0" step="0.1" value="${s.sec??1}" style="width:60px"
-              oninput="window._prog.upd(${si},'sec',+this.value)">
-              <span style="font-size:10px;color:var(--tx3)">sec</span>`;
-    case 'textmsg': case 'popup':
-      return `<input class="step-inp" type="text" value="${esc(s.msg??'')}" style="width:180px"
-        placeholder="Message..." oninput="window._prog.upd(${si},'msg',this.value)">`;
+      return `wait <strong>${s.sec ?? 1}</strong> sec`;
+    case 'textmsg':
+      return `log <strong>"${s.msg ?? ''}"</strong>`;
+    case 'popup':
+      return `pendant: <strong>"${s.msg ?? ''}"</strong> (${s.pType ?? 'msg'})`;
+    case 'set_digital_out':
+      return `set output <strong>${s.port ?? 0}</strong> to <strong>${s.val !== false ? 'HIGH' : 'LOW'}</strong>`;
+    case 'set_payload':
+      return `mass <strong>${s.weight ?? 0.5}</strong> kg`;
+    case 'set_tcp':
+      return `pose <strong>p[${s.pose ?? '0,0,0,0,0,0'}]</strong>`;
     case 'loop_start':
-      return `<select class="step-inp" onchange="window._prog.upd(${si},'loopType',this.value)">
-                <option value="forever" ${s.loopType==='forever'?'selected':''}>Forever</option>
-                <option value="times" ${s.loopType==='times'?'selected':''}>Times</option>
-              </select>
-              ${s.loopType==='times' ? `<input class="step-inp" type="number" value="${s.loopCount}" style="width:50px" oninput="window._prog.upd(${si},'loopCount',+this.value)">` : ''}`;
-    case 'if_start': case 'else_if': case 'wait_cond':
-      return `<input class="step-inp" type="text" value="${esc(s.condition??'')}" style="width:160px" oninput="window._prog.upd(${si},'condition',this.value)">`;
+      return s.loopType === 'times' ? `<strong>${s.loopCount ?? 5}</strong> times` : `<strong>forever</strong>`;
+    case 'if_start':
+      return `if <strong>(${s.condition ?? ''})</strong>`;
+    case 'else_if':
+      return `else if <strong>(${s.condition ?? ''})</strong>`;
+    case 'wait_cond':
+      return `until <strong>(${s.condition ?? ''})</strong>`;
+    case 'read_gripper':
+      return `save pos to <strong>${s.varName ?? 'part_size'}</strong>`;
     case 'assign':
-      return `<input class="step-inp" type="text" value="${s.varName}" style="width:70px" oninput="window._prog.upd(${si},'varName',this.value)"> =
-              <input class="step-inp" type="text" value="${s.varValue}" style="width:90px" oninput="window._prog.upd(${si},'varValue',this.value)">`;
-    case 'comment':
-      return `// <input class="step-inp" type="text" value="${esc(s.commentTxt??'')}" style="width:150px" oninput="window._prog.upd(${si},'commentTxt',this.value)">`;
+      return `<strong>${s.varName ?? 'my_var'}</strong> = <strong>${s.varValue ?? '0'}</strong>`;
+    case 'timer':
+      return `timer <strong>${s.timerVar ?? 'timer_1'}</strong> (<strong>${s.timerAct ?? 'start'}</strong>)`;
+    case 'thread_start':
+      return `run <strong>${s.threadName ?? 'thread_1'}</strong> in parallel`;
     case 'folder':
-      return `📁 <input class="step-inp" type="text" value="${esc(s.folderName??'')}" style="width:130px" oninput="window._prog.upd(${si},'folderName',this.value)">`;
-    default: return '';
+      return `📂 <strong>${s.folderName ?? 'My Folder'}</strong>`;
+    case 'comment':
+      return `# <em>${s.commentTxt ?? ''}</em>`;
+    case 'else':
+      return `else block`;
+    case 'halt':
+      return `stop execution`;
+    case 'end':
+      return `end of block`;
+    default:
+      return '';
   }
+}
+
+export async function renderNodeConfig() {
+  const panel = document.getElementById('node-config-panel');
+  if (!panel) return;
+
+  const sState = await import('./state.js');
+  const sid = sState.selectedStepId;
+  const s = steps.find(x => x.id === sid);
+
+  if (!s) {
+    panel.innerHTML = `
+      <div style="color: var(--tx3); text-align: center; margin-top: 20px; font-size: 12px;">
+        Select a program element in the center sequence to edit its properties here.
+      </div>
+    `;
+    return;
+  }
+
+  let html = `
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--bd); padding-bottom:6px;">
+        <span style="font-size:12px; font-weight:bold; color:var(--ac); text-transform:uppercase;">${s.type} Settings</span>
+        <span style="font-size:10px; color:var(--tx3); font-family:var(--mono);">ID: ${s.id}</span>
+      </div>
+  `;
+
+  const inputStyle = `width:100%; background:var(--sf); border:1px solid var(--bd); border-radius:4px; color:var(--tx); padding:6px; font-size:12px; font-family:inherit; box-sizing:border-box;`;
+  const labelStyle = `font-size:10px; color:var(--tx3); text-transform:uppercase; font-weight:bold; display:block; margin-bottom:4px;`;
+
+  switch(s.type) {
+    case 'movej':
+    case 'movel': {
+      const posOpts = positions.map(p => `<option value="${p.id}" ${s.pid === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
+      html += `
+        <div>
+          <label style="${labelStyle}">Target Position</label>
+          <select style="${inputStyle}" onchange="window._prog.upd('${s.id}', 'pid', this.value)">
+            <option value="" ${!s.pid ? 'selected' : ''}>-- Select Position --</option>
+            ${posOpts}
+          </select>
+        </div>
+      `;
+      break;
+    }
+    case 'movec': {
+      const viaOpts = positions.map(p => `<option value="${p.id}" ${s.via === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
+      const toOpts = positions.map(p => `<option value="${p.id}" ${s.to === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
+      html += `
+        <div>
+          <label style="${labelStyle}">Via Position (Arc Middle)</label>
+          <select style="${inputStyle}" onchange="window._prog.upd('${s.id}', 'via', this.value)">
+            <option value="" ${!s.via ? 'selected' : ''}>-- Select Position --</option>
+            ${viaOpts}
+          </select>
+        </div>
+        <div>
+          <label style="${labelStyle}">To Position (Arc End)</label>
+          <select style="${inputStyle}" onchange="window._prog.upd('${s.id}', 'to', this.value)">
+            <option value="" ${!s.to ? 'selected' : ''}>-- Select Position --</option>
+            ${toOpts}
+          </select>
+        </div>
+      `;
+      break;
+    }
+    case 'guarded_move': {
+      html += `
+        <div>
+          <label style="${labelStyle}">Contact Speed (m/s)</label>
+          <input type="number" step="0.005" style="${inputStyle}" value="${s.speed ?? 0.02}" 
+            oninput="window._prog.upd('${s.id}', 'speed', parseFloat(this.value) || 0)"/>
+        </div>
+        <div>
+          <label style="${labelStyle}">Retract Distance (mm)</label>
+          <input type="number" step="0.1" style="${inputStyle}" value="${s.retract ?? 0}" 
+            oninput="window._prog.upd('${s.id}', 'retract', parseFloat(this.value) || 0)"/>
+        </div>
+      `;
+      break;
+    }
+    case 'sleep': {
+      html += `
+        <div>
+          <label style="${labelStyle}">Wait Duration (seconds)</label>
+          <input type="number" step="0.1" min="0" style="${inputStyle}" value="${s.sec ?? 1}" 
+            oninput="window._prog.upd('${s.id}', 'sec', parseFloat(this.value) || 0)"/>
+        </div>
+      `;
+      break;
+    }
+    case 'textmsg': {
+      html += `
+        <div>
+          <label style="${labelStyle}">Log Message</label>
+          <input type="text" style="${inputStyle}" value="${s.msg ?? ''}" placeholder="Enter log text..." 
+            oninput="window._prog.upd('${s.id}', 'msg', this.value)"/>
+        </div>
+      `;
+      break;
+    }
+    case 'popup': {
+      html += `
+        <div>
+          <label style="${labelStyle}">Popup Message</label>
+          <input type="text" style="${inputStyle}" value="${s.msg ?? ''}" placeholder="Enter alert message..." 
+            oninput="window._prog.upd('${s.id}', 'msg', this.value)"/>
+        </div>
+        <div>
+          <label style="${labelStyle}">Popup Type</label>
+          <select style="${inputStyle}" onchange="window._prog.upd('${s.id}', 'pType', this.value)">
+            <option value="msg" ${s.pType === 'msg' ? 'selected' : ''}>Message (Information)</option>
+            <option value="warn" ${s.pType === 'warn' ? 'selected' : ''}>Warning</option>
+            <option value="err" ${s.pType === 'err' ? 'selected' : ''}>Error</option>
+          </select>
+        </div>
+      `;
+      break;
+    }
+    case 'set_digital_out': {
+      html += `
+        <div>
+          <label style="${labelStyle}">Digital Output Port (0 - 15)</label>
+          <input type="number" min="0" max="15" style="${inputStyle}" value="${s.port ?? 0}" 
+            oninput="window._prog.upd('${s.id}', 'port', parseInt(this.value) || 0)"/>
+        </div>
+        <div>
+          <label style="${labelStyle}">Signal Level</label>
+          <select style="${inputStyle}" onchange="window._prog.upd('${s.id}', 'val', this.value === 'true')">
+            <option value="true" ${s.val !== false ? 'selected' : ''}>HIGH (24V)</option>
+            <option value="false" ${s.val === false ? 'selected' : ''}>LOW (0V)</option>
+          </select>
+        </div>
+      `;
+      break;
+    }
+    case 'set_payload': {
+      html += `
+        <div>
+          <label style="${labelStyle}">Mass (kg)</label>
+          <input type="number" step="0.05" min="0" style="${inputStyle}" value="${s.weight ?? 0.5}" 
+            oninput="window._prog.upd('${s.id}', 'weight', parseFloat(this.value) || 0)"/>
+        </div>
+      `;
+      break;
+    }
+    case 'set_tcp': {
+      html += `
+        <div>
+          <label style="${labelStyle}">TCP Pose (x,y,z,rx,ry,rz in meters/radians)</label>
+          <input type="text" style="${inputStyle}" value="${s.pose ?? '0,0,0,0,0,0'}" placeholder="0.0, 0.0, 0.174, 0.0, 0.0, 0.0" 
+            oninput="window._prog.upd('${s.id}', 'pose', this.value)"/>
+        </div>
+      `;
+      break;
+    }
+    case 'loop_start': {
+      html += `
+        <div>
+          <label style="${labelStyle}">Loop Type</label>
+          <select style="${inputStyle}" onchange="window._prog.upd('${s.id}', 'loopType', this.value)">
+            <option value="forever" ${s.loopType === 'forever' ? 'selected' : ''}>Loop Forever</option>
+            <option value="times" ${s.loopType === 'times' ? 'selected' : ''}>Loop N Times</option>
+          </select>
+        </div>
+        ${s.loopType === 'times' ? `
+          <div>
+            <label style="${labelStyle}">Iteration Count</label>
+            <input type="number" min="1" style="${inputStyle}" value="${s.loopCount ?? 5}" 
+              oninput="window._prog.upd('${s.id}', 'loopCount', parseInt(this.value) || 1)"/>
+          </div>
+        ` : ''}
+      `;
+      break;
+    }
+    case 'if_start':
+    case 'else_if':
+    case 'wait_cond': {
+      html += `
+        <div>
+          <label style="${labelStyle}">Condition Expression (URScript)</label>
+          <input type="text" style="${inputStyle}" value="${esc(s.condition ?? '')}" placeholder="e.g. get_digital_in(1) == True" 
+            oninput="window._prog.upd('${s.id}', 'condition', this.value)"/>
+        </div>
+      `;
+      break;
+    }
+    case 'read_gripper': {
+      html += `
+        <div>
+          <label style="${labelStyle}">Save Position Variable Name</label>
+          <input type="text" style="${inputStyle}" value="${s.varName ?? 'part_size'}" placeholder="e.g. part_size" 
+            oninput="window._prog.upd('${s.id}', 'varName', this.value)"/>
+        </div>
+      `;
+      break;
+    }
+    case 'assign': {
+      html += `
+        <div>
+          <label style="${labelStyle}">Variable Name</label>
+          <input type="text" style="${inputStyle}" value="${s.varName ?? 'my_var'}" placeholder="e.g. my_var" 
+            oninput="window._prog.upd('${s.id}', 'varName', this.value)"/>
+        </div>
+        <div>
+          <label style="${labelStyle}">Value / Expression</label>
+          <input type="text" style="${inputStyle}" value="${s.varValue ?? '0'}" placeholder="e.g. 10 or my_var + 1" 
+            oninput="window._prog.upd('${s.id}', 'varValue', this.value)"/>
+        </div>
+      `;
+      break;
+    }
+    case 'timer': {
+      html += `
+        <div>
+          <label style="${labelStyle}">Timer Operation</label>
+          <select style="${inputStyle}" onchange="window._prog.upd('${s.id}', 'timerAct', this.value)">
+            <option value="start" ${s.timerAct === 'start' ? 'selected' : ''}>Start / Reset Timer</option>
+            <option value="read" ${s.timerAct === 'read' ? 'selected' : ''}>Read Elapsed to Variable</option>
+          </select>
+        </div>
+        <div>
+          <label style="${labelStyle}">Timer Variable Name</label>
+          <input type="text" style="${inputStyle}" value="${s.timerVar ?? 'timer_1'}" placeholder="e.g. timer_1" 
+            oninput="window._prog.upd('${s.id}', 'timerVar', this.value)"/>
+        </div>
+      `;
+      break;
+    }
+    case 'thread_start': {
+      html += `
+        <div>
+          <label style="${labelStyle}">Thread Routine Name</label>
+          <input type="text" style="${inputStyle}" value="${s.threadName ?? 'thread_1'}" placeholder="e.g. thread_1" 
+            oninput="window._prog.upd('${s.id}', 'threadName', this.value)"/>
+        </div>
+      `;
+      break;
+    }
+    case 'folder': {
+      html += `
+        <div>
+          <label style="${labelStyle}">Folder Name</label>
+          <input type="text" style="${inputStyle}" value="${s.folderName ?? 'My Folder'}" placeholder="e.g. Pick Routine" 
+            oninput="window._prog.upd('${s.id}', 'folderName', this.value)"/>
+        </div>
+      `;
+      break;
+    }
+    case 'comment': {
+      html += `
+        <div>
+          <label style="${labelStyle}">Comment Text</label>
+          <input type="text" style="${inputStyle}" value="${esc(s.commentTxt ?? '')}" placeholder="Enter notes..." 
+            oninput="window._prog.upd('${s.id}', 'commentTxt', this.value)"/>
+        </div>
+      `;
+      break;
+    }
+    default: {
+      html += `
+        <div style="color:var(--tx3); font-size:11px; text-align:center; padding:20px 0;">
+          No configuration parameters required for this element.
+        </div>
+      `;
+      break;
+    }
+  }
+
+  html += `</div>`;
+  panel.innerHTML = html;
 }
 
 // ── DRAG AND DROP ──
@@ -172,8 +486,11 @@ export const dragDrop  = (e, dropIdx) => {
 // ── CODE GENERATION ──
 export function buildCode() {
   const T = '    ';
-  // Default motion settings (no settings panel in v2 yet; use sensible defaults)
-  const js=1.05, ja=1.4, ls=0.25, la=1.2, br=0.0;
+  const js = globalSettings.js;
+  const ja = globalSettings.ja;
+  const ls = globalSettings.ls;
+  const la = globalSettings.la;
+  const br = globalSettings.br;
 
   const L = [];
   L.push('def master_program():');
@@ -190,6 +507,22 @@ export function buildCode() {
     const cart = pos.c && pos.c.some(v=>v!==0) ? pos.c : pos.j;
     L.push(`${T}global ${pos.name}_C = p[${cart.map(v=>v.toFixed(4)).join(', ')}]`);
   });
+  L.push('');
+  L.push(`${T}# Setup`);
+  const isTCPSet = globalSettings.tcpX || globalSettings.tcpY || globalSettings.tcpZ || globalSettings.tcpRx || globalSettings.tcpRy || globalSettings.tcpRz;
+  if (isTCPSet) {
+    L.push(`${T}set_tcp(p[${globalSettings.tcpX},${globalSettings.tcpY},${globalSettings.tcpZ},${globalSettings.tcpRx},${globalSettings.tcpRy},${globalSettings.tcpRz}])`);
+  }
+  L.push(`${T}set_payload(${globalSettings.plW}, [${globalSettings.plX}, ${globalSettings.plY}, ${globalSettings.plZ}])`);
+  L.push('');
+  L.push(`${T}global _master_clock = 0.0`);
+  L.push(`${T}thread _clock_thread():`);
+  L.push(`${T}${T}while True:`);
+  L.push(`${T}${T}${T}_master_clock = _master_clock + get_steptime()`);
+  L.push(`${T}${T}${T}sync()`);
+  L.push(`${T}${T}end`);
+  L.push(`${T}end`);
+  L.push(`${T}run _clock_thread()`);
   L.push('');
   L.push(`${T}# Gripper init`);
   L.push(`${T}socket_close("rq_srv")`);
@@ -274,6 +607,81 @@ export function buildCode() {
         L.push(`${tab}end`);
         L.push(`${tab}socket_close("ui_socket")`);
         break;
+      case 'guarded_move':
+        L.push(`${tab}# --- Move Until Contact ---`);
+        L.push(`${tab}while (True):`);
+        L.push(`${tab}${T}step_back = tool_contact()`);
+        L.push(`${tab}${T}if (step_back <= 0):`);
+        L.push(`${tab}${T}${T}speedl([0, 0, -${s.speed ?? 0.02}, 0, 0, 0], 0.5, t=get_steptime())`);
+        L.push(`${tab}${T}else:`);
+        L.push(`${tab}${T}${T}q = get_actual_joint_positions_history(step_back)`);
+        L.push(`${tab}${T}${T}stopl(3.0)`);
+        L.push(`${tab}${T}${T}contact_pose = get_forward_kin(q)`);
+        if (s.retract && s.retract > 0) {
+          const retract_m = (s.retract / 1000).toFixed(4);
+          L.push(`${tab}${T}${T}target_pose = pose_add(contact_pose, p[0.0, 0.0, ${retract_m}, 0.0, 0.0, 0.0])`);
+          L.push(`${tab}${T}${T}movel(target_pose, a=0.5, v=0.05)`);
+        } else {
+          L.push(`${tab}${T}${T}movel(contact_pose, a=0.5, v=0.05)`);
+        }
+        L.push(`${tab}${T}${T}break`);
+        L.push(`${tab}${T}end`);
+        L.push(`${tab}end`);
+        break;
+      case 'activate_gripper':
+        L.push(`${tab}socket_open("127.0.0.1", 63352, "rq_srv")`);
+        L.push(`${tab}socket_send_string("SET ACT 1", "rq_srv")`);
+        L.push(`${tab}socket_send_byte(10, "rq_srv")`);
+        L.push(`${tab}sync()`);
+        L.push(`${tab}socket_send_string("SET GTO 1", "rq_srv")`);
+        L.push(`${tab}socket_send_byte(10, "rq_srv")`);
+        L.push(`${tab}sync()`);
+        L.push(`${tab}socket_close("rq_srv")`);
+        L.push(`${tab}textmsg("GRIPPER:ACTIVATED")`);
+        break;
+      case 'read_gripper':
+        L.push(`${tab}_opened = socket_open("127.0.0.1", 63352, "rq_srv")`);
+        L.push(`${tab}if (_opened):`);
+        L.push(`${tab}${T}socket_send_string("GET POS", "rq_srv")`);
+        L.push(`${tab}${T}socket_send_byte(10, "rq_srv")`);
+        L.push(`${tab}${T}_raw = socket_read_string("rq_srv", timeout=0.3)`);
+        L.push(`${tab}${T}socket_close("rq_srv")`);
+        L.push(`${tab}${T}if (str_len(_raw) > 0):`);
+        L.push(`${tab}${T}${T}if (str_at(_raw, 0) == "P"):`);
+        L.push(`${tab}${T}${T}${T}_raw = str_sub(_raw, 4)`);
+        L.push(`${tab}${T}${T}end`);
+        L.push(`${tab}${T}${T}_clean = ""`);
+        L.push(`${tab}${T}${T}_i = 0`);
+        L.push(`${tab}${T}${T}while (_i < str_len(_raw)):`);
+        L.push(`${tab}${T}${T}${T}_char = str_sub(_raw, _i, 1)`);
+        L.push(`${tab}${T}${T}${T}if (_char == "0" or _char == "1" or _char == "2" or _char == "3" or _char == "4" or _char == "5" or _char == "6" or _char == "7" or _char == "8" or _char == "9"):`);
+        L.push(`${tab}${T}${T}${T}${T}_clean = _clean + _char`);
+        L.push(`${tab}${T}${T}${T}else:`);
+        L.push(`${tab}${T}${T}${T}${T}break`);
+        L.push(`${tab}${T}${T}${T}end`);
+        L.push(`${tab}${T}${T}${T}_i = _i + 1`);
+        L.push(`${tab}${T}${T}end`);
+        L.push(`${tab}${T}${T}if (str_len(_clean) > 0):`);
+        L.push(`${tab}${T}${T}${T}${s.varName ?? 'part_size'} = to_num(_clean)`);
+        L.push(`${tab}${T}${T}else:`);
+        L.push(`${tab}${T}${T}${T}${s.varName ?? 'part_size'} = 0`);
+        L.push(`${tab}${T}${T}end`);
+        L.push(`${tab}${T}else:`);
+        L.push(`${tab}${T}${T}${s.varName ?? 'part_size'} = 0`);
+        L.push(`${tab}${T}end`);
+        L.push(`${tab}else:`);
+        L.push(`${tab}${T}${s.varName ?? 'part_size'} = 0`);
+        L.push(`${tab}end`);
+        L.push(`${tab}textmsg("DEBUG: Final Result = ", ${s.varName ?? 'part_size'})`);
+        break;
+      case 'timer':
+        if (s.timerAct === 'start') {
+          L.push(`${tab}global ${s.timerVar ?? 'timer_1'}_start = _master_clock`);
+        } else {
+          L.push(`${tab}global ${s.timerVar ?? 'timer_1'} = _master_clock - ${s.timerVar ?? 'timer_1'}_start`);
+          L.push(`${tab}textmsg("Timer ${s.timerVar ?? 'timer_1'}: ", ${s.timerVar ?? 'timer_1'})`);
+        }
+        break;
       default: break;
     }
   });
@@ -346,6 +754,6 @@ export async function sendToRobot() {
 export function exposeProgram() {
   window._prog = {
     addStep, deleteStep, moveStep, changeType, upd, sendToRobot,
-    dragStart, dragOver, dragLeave, dragEnd, dragDrop
+    dragStart, dragOver, dragLeave, dragEnd, dragDrop, selectStep, renderNodeConfig
   };
 }

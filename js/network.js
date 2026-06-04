@@ -106,6 +106,7 @@ export function startFreedriveDetection() {
 export async function fetchRobotState() {
   const ip = document.getElementById('robot-ip').value.trim();
   if (!ip) return;
+  const statusEl = document.getElementById('telemetry-status');
   try {
     const res  = await fetch(RELAY, {
       method: 'POST',
@@ -116,16 +117,129 @@ export async function fetchRobotState() {
     const tcp    = data.tcp    || data.actual_TCP_pose || data.pose || data.cartesian;
     const joints = data.joints || data.actual_joint_positions || data.q_actual || data.q;
 
+    if (statusEl) {
+      statusEl.textContent = 'Connected';
+      statusEl.style.color = 'var(--gn)';
+    }
+
+    const updateText = (id, val) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = val;
+    };
+
     if (tcp && tcp.length >= 6) {
-      import('./state.js').then(s => s.setLatestTcp(tcp));
+      const s = await import('./state.js');
+      s.setLatestTcp(tcp);
+      updateText('live-x', tcp[0].toFixed(4));
+      updateText('live-y', tcp[1].toFixed(4));
+      updateText('live-z', tcp[2].toFixed(4));
+      updateText('live-rx', tcp[3].toFixed(4));
+      updateText('live-ry', tcp[4].toFixed(4));
+      updateText('live-rz', tcp[5].toFixed(4));
     }
     if (joints && joints.length >= 6) {
-      import('./state.js').then(s => s.setLatestJoints(joints));
+      const s = await import('./state.js');
+      s.setLatestJoints(joints);
+      const toDisp = rad => (rad * 180 / Math.PI).toFixed(2);
+      updateText('live-j0', toDisp(joints[0]));
+      updateText('live-j1', toDisp(joints[1]));
+      updateText('live-j2', toDisp(joints[2]));
+      updateText('live-j3', toDisp(joints[3]));
+      updateText('live-j4', toDisp(joints[4]));
+      updateText('live-j5', toDisp(joints[5]));
     }
     return { tcp, joints };
   } catch(e) {
     console.error('Failed to read robot state', e);
+    if (statusEl) {
+      statusEl.textContent = 'Failed';
+      statusEl.style.color = 'var(--rd)';
+    }
   }
+}
+
+export function startTelemetryPoller() {
+  async function poll() {
+    try {
+      const s = await import('./state.js');
+      if (s.isLiveMonitoring) {
+        const ip = document.getElementById('robot-ip').value.trim();
+        const dot = document.getElementById('robot-dot')?.style.background;
+        if (ip && dot !== 'var(--bl)') {
+          await fetchRobotState();
+        }
+      }
+    } catch(e) {
+      console.error('Telemetry polling error', e);
+    }
+    setTimeout(poll, 250);
+  }
+  setTimeout(poll, 1000);
+}
+
+export function startGripperTelemetry() {
+  async function poll() {
+    const ip = document.getElementById('robot-ip')?.value?.trim();
+    if (!ip) {
+      setTimeout(poll, 1000);
+      return;
+    }
+
+    try {
+      const res = await fetch(RELAY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'gripper_status', ip: ip })
+      });
+      const data = await res.json();
+      
+      const s = await import('./state.js');
+      if (data.ok) {
+        let raw = data.position_raw;
+        if (raw !== undefined) {
+          if (raw < 3) raw = 3;
+          if (raw > 230) raw = 230;
+          let pct = Math.round(((raw - 3) / (230 - 3)) * 100);
+          const posEl = document.getElementById('live-gripper-pos');
+          if (posEl) posEl.textContent = `${raw} (${pct}%)`;
+        }
+
+        const objEl = document.getElementById('live-gripper-obj');
+        if (objEl) {
+          if (data.gobj === 1 || data.gobj === 2) {
+            objEl.style.display = 'inline';
+          } else {
+            objEl.style.display = 'none';
+          }
+        }
+
+        const isActivated = (data.gsta === 3);
+        if (s.gripperActivated !== isActivated) {
+          s.setGripperActivated(isActivated);
+          const actBtn = document.getElementById('btn-gripper-activate');
+          const grpBox = document.getElementById('gripper-actions-box');
+          if (actBtn && grpBox) {
+            if (isActivated) {
+              actBtn.style.display = 'none';
+              grpBox.style.display = 'flex';
+            } else {
+              actBtn.style.display = 'block';
+              grpBox.style.display = 'none';
+              actBtn.disabled = false;
+              actBtn.textContent = 'Activate Gripper';
+            }
+          }
+        }
+      }
+    } catch(err) {
+      const posEl = document.getElementById('live-gripper-pos');
+      if (posEl) posEl.textContent = "---";
+      const objEl = document.getElementById('live-gripper-obj');
+      if (objEl) objEl.style.display = 'none';
+    }
+    setTimeout(poll, 250);
+  }
+  setTimeout(poll, 1000);
 }
 
 export function startJog(axis, direction) {

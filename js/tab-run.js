@@ -6,6 +6,39 @@ import { RELAY, dashPause, dashStop, dashSpeed, setDot } from './network.js';
 import { renderPositions } from './tab-setup.js';
 import { renderSteps, refreshCode, buildCode } from './tab-program.js';
 
+const inputIds = {
+  js: 'settings-js',
+  ja: 'settings-ja',
+  ls: 'settings-ls',
+  la: 'settings-la',
+  br: 'settings-br',
+  tcpX: 'settings-tcp-x',
+  tcpY: 'settings-tcp-y',
+  tcpZ: 'settings-tcp-z',
+  tcpRx: 'settings-tcp-rx',
+  tcpRy: 'settings-tcp-ry',
+  tcpRz: 'settings-tcp-rz',
+  plW: 'settings-pl-w',
+  plX: 'settings-pl-x',
+  plY: 'settings-pl-y',
+  plZ: 'settings-pl-z'
+};
+
+function initSettingsInputs() {
+  import('./state.js').then(s => {
+    for (const [stateKey, inputId] of Object.entries(inputIds)) {
+      const el = document.getElementById(inputId);
+      if (el) {
+        el.value = s.globalSettings[stateKey];
+        el.addEventListener('input', () => {
+          s.setGlobalSettings({ [stateKey]: parseFloat(el.value) || 0 });
+          refreshCode();
+        });
+      }
+    }
+  });
+}
+
 export function initRunTab() {
   // Speed slider
   const slider = document.getElementById('dash-speed-slider');
@@ -25,6 +58,9 @@ export function initRunTab() {
   // Save / load project
   document.getElementById('btn-save-project')?.addEventListener('click', exportProject);
   document.getElementById('file-import-project')?.addEventListener('change', e => importProject(e.target));
+
+  // Initialize defaults inputs
+  initSettingsInputs();
 
   // Start log polling
   startLogPoller();
@@ -127,11 +163,13 @@ async function playProgram() {
 }
 
 function exportProject() {
-  const data = { positions, steps };
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type:'application/json'}));
-  a.download = 'ur3e_project.json';
-  a.click();
+  import('./state.js').then(s => {
+    const data = { positions, steps, settings: s.globalSettings };
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type:'application/json'}));
+    a.download = 'ur3e_project.json';
+    a.click();
+  });
 }
 
 function importProject(input) {
@@ -146,10 +184,19 @@ function importProject(input) {
         const fixed = data.steps.map(s => ({ ...s, id: s.id || uid() }));
         setSteps(fixed);
       }
-      renderPositions();
-      renderSteps();
-      refreshCode();
-      logLine('Project loaded successfully.');
+      import('./state.js').then(s => {
+        if (data.settings) {
+          s.setGlobalSettings(data.settings);
+          for (const [stateKey, inputId] of Object.entries(inputIds)) {
+            const el = document.getElementById(inputId);
+            if (el) el.value = s.globalSettings[stateKey] ?? el.value;
+          }
+        }
+        renderPositions();
+        renderSteps();
+        refreshCode();
+        logLine('Project loaded successfully.');
+      });
     } catch(err) {
       alert("Error loading project: " + err);
     }

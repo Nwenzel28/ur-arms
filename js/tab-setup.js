@@ -161,6 +161,30 @@ export function toggleFreedrive() {
   });
 }
 
+export function toggleFdAxis(index) {
+  import('./state.js').then(s => {
+    const val = s.fdAxes[index] === 1 ? 0 : 1;
+    s.setFdAxis(index, val);
+    const btn = document.getElementById(`fd-ax-${index}`);
+    if (btn) btn.classList.toggle('on', val === 1);
+    if (s.isFreedrive) {
+      sendDirect(`def fd_on():\n  freedrive_mode([${s.fdAxes.join(',')}], p[0,0,0,0,0,0])\n  while True:\n    sync()\n  end\nend\n`);
+    }
+  });
+}
+
+export function activateGripper() {
+  const ip = document.getElementById('robot-ip').value.trim();
+  if (!ip) return alert("Enter Robot IP first.");
+  const btn = document.getElementById('btn-gripper-activate');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Activating...';
+  }
+  const urscript = `def live_grp():\n  socket_close("rq_srv")\n  socket_open("127.0.0.1", 63352, "rq_srv")\n  socket_send_string("SET ACT 1", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET GTO 1", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_close("rq_srv")\nend\nlive_grp()`;
+  sendDirect(urscript);
+}
+
 // Gripper actions
 export function openGripper()  { sendDirect(`def grp():\n  socket_close("rq_srv")\n  socket_open("127.0.0.1", 63352, "rq_srv")\n  socket_send_string("SET SPE 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET FOR 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET POS 0", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_close("rq_srv")\nend\ngrp()`); }
 export function closeGripper() { sendDirect(`def grp():\n  socket_close("rq_srv")\n  socket_open("127.0.0.1", 63352, "rq_srv")\n  socket_send_string("SET SPE 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET FOR 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET POS 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_close("rq_srv")\nend\ngrp()`); }
@@ -170,6 +194,6 @@ export function exposeSetup() {
   window._setup = {
     liveJoint, renamePos, addPos, deletePos,
     startMoveHere, stopMoveHere, setToCurrent, recordLivePosition,
-    toggleFreedrive, openGripper, closeGripper
+    toggleFreedrive, openGripper, closeGripper, toggleFdAxis, activateGripper
   };
 }

@@ -32,6 +32,39 @@ function initPositionsTab() {
   document.getElementById('btn-get-current')?.addEventListener('click', recordLivePosition);
   document.getElementById('btn-open-gripper')?.addEventListener('click', openGripper);
   document.getElementById('btn-close-gripper')?.addEventListener('click', closeGripper);
+  document.getElementById('btn-gripper-activate')?.addEventListener('click', () => {
+    import('./tab-setup.js').then(setup => setup.activateGripper());
+  });
+
+  // Telemetry refresh & live check
+  document.getElementById('btn-refresh-telemetry')?.addEventListener('click', () => {
+    import('./network.js').then(net => net.fetchRobotState());
+  });
+  document.getElementById('live-monitoring-chk')?.addEventListener('change', e => {
+    import('./state.js').then(s => s.setIsLiveMonitoring(e.target.checked));
+  });
+
+  // Axis Mask
+  for (let i = 0; i < 6; i++) {
+    document.getElementById(`fd-ax-${i}`)?.addEventListener('click', () => {
+      import('./tab-setup.js').then(setup => setup.toggleFdAxis(i));
+    });
+  }
+
+  // Jog Controls
+  document.querySelectorAll('.jog-btn').forEach(btn => {
+    const axis = parseInt(btn.dataset.axis);
+    const dir = parseInt(btn.dataset.dir);
+    btn.addEventListener('mousedown', () => {
+      import('./network.js').then(net => net.startJog(axis, dir));
+    });
+    btn.addEventListener('mouseup', () => {
+      import('./network.js').then(net => net.stopJog());
+    });
+    btn.addEventListener('mouseleave', () => {
+      import('./network.js').then(net => net.stopJog());
+    });
+  });
 
   // Add position button
   const addPosBtn = document.createElement('button');
@@ -145,4 +178,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Background services
   startFreedriveDetection();
   startPopupPoller();
+  import('./network.js').then(net => {
+    net.startTelemetryPoller();
+    net.startGripperTelemetry();
+  });
 });
