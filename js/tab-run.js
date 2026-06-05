@@ -167,6 +167,7 @@ async function playProgram() {
       btn.disabled = false;
     }, 2500);
   }
+}
 
 function exportProject() {
   import('./state.js').then(s => {
