@@ -73,7 +73,7 @@ const MESH_BASE_URL = 'https://nwenzel28.github.io/ur-arms/meshes/ur3e/';
 function originMatrix(xyz, rpy, THREE) {
   const mat = new THREE.Matrix4();
   const pos = new THREE.Vector3(...xyz);
-  const euler = new THREE.Euler(rpy[0], rpy[1], rpy[2], 'XYZ');
+  const euler = new THREE.Euler(rpy[0], rpy[1], rpy[2], 'ZYX');
   const quat = new THREE.Quaternion().setFromEuler(euler);
   mat.compose(pos, quat, new THREE.Vector3(1, 1, 1));
   return mat;
