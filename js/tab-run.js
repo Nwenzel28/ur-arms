@@ -128,35 +128,20 @@ async function playProgram() {
   logLine('Compiling and sending new program to robot...');
 
   try {
-    let compiledCode = buildCode(); 
+    let finalScript = buildCode(); 
+    
+    // Grab the slider value (e.g., 50% -> 0.50)
+    const sliderEl = document.getElementById('dash-speed-slider');
+    const multiplier = sliderEl ? parseFloat(sliderEl.value) / 100 : 1.0;
 
-    // 1. Automatically extract the Relay IP your popup system is already using successfully
-    const ipMatch = compiledCode.match(/socket_open\("([^"]+)"/);
-    const relayIp = ipMatch ? ipMatch[1] : "127.0.0.1";
-
-    // 2. Globally redirect ALL native textmsg calls to our new UI interceptor function
-    let finalScript = compiledCode.replace(/textmsg\(/g, 'ui_textmsg(');
-
-    // 3. Define the interceptor function to handle both 1-argument and 2-argument logs
-    // (Automated logs use textmsg(0, "Gripper Open"), so we grab the second argument if it exists!)
-    const logInterceptorFunction = `
-    def ui_textmsg(a1, a2=""):
-        if (a2 == ""):
-            textmsg(a1)
-            socket_open("${relayIp}", 50001, "auto_log")
-            socket_send_string(to_str(a1), "auto_log")
-            socket_close("auto_log")
-        else:
-            textmsg(a1, a2)
-            socket_open("${relayIp}", 50001, "auto_log")
-            socket_send_string(to_str(a2), "auto_log")
-            socket_close("auto_log")
-        end
-    end
-`;
-
-    // 4. Inject the interceptor function safely right at the top of master_program
-    finalScript = finalScript.replace('def master_program():', `def master_program():${logInterceptorFunction}`);
+    // 🎯 THE FIX: Mathematically scale the configuration variables in the code!
+    if (multiplier !== 1.0) {
+      finalScript = finalScript
+        .replace(/global JOINT_SPEED\s*=\s*([0-9.]+)/, (match, val) => `global JOINT_SPEED = ${(parseFloat(val) * multiplier).toFixed(4)}`)
+        .replace(/global JOINT_ACCEL\s*=\s*([0-9.]+)/, (match, val) => `global JOINT_ACCEL = ${(parseFloat(val) * multiplier).toFixed(4)}`)
+        .replace(/global LINEAR_SPEED\s*=\s*([0-9.]+)/, (match, val) => `global LINEAR_SPEED = ${(parseFloat(val) * multiplier).toFixed(4)}`)
+        .replace(/global LINEAR_ACCEL\s*=\s*([0-9.]+)/, (match, val) => `global LINEAR_ACCEL = ${(parseFloat(val) * multiplier).toFixed(4)}`);
+    }
 
     const res = await fetch(RELAY, {
       method: 'POST',
@@ -171,7 +156,7 @@ async function playProgram() {
       btn.innerHTML = '▶︎ RUNNING!';
       btn.style.background = 'var(--gn)';
       btn.style.borderColor = 'var(--gn)';
-      logLine('Program accepted. Full logging pipeline active.');
+      logLine(`Program accepted. Execution scaled to ${Math.round(multiplier * 100)}% speed.`);
     } else {
       throw new Error(data.error || 'Robot rejected the script');
     }
