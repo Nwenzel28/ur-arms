@@ -129,17 +129,28 @@ async function playProgram() {
   try {
     const compiledCode = buildCode(); 
     
-    // CRITICAL FIX: Trigger the Python relay to hit Port 30003!
+    // Grab the slider value (e.g. 50% -> 0.50)
     const sliderEl = document.getElementById('dash-speed-slider');
-    if (sliderEl) {
-      await dashSpeed(parseFloat(sliderEl.value)); 
-    }
+    const speedFraction = sliderEl ? (parseFloat(sliderEl.value) / 100).toFixed(2) : "1.00";
+
+    // 🎯 THE FIX: Inject a localhost socket command to force the robot to throttle itself
+    const speedInjection = `
+    # Set the teach pendant speed slider internally
+    socket_open("127.0.0.1", 30003, "speed_sock")
+    socket_send_string("set speed ${speedFraction}", "speed_sock")
+    socket_send_byte(10, "speed_sock")
+    socket_close("speed_sock")
+`;
+    
+    const finalScript = compiledCode.replace(
+      'def master_program():', 
+      `def master_program():${speedInjection}`
+    );
 
     const res = await fetch(RELAY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      // Send the clean, original compiled code!
-      body: JSON.stringify({ ip: ip, code: compiledCode }) 
+      body: JSON.stringify({ ip: ip, code: finalScript }) 
     });
     
     const data = await res.json();
@@ -149,7 +160,7 @@ async function playProgram() {
       btn.innerHTML = '▶︎ RUNNING!';
       btn.style.background = 'var(--gn)';
       btn.style.borderColor = 'var(--gn)';
-      logLine(`Program accepted. Execution started at ${sliderEl ? sliderEl.value : 100}%.`);
+      logLine(`Program accepted. Execution started at ${Math.round(speedFraction * 100)}% speed.`);
     } else {
       throw new Error(data.error || 'Robot rejected the script');
     }
