@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════════
 import { pingRobot, emergencyStop, startFreedriveDetection, startPopupPoller, resolvePopup, startJog, stopJog, startJogJoint, stopJogJoint } from './network.js';
 import { getRelayIp, saveRelayIp } from './state.js';
+import { initViewer } from './viewer3d.js';
 import { renderPositions, exposeSetup, addPos, toggleFreedrive, openGripper, closeGripper, recordLivePosition } from './tab-setup.js';
 import { renderSteps, refreshCode, exposeProgram, addStep, sendToRobot } from './tab-program.js';
 import { initRunTab } from './tab-run.js';
@@ -262,6 +263,9 @@ document.addEventListener('DOMContentLoaded', () => {
   renderPositions();
   renderSteps();
   refreshCode();
+
+  // 3D viewer
+  initViewer('robot-3d-view');
 
   // Background services
   startFreedriveDetection();

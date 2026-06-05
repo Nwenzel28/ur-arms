@@ -2,6 +2,7 @@
 // NETWORK — all fetch() calls to relay.py
 // ═══════════════════════════════════════════════════════════
 import { steps, positions, isJogging, setIsJogging, setIsFreedrive, fdAxes, isJointJogging, setIsJointJogging } from './state.js';
+import { updateViewer } from './viewer3d.js';
 import { buildCode } from './tab-program.js';
 
 export const RELAY = 'http://localhost:5678';
@@ -140,6 +141,7 @@ export async function fetchRobotState() {
     if (joints && joints.length >= 6) {
       const s = await import('./state.js');
       s.setLatestJoints(joints);
+      updateViewer(joints);
       const toDisp = rad => (rad * 180 / Math.PI).toFixed(2);
       updateText('live-j0', toDisp(joints[0]));
       updateText('live-j1', toDisp(joints[1]));
