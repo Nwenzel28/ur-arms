@@ -129,6 +129,7 @@ async function playProgram() {
   try {
     const compiledCode = buildCode(); 
     
+    // Grab the slider value and inject the command
     const sliderEl = document.getElementById('dash-speed-slider');
     const speedFraction = sliderEl ? (parseFloat(sliderEl.value) / 100).toFixed(2) : 1.0;
     const finalScript = compiledCode.replace('def master_program():', `def master_program():\n    set_speed_slider(${speedFraction})`);
@@ -136,7 +137,8 @@ async function playProgram() {
     const res = await fetch(RELAY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ip: ip, code: compiledCode })
+      // CRITICAL FIX: Send finalScript instead of compiledCode
+      body: JSON.stringify({ ip: ip, code: finalScript }) 
     });
     
     const data = await res.json();
@@ -146,7 +148,8 @@ async function playProgram() {
       btn.innerHTML = '▶︎ RUNNING!';
       btn.style.background = 'var(--gn)';
       btn.style.borderColor = 'var(--gn)';
-      logLine('Program accepted. Execution started.');
+      // Updated the log so you get visual confirmation of the injected speed!
+      logLine(`Program accepted. Execution started at ${Math.round(speedFraction * 100)}% speed.`);
     } else {
       throw new Error(data.error || 'Robot rejected the script');
     }
@@ -164,7 +167,6 @@ async function playProgram() {
       btn.disabled = false;
     }, 2500);
   }
-}
 
 function exportProject() {
   import('./state.js').then(s => {
