@@ -622,12 +622,16 @@ export function buildCode() {
       case 'sleep':           L.push(`${tab}sleep(${s.sec??1.0})`); break;
       case 'textmsg':
         const safeMsg = s.msg ?? 'Log';
-        // 1. Keep the native log for the physical pendant
         L.push(`${tab}textmsg("${safeMsg}")`);
-        
-        // 2. Fire and forget to the Python relay (Port 50001)
         L.push(`${tab}socket_open("${getRelayIp()}", 50001, "log_sock")`);
-        L.push(`${tab}socket_send_string("${safeMsg}", "log_sock")`);
+        
+        // Smart check: If the message matches an existing variable, don't wrap it in quotes!
+        if (safeMsg === 'part_size' || safeMsg === '_master_clock') {
+          L.push(`${tab}socket_send_string(to_str(${safeMsg}), "log_sock")`);
+        } else {
+          L.push(`${tab}socket_send_string("${safeMsg}", "log_sock")`);
+        }
+        
         L.push(`${tab}socket_close("log_sock")`);
         break;
       case 'set_digital_out': L.push(`${tab}set_digital_out(${s.port??0}, ${s.val!==false?'True':'False'})`); break;

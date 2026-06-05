@@ -167,7 +167,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         # --- All globals declared ONCE at the very top of the function ---
-        global target_ip, popup_msg, popup_resolved, ignore_popups_until
+        global target_ip, popup_msg, popup_resolved, ignore_popups_until, ui_logs
         
         content_length = int(self.headers.get('Content-Length', 0))
         body = self.rfile.read(content_length)
@@ -343,9 +343,9 @@ class Handler(BaseHTTPRequestHandler):
                 resp = json.dumps({"ok": True}).encode()
         # ── Fetch Live UI Logs ─────────────────────────────────────────
         elif action == 'fetch_logs':
-            # Send the current logs, then immediately clear the list
+            # Send the current logs
             resp = json.dumps({"ok": True, "logs": ui_logs}).encode()
-            ui_logs = []
+            ui_logs.clear()
 
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
