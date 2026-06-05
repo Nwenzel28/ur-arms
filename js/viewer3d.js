@@ -4,19 +4,17 @@
 
 // ── UR3e DH Parameters (from Universal Robots spec sheet) ──
 // Standard Modified DH convention
+// ── UR3e Standard DH Parameters (Official UR Spec Sheet) ──
 const DH = {
   a:     [0,        -0.24355, -0.2132,  0,        0,        0      ],
   d:     [0.15185,   0,        0,       0.13105,  0.08535,  0.0921 ],
   alpha: [Math.PI/2, 0,        0,       Math.PI/2,-Math.PI/2, 0    ],
 };
 
-// ── Forward Kinematics ──────────────────────────────────────
-// Returns array of 7 THREE.Matrix4 objects:
-//   [base_frame, T0, T1, T2, T3, T4, T5]
-// Each is the cumulative transform from world origin to that joint.
+// ── Corrected Forward Kinematics (Standard DH) ────────────────
 function fk(joints, THREE) {
   const transforms = [];
-  let T = new THREE.Matrix4(); // identity = world / base
+  let T = new THREE.Matrix4(); // Base frame identity
 
   transforms.push(T.clone());
 
@@ -29,12 +27,12 @@ function fk(joints, THREE) {
     const ct = Math.cos(theta), st = Math.sin(theta);
     const ca = Math.cos(alpha), sa = Math.sin(alpha);
 
-    // Modified DH transformation matrix
+    // Standard DH transformation matrix (Row-major layout for Three.js .set)
     const Ti = new THREE.Matrix4().set(
-      ct,  -st,   0,   a,
-      st*ca, ct*ca, -sa, -sa*d,
-      st*sa, ct*sa,  ca,  ca*d,
-      0,     0,     0,   1
+      ct, -st * ca,  st * sa, a * ct,
+      st,  ct * ca, -ct * sa, a * st,
+       0,       sa,       ca,      d,
+       0,        0,        0,      1
     );
 
     T = new THREE.Matrix4().multiplyMatrices(T, Ti);
@@ -181,14 +179,43 @@ export async function initViewer(containerId) {
     jointMeshes.push(mesh);
   }
 
-  // ── Build links (cylinders) — one per segment between joints ──
-  for (let i = 0; i < 6; i++) {
-    const geo  = new THREE.CylinderGeometry(LINK_RADIUS, LINK_RADIUS, 1, 16);
-    const mesh = new THREE.Mesh(geo, linkMat.clone());
-    mesh.castShadow = true;
-    scene.add(mesh);
-    linkMeshes.push(mesh);
+for (let i = 0; i < 6; i++) {
+  const linkGroup = new THREE.Group();
+  const a = DH.a[i];
+  const d = DH.d[i];
+
+  // 1. If there is a 'd' offset, create a cylinder along the local Z axis
+  if (Math.abs(d) > 0.001) {
+    const dGeo = new THREE.CylinderGeometry(LINK_RADIUS, LINK_RADIUS, Math.abs(d), 16);
+    const dMesh = new THREE.Mesh(dGeo, linkMat);
+    dMesh.castShadow = true;
+    
+    // Rotate cylinder (default up is Y) to align with Z axis
+    dMesh.rotation.x = Math.PI / 2;
+    // Position it so it spans from 0 to d along Z
+    dMesh.position.z = d / 2; 
+    linkGroup.add(dMesh);
   }
+
+  // 2. If there is an 'a' offset (length), create a cylinder along the local X axis
+  if (Math.abs(a) > 0.001) {
+    const aGeo = new THREE.CylinderGeometry(LINK_RADIUS, LINK_RADIUS, Math.abs(a), 16);
+    const aMesh = new THREE.Mesh(aGeo, linkMat);
+    aMesh.castShadow = true;
+    
+    // Rotate cylinder to align with X axis
+    aMesh.rotation.z = Math.PI / 2;
+    
+    // Position it so it spans from 0 to a along X.
+    // Note: It must be shifted by 'd' in Z because 'a' happens AFTER 'd' in standard DH sequence
+    aMesh.position.x = a / 2;
+    aMesh.position.z = d; 
+    linkGroup.add(aMesh);
+  }
+
+  scene.add(linkGroup);
+  linkMeshes.push(linkGroup); // Store the group reference
+}
 
   // ── TCP marker (small blue octahedron) ──
   const tcpGeo = new THREE.OctahedronGeometry(TCP_SIZE, 0);
@@ -242,43 +269,27 @@ function addTcpAxes() {
 export function updateViewer(joints) {
   if (!THREE || !scene) return;
 
+  // Get cumulative matrices [base, T0, T1, T2, T3, T4, T5]
   const transforms = fk(joints, THREE);
 
-  // Position each joint sphere
+  // 1. Position each joint sphere at its exact coordinate frame origin
   for (let i = 0; i < 6; i++) {
     const p = pos(transforms[i + 1], THREE);
     jointMeshes[i].position.copy(p);
   }
 
-  // Position and orient each link cylinder between consecutive joint positions
-  const origins = transforms.map(t => pos(t, THREE));
-
+  // 2. Align link meshes using the parent joint's transformation matrix
   for (let i = 0; i < 6; i++) {
-    const from = origins[i];     // parent joint position
-    const to   = origins[i + 1]; // child joint position
-    const mid  = new THREE.Vector3().addVectors(from, to).multiplyScalar(0.5);
-    const len  = from.distanceTo(to);
-
-    const mesh = linkMeshes[i];
-
-    if (len < 0.001) {
-      mesh.visible = false;
-      continue;
-    }
-
-    mesh.visible = true;
-    mesh.position.copy(mid);
-    mesh.scale.y = len;
-
-    // Orient cylinder along the segment direction
-    const dir = new THREE.Vector3().subVectors(to, from).normalize();
-    const up  = new THREE.Vector3(0, 1, 0);
-    const quaternion = new THREE.Quaternion().setFromUnitVectors(up, dir);
-    mesh.quaternion.copy(quaternion);
+    const meshGroup = linkMeshes[i];
+    
+    // The link geometry exists in the space of the PARENT frame (transforms[i])
+    // before the i-th joint rotation and translation are applied.
+    meshGroup.position.setFromMatrixPosition(transforms[i]);
+    meshGroup.quaternion.setFromRotationMatrix(transforms[i]);
   }
 
-  // TCP marker + axes at end-effector
-  const tcpPos = origins[6];
+  // 3. TCP marker + axes at end-effector (T5 frame)
+  const tcpPos = pos(transforms[6], THREE);
   const tcpRot = new THREE.Quaternion();
   transforms[6].decompose(new THREE.Vector3(), tcpRot, new THREE.Vector3());
 
