@@ -185,34 +185,61 @@ export async function initViewer(containerId) {
 
 
   for (let i = 0; i < 6; i++) {
-  const linkGroup = new THREE.Group();
-  const a = DH.a[i];
-  const d = DH.d[i];
+    const linkGroup = new THREE.Group();
+    const a = DH.a[i];
+    const d = DH.d[i];
 
-  // Vertical joint offset segment (Z-axis displacement)
-  if (Math.abs(d) > 0.001) {
-    const dGeo = new THREE.CylinderGeometry(LINK_RADIUS, LINK_RADIUS, Math.abs(d), 16);
-    const dMesh = new THREE.Mesh(dGeo, linkMat);
-    dMesh.castShadow = true;
-    dMesh.rotation.x = Math.PI / 2; // Lie flat along Z
-    dMesh.position.z = d / 2;       // Center along the shift
-    linkGroup.add(dMesh);
+    // 1. Z-Axis Offset (Standard DH 'd' — Covers Base and Wrists)
+    if (Math.abs(d) > 0.001) {
+      const dMesh = new THREE.Mesh(new THREE.CylinderGeometry(LINK_RADIUS, LINK_RADIUS, Math.abs(d), 16), linkMat);
+      dMesh.castShadow = true;
+      dMesh.rotation.x = Math.PI / 2;
+      dMesh.position.z = d / 2;
+      linkGroup.add(dMesh);
+    }
+
+    // 2. Physical "U-Bracket" Offsets for Shoulder and Elbow
+    // Standard DH compresses these physical widths into d4. We visually expand them here.
+    if (i === 1 || i === 2) {
+      const visualOffset = (i === 1) ? 0.12 : 0.09; // Physical motor casing widths
+      
+      // A. Motor cap pushing outward from the DH origin along Z
+      const capOut = new THREE.Mesh(new THREE.CylinderGeometry(LINK_RADIUS * 1.15, LINK_RADIUS * 1.15, visualOffset, 16), linkMat);
+      capOut.castShadow = true;
+      capOut.rotation.x = Math.PI / 2;
+      capOut.position.z = visualOffset / 2;
+      linkGroup.add(capOut);
+
+      // B. Main arm tube running parallel to X, shifted out by the motor width
+      const mainTube = new THREE.Mesh(new THREE.CylinderGeometry(LINK_RADIUS, LINK_RADIUS, Math.abs(a), 16), linkMat);
+      mainTube.castShadow = true;
+      mainTube.rotation.z = Math.PI / 2;
+      mainTube.position.x = a / 2; // 'a' is negative, this correctly centers it backwards
+      mainTube.position.z = visualOffset;
+      linkGroup.add(mainTube);
+
+      // C. Return bracket connecting back to the next true mathematical DH origin
+      const capIn = new THREE.Mesh(new THREE.CylinderGeometry(LINK_RADIUS * 1.15, LINK_RADIUS * 1.15, visualOffset, 16), linkMat);
+      capIn.castShadow = true;
+      capIn.rotation.x = Math.PI / 2;
+      capIn.position.x = a; 
+      capIn.position.z = visualOffset / 2;
+      linkGroup.add(capIn);
+    } 
+    
+    // 3. Standard X-Axis Offset (Fallback for strict DH, not used by UR3e due to brackets above)
+    else if (Math.abs(a) > 0.001) {
+      const aMesh = new THREE.Mesh(new THREE.CylinderGeometry(LINK_RADIUS, LINK_RADIUS, Math.abs(a), 16), linkMat);
+      aMesh.castShadow = true;
+      aMesh.rotation.z = Math.PI / 2;
+      aMesh.position.x = a / 2;
+      aMesh.position.z = d;
+      linkGroup.add(aMesh);
+    }
+
+    scene.add(linkGroup);
+    linkMeshes.push(linkGroup);
   }
-
-  // Horizontal segment (X-axis displacement, shifts at the top of the Z offset)
-  if (Math.abs(a) > 0.001) {
-    const aGeo = new THREE.CylinderGeometry(LINK_RADIUS, LINK_RADIUS, Math.abs(a), 16);
-    const aMesh = new THREE.Mesh(aGeo, linkMat);
-    aMesh.castShadow = true;
-    aMesh.rotation.z = Math.PI / 2; // Lie flat along X
-    aMesh.position.x = a / 2;       // Center along the length
-    aMesh.position.z = d;           // Sit at the end of the Z cylinder
-    linkGroup.add(aMesh);
-  }
-
-  scene.add(linkGroup);
-  linkMeshes.push(linkGroup);
-}
 
   // ── TCP marker (small blue octahedron) ──
   const tcpGeo = new THREE.OctahedronGeometry(TCP_SIZE, 0);
@@ -262,18 +289,14 @@ function addTcpAxes() {
   scene.add(tcpAxesGroup);
 }
 
-// ── Fixed Main Update — Perfectly Tracks Orthogonal Link Shifts ──
+// ── Fixed Main Update — With Physical Orthogonal Tracking ──
 export function updateViewer(joints) {
   if (!THREE || !scene) return;
 
-  // Get cumulative matrices [base_corrected, T0, T1, T2, T3, T4, T5]
   const transforms = fk(joints, THREE);
-
-  // Extract world positions for every coordinate frame
   const origins = transforms.map(t => pos(t, THREE));
 
-  // 1. Position Joint Spheres precisely at their correct kinematic positions
-  // Joint 1 is at T0, Joint 2 is at T1, ..., Joint 6 is at T5
+  // 1. Position Joint Spheres precisely at mathematical origins
   for (let i = 0; i < 6; i++) {
     const p = origins[i + 1]; 
     jointMeshes[i].position.copy(p);
@@ -283,21 +306,19 @@ export function updateViewer(joints) {
     jointMeshes[i].quaternion.copy(q);
   }
 
-  // 2. Position Link Groups based on their actual structural start frames
+  // 2. Position Link Brackets
   for (let i = 0; i < 6; i++) {
     const meshGroup = linkMeshes[i];
     
-    // 1. Snap to the parent joint's coordinate frame
+    // Anchor to the base of the current frame
     meshGroup.position.setFromMatrixPosition(transforms[i]);
     meshGroup.quaternion.setFromRotationMatrix(transforms[i]);
     
-    // CRITICAL FIX: The physical link must rotate with the joint!
-    // In Standard DH, the theta rotation happens around the local Z-axis 
-    // BEFORE the structural lengths (d and a) are drawn out.
+    // Spin the whole U-Bracket around the joint's Z-axis
     meshGroup.rotateZ(joints[i]);
   }
 
-  // 3. TCP Marker + Axis Indicators at end-effector (transforms[6] / T5 frame)
+  // 3. TCP Marker
   const tcpPos = origins[6];
   const tcpRot = new THREE.Quaternion();
   transforms[6].decompose(new THREE.Vector3(), tcpRot, new THREE.Vector3());
