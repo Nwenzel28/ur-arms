@@ -56,7 +56,7 @@ export function setIsGripperOpen(v) { isGripperOpen = v; }
 // Global settings (Default Motion, TCP, Payload settings)
 export let globalSettings = {
   js: 1.05, ja: 1.4, ls: 0.25, la: 1.2, br: 0.0,
-  tcpX: 0.0, tcpY: 0.0, tcpZ: 0.174, tcpRx: 0.0, tcpRy: 0.0, tcpRz: 0.0,
+  tcpX: 0.0, tcpY: 0.0, tcpZ: 0.165, tcpRx: 0.0, tcpRy: 0.0, tcpRz: 0.0,
   plW: 0.9, plX: 0.0, plY: 0.0, plZ: 0.06
 };
 export function setGlobalSettings(obj) {

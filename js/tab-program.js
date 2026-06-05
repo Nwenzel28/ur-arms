@@ -402,7 +402,7 @@ export async function renderNodeConfig() {
       html += `
         <div>
           <label style="${labelStyle}">TCP Pose (x,y,z,rx,ry,rz in meters/radians)</label>
-          <input type="text" style="${inputStyle}" value="${s.pose ?? '0,0,0,0,0,0'}" placeholder="0.0, 0.0, 0.174, 0.0, 0.0, 0.0" 
+          <input type="text" style="${inputStyle}" value="${s.pose ?? '0,0,0,0,0,0'}" placeholder="0.0, 0.0, 0.165, 0.0, 0.0, 0.0" 
             oninput="window._prog.upd('${s.id}', 'pose', this.value)"/>
         </div>
       `;
