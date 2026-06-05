@@ -323,12 +323,12 @@ export async function renderNodeConfig() {
         <div>
           <label style="${labelStyle}">Contact Speed (m/s)</label>
           <input type="number" step="0.005" style="${inputStyle}" value="${s.speed ?? 0.02}" 
-            oninput="window._prog.upd('${s.id}', 'speed', parseFloat(this.value) || 0)"/>
+            onchange="window._prog.upd('${s.id}', 'speed', parseFloat(this.value) || 0)"/>
         </div>
         <div>
           <label style="${labelStyle}">Retract Distance (mm)</label>
           <input type="number" step="0.1" style="${inputStyle}" value="${s.retract ?? 0}" 
-            oninput="window._prog.upd('${s.id}', 'retract', parseFloat(this.value) || 0)"/>
+            onchange="window._prog.upd('${s.id}', 'retract', parseFloat(this.value) || 0)"/>
         </div>
       `;
       break;
@@ -338,7 +338,7 @@ export async function renderNodeConfig() {
         <div>
           <label style="${labelStyle}">Wait Duration (seconds)</label>
           <input type="number" step="0.1" min="0" style="${inputStyle}" value="${s.sec ?? 1}" 
-            oninput="window._prog.upd('${s.id}', 'sec', parseFloat(this.value) || 0)"/>
+            onchange="window._prog.upd('${s.id}', 'sec', parseFloat(this.value) || 0)"/>
         </div>
       `;
       break;
@@ -376,7 +376,7 @@ export async function renderNodeConfig() {
         <div>
           <label style="${labelStyle}">Digital Output Port (0 - 15)</label>
           <input type="number" min="0" max="15" style="${inputStyle}" value="${s.port ?? 0}" 
-            oninput="window._prog.upd('${s.id}', 'port', parseInt(this.value) || 0)"/>
+            onchange="window._prog.upd('${s.id}', 'port', parseInt(this.value) || 0)"/>
         </div>
         <div>
           <label style="${labelStyle}">Signal Level</label>
@@ -393,7 +393,7 @@ export async function renderNodeConfig() {
         <div>
           <label style="${labelStyle}">Mass (kg)</label>
           <input type="number" step="0.05" min="0" style="${inputStyle}" value="${s.weight ?? 0.5}" 
-            oninput="window._prog.upd('${s.id}', 'weight', parseFloat(this.value) || 0)"/>
+            onchange="window._prog.upd('${s.id}', 'weight', parseFloat(this.value) || 0)"/>
         </div>
       `;
       break;
@@ -421,7 +421,7 @@ export async function renderNodeConfig() {
           <div>
             <label style="${labelStyle}">Iteration Count</label>
             <input type="number" min="1" style="${inputStyle}" value="${s.loopCount ?? 5}" 
-              oninput="window._prog.upd('${s.id}', 'loopCount', parseInt(this.value) || 1)"/>
+              onchange="window._prog.upd('${s.id}', 'loopCount', parseInt(this.value) || 1)"/>
           </div>
         ` : ''}
       `;
