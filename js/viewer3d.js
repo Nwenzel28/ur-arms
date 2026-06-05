@@ -56,11 +56,12 @@ function getPos(mat, THREE) {
 // Each entry: { xyz: [x,y,z], rpy: [r,p,y] }
 // These are the <visual><origin> values for each link.
 // Applied as a local offset when attaching mesh to its DH frame.
+// ── Corrected Mesh Origins for Standard DH Kinematics ───────────────
 const MESH_ORIGINS = [
   { xyz: [0,      0,       0     ], rpy: [0,      0,   PI   ] }, // base       (frame 0)
-  { xyz: [0,      0,       0     ], rpy: [0,      0,   PI   ] }, // shoulder   (frame 1)
-  { xyz: [0,      0,       0.12  ], rpy: [PI/2,   0,  -PI/2 ] }, // upperarm   (frame 2)
-  { xyz: [0,      0,       0.027 ], rpy: [PI/2,   0,  -PI/2 ] }, // forearm    (frame 3)
+  { xyz: [0,      0,       0     ], rpy: [0,      0,   PI   ] }, // shoulder   (frame 1)  
+  { xyz: [0,      0,       0.12  ], rpy: [PI/2,   0,   PI/2 ] }, // upperarm   (frame 2)
+  { xyz: [0,      0,       0.027 ], rpy: [PI/2,   0,   PI/2 ] }, // forearm    (frame 3)
   { xyz: [0,      0,      -0.104 ], rpy: [PI/2,   0,   0    ] }, // wrist1     (frame 4)
   { xyz: [0,      0,      -0.08535], rpy: [0,     0,   0    ] }, // wrist2     (frame 5)
   { xyz: [0,      0,      -0.0921 ], rpy: [PI/2,  0,   0    ] }, // wrist3     (frame 6)
