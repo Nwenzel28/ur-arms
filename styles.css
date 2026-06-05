@@ -21,6 +21,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font:
 .btn-sm{padding:4px 9px;font-size:11px}
 .btn-ghost{background:none;border-color:transparent;color:var(--tx2);padding:4px 7px}
 .btn-ghost:hover{background:var(--sf2);color:var(--tx)}
+
+/* Freedrive axis mask buttons */
+.axis-btn{border:1px solid var(--bd);background:var(--bg);color:var(--tx3);transition:.15s}
+.axis-btn:hover{background:var(--sf2);color:var(--tx2)}
+.axis-btn.on{background:var(--sf2);border-color:var(--tx2);color:var(--tx)}
 .btn-del{background:none;border-color:transparent;color:var(--tx3);padding:4px 7px}
 .btn-del:hover{background:var(--rdlo);color:var(--rd)}
 
