@@ -127,25 +127,20 @@ async function playProgram() {
   logLine('Compiling and sending new program to robot...');
 
   try {
-    const compiledCode = buildCode(); 
+    let finalScript = buildCode(); 
     
-    // Grab the slider value (e.g. 50% -> 0.50)
+    // Grab the slider value (e.g., 50% -> 0.50)
     const sliderEl = document.getElementById('dash-speed-slider');
-    const speedFraction = sliderEl ? (parseFloat(sliderEl.value) / 100).toFixed(2) : "1.00";
+    const multiplier = sliderEl ? parseFloat(sliderEl.value) / 100 : 1.0;
 
-    // 🎯 THE FIX: Inject a localhost socket command to force the robot to throttle itself
-    const speedInjection = `
-    # Set the teach pendant speed slider internally
-    socket_open("127.0.0.1", 30003, "speed_sock")
-    socket_send_string("set speed ${speedFraction}", "speed_sock")
-    socket_send_byte(10, "speed_sock")
-    socket_close("speed_sock")
-`;
-    
-    const finalScript = compiledCode.replace(
-      'def master_program():', 
-      `def master_program():${speedInjection}`
-    );
+    // 🎯 THE FIX: Mathematically scale the configuration variables in the code!
+    if (multiplier !== 1.0) {
+      finalScript = finalScript
+        .replace(/global JOINT_SPEED\s*=\s*([0-9.]+)/, (match, val) => `global JOINT_SPEED = ${(parseFloat(val) * multiplier).toFixed(4)}`)
+        .replace(/global JOINT_ACCEL\s*=\s*([0-9.]+)/, (match, val) => `global JOINT_ACCEL = ${(parseFloat(val) * multiplier).toFixed(4)}`)
+        .replace(/global LINEAR_SPEED\s*=\s*([0-9.]+)/, (match, val) => `global LINEAR_SPEED = ${(parseFloat(val) * multiplier).toFixed(4)}`)
+        .replace(/global LINEAR_ACCEL\s*=\s*([0-9.]+)/, (match, val) => `global LINEAR_ACCEL = ${(parseFloat(val) * multiplier).toFixed(4)}`);
+    }
 
     const res = await fetch(RELAY, {
       method: 'POST',
@@ -160,7 +155,7 @@ async function playProgram() {
       btn.innerHTML = '▶︎ RUNNING!';
       btn.style.background = 'var(--gn)';
       btn.style.borderColor = 'var(--gn)';
-      logLine(`Program accepted. Execution started at ${Math.round(speedFraction * 100)}% speed.`);
+      logLine(`Program accepted. Execution scaled to ${Math.round(multiplier * 100)}% speed.`);
     } else {
       throw new Error(data.error || 'Robot rejected the script');
     }
