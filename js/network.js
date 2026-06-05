@@ -141,7 +141,8 @@ export async function fetchRobotState() {
     if (joints && joints.length >= 6) {
       const s = await import('./state.js');
       s.setLatestJoints(joints);
-      updateViewer(joints);
+      const gs = await import('./state.js').then(s => s.globalSettings);
+      updateViewer(joints, { x: gs.tcpX, y: gs.tcpY, z: gs.tcpZ, rx: gs.tcpRx, ry: gs.tcpRy, rz: gs.tcpRz });
       const toDisp = rad => (rad * 180 / Math.PI).toFixed(2);
       updateText('live-j0', toDisp(joints[0]));
       updateText('live-j1', toDisp(joints[1]));

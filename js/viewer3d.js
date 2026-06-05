@@ -275,6 +275,24 @@ export async function initViewer(containerId) {
   const ro = new ResizeObserver(() => resizeRenderer(container));
   ro.observe(container);
 
+  // ── Flange marker: white torus ring at J6, shown only when TCP offset is active ──
+  const flangeGeo = new THREE.TorusGeometry(0.022, 0.0025, 8, 32);
+  const flangeMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff, roughness: 0.3, metalness: 0.5, transparent: true, opacity: 0.7
+  });
+  flangeMarker = new THREE.Mesh(flangeGeo, flangeMat);
+  flangeMarker.visible = false;
+  scene.add(flangeMarker);
+
+  // ── Offset line: dashed line from flange to TCP ──
+  const lineMat = new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.6 });
+  const lineGeo = new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)
+  ]);
+  offsetLine = new THREE.Line(lineGeo, lineMat);
+  offsetLine.visible = false;
+  scene.add(offsetLine);
+
   // ── Render loop ──
   function animate() {
     animFrameId = requestAnimationFrame(animate);
@@ -288,7 +306,9 @@ export async function initViewer(containerId) {
 }
 
 // ── TCP Axes helper lines ────────────────────────────────────
-let tcpAxesGroup = null;
+let tcpAxesGroup  = null;
+let flangeMarker  = null;  // thin ring at J6 flange, visible only when TCP offset is set
+let offsetLine    = null;  // line from flange to TCP
 function addTcpAxes() {
   tcpAxesGroup = new THREE.Group();
   const len = 0.05;
@@ -309,11 +329,38 @@ function addTcpAxes() {
   scene.add(tcpAxesGroup);
 }
 
-// ── Fixed Main Update — With Physical Orthogonal Tracking ──
-export function updateViewer(joints) {
-  if (!THREE || !scene) return;
+// ── TCP Offset Transform ────────────────────────────────────
+// UR stores TCP offset as a pose vector [x, y, z, rx, ry, rz]
+// where rx/ry/rz is a rotation vector (axis * angle).
+// We convert it to a 4x4 homogeneous transform and post-multiply
+// onto the flange (J6) frame to get the true TCP frame.
+function tcpOffsetMatrix(offset, THREE) {
+  const { x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0 } = offset;
 
-  const transforms = fk(joints, THREE);
+  // Rotation vector → angle-axis → quaternion
+  const angle = Math.sqrt(rx*rx + ry*ry + rz*rz);
+  const q = new THREE.Quaternion();
+  if (angle > 1e-9) {
+    q.setFromAxisAngle(new THREE.Vector3(rx/angle, ry/angle, rz/angle), angle);
+  }
+
+  const mat = new THREE.Matrix4();
+  mat.makeRotationFromQuaternion(q);
+  mat.setPosition(x, y, z);
+  return mat;
+}
+
+// Cached last known joints so TCP offset changes can re-render without new telemetry
+let _lastJoints = [0, -Math.PI/2, 0, -Math.PI/2, -Math.PI/2, 0];
+
+// ── Main Update ──────────────────────────────────────────────
+// joints     : [j0..j5] in radians
+// tcpOffset  : { x, y, z, rx, ry, rz } in metres / radians (optional)
+export function updateViewer(joints, tcpOffset = null) {
+  if (!THREE || !scene) return;
+  if (joints) _lastJoints = joints;
+
+  const transforms = fk(_lastJoints, THREE);
   const origins = transforms.map(t => pos(t, THREE));
 
   // 1. Position Joint Spheres precisely at mathematical origins
@@ -329,26 +376,67 @@ export function updateViewer(joints) {
   // 2. Position Link Brackets
   for (let i = 0; i < 6; i++) {
     const meshGroup = linkMeshes[i];
-    
-    // Anchor to the base of the current frame
     meshGroup.position.setFromMatrixPosition(transforms[i]);
     meshGroup.quaternion.setFromRotationMatrix(transforms[i]);
-    
-    // Spin the whole U-Bracket around the joint's Z-axis
-    meshGroup.rotateZ(joints[i]);
+    meshGroup.rotateZ(_lastJoints[i]);
   }
 
-  // 3. TCP Marker
-  const tcpPos = origins[6];
-  const tcpRot = new THREE.Quaternion();
-  transforms[6].decompose(new THREE.Vector3(), tcpRot, new THREE.Vector3());
+  // 3. Flange frame (J6 — end of the DH chain)
+  const flangePos = origins[6];
+  const flangeRot = new THREE.Quaternion();
+  transforms[6].decompose(new THREE.Vector3(), flangeRot, new THREE.Vector3());
 
+  // 4. TCP = flange * tcpOffsetMatrix
+  //    If no offset, TCP sits exactly at the flange.
+  let tcpPos = flangePos.clone();
+  let tcpRot = flangeRot.clone();
+
+  if (tcpOffset) {
+    const offsetMat = tcpOffsetMatrix(tcpOffset, THREE);
+    const tcpMat = new THREE.Matrix4().multiplyMatrices(transforms[6], offsetMat);
+    tcpMat.decompose(tcpPos, tcpRot, new THREE.Vector3());
+  }
+
+  // 5. TCP octahedron at true TCP position
   tcpMesh.position.copy(tcpPos);
   tcpMesh.quaternion.copy(tcpRot);
 
+  // 6. TCP axes follow the TCP frame
   if (tcpAxesGroup) {
     tcpAxesGroup.position.copy(tcpPos);
     tcpAxesGroup.quaternion.copy(tcpRot);
+  }
+
+  // 7. Flange indicator: thin white ring at J6 to show where the physical
+  //    flange is when there IS a TCP offset (hidden when offset is zero)
+  const hasOffset = tcpOffset &&
+    (Math.abs(tcpOffset.x) + Math.abs(tcpOffset.y) + Math.abs(tcpOffset.z) +
+     Math.abs(tcpOffset.rx) + Math.abs(tcpOffset.ry) + Math.abs(tcpOffset.rz)) > 1e-6;
+
+  if (flangeMarker) {
+    flangeMarker.visible = !!hasOffset;
+    if (hasOffset) {
+      flangeMarker.position.copy(flangePos);
+      flangeMarker.quaternion.copy(flangeRot);
+    }
+  }
+
+  // 8. TCP offset line: dashed line from flange to TCP when offset is non-zero
+  updateOffsetLine(flangePos, tcpPos, !!hasOffset);
+}
+
+// ── Offset line helper ───────────────────────────────────────
+function updateOffsetLine(from, to, visible) {
+  if (!offsetLine) return;
+  offsetLine.visible = visible;
+  if (!visible) return;
+  const positions = offsetLine.geometry.attributes.position;
+  if (positions) {
+    positions.setXYZ(0, from.x, from.y, from.z);
+    positions.setXYZ(1, to.x, to.y, to.z);
+    positions.needsUpdate = true;
+  } else {
+    offsetLine.geometry.setFromPoints([from.clone(), to.clone()]);
   }
 }
 

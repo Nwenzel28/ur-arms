@@ -59,7 +59,15 @@ export let globalSettings = {
   tcpX: 0.0, tcpY: 0.0, tcpZ: 0.174, tcpRx: 0.0, tcpRy: 0.0, tcpRz: 0.0,
   plW: 0.9, plX: 0.0, plY: 0.0, plZ: 0.06
 };
-export function setGlobalSettings(obj) { globalSettings = { ...globalSettings, ...obj }; }
+export function setGlobalSettings(obj) {
+  globalSettings = { ...globalSettings, ...obj };
+  // Re-render the 3D viewer immediately when TCP offset changes
+  const tcp = globalSettings;
+  import('./viewer3d.js').then(v => v.updateViewer(null, {
+    x: tcp.tcpX, y: tcp.tcpY, z: tcp.tcpZ,
+    rx: tcp.tcpRx, ry: tcp.tcpRy, rz: tcp.tcpRz
+  }));
+}
 
 
 // ── Relay IP (persisted across sessions) ──
