@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // NETWORK — all fetch() calls to relay.py
 // ═══════════════════════════════════════════════════════════
-import { steps, positions, isJogging, setIsJogging, setIsFreedrive, fdAxes, isJointJogging, setIsJointJogging } from './state.js';
+import { steps, positions, isJogging, setIsJogging, setIsFreedrive, fdAxes, isJointJogging, setIsJointJogging, isSimulationMode, simJoints, setSimJoints } from './state.js';
 import { updateViewer } from './viewer3d.js';
 import { buildCode } from './tab-program.js';
 
@@ -301,16 +301,37 @@ export function stopJog() {
 export function startJogJoint(jointIdx, direction) {
   setIsJointJogging(true);
   resetFreedriveUI();
-  let qd = [0, 0, 0, 0, 0, 0];
-  qd[jointIdx] = direction * 0.3; // 0.3 rad/s
-  const cmd = `def jog_j():\n  while True:\n    speedj([${qd.join(',')}], a=1.5, t=0.1)\n  end\nend\n`;
-  sendDirect(cmd);
+
+  if (isSimulationMode) {
+    // ── SIMULATION MODE: Smoothly animate the virtual joint ──
+    const speed = 0.02 * direction; // Adjust this float to make the virtual jog faster/slower
+    
+    function jogLoop() {
+      if (!isJointJogging) return; // Stop the loop when the mouse is released
+      
+      let newJoints = [...simJoints];
+      newJoints[jointIdx] += speed;
+      setSimJoints(newJoints);
+      
+      requestAnimationFrame(jogLoop);
+    }
+    jogLoop();
+  } else {
+    // ── REAL MODE: Send speedj command to hardware ──
+    let qd = [0, 0, 0, 0, 0, 0];
+    qd[jointIdx] = direction * 0.3; // 0.3 rad/s
+    const cmd = `def jog_j():\n  while True:\n    speedj([${qd.join(',')}], a=1.5, t=0.1)\n  end\nend\n`;
+    sendDirect(cmd);
+  }
 }
 
 export function stopJogJoint() {
   if (!isJointJogging) return;
   setIsJointJogging(false);
-  sendDirect("def stop_jog_j():\n  stopj(2.5)\nend\n");
+  
+  if (!isSimulationMode) {
+    sendDirect("def stop_jog_j():\n  stopj(2.5)\nend\n");
+  }
 }
 
 export async function dashPlay()  { const ip = document.getElementById('robot-ip').value.trim(); if (!ip) return; fetch(RELAY,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'dashboard_play',ip})}); }
