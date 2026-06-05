@@ -66,10 +66,10 @@ let OrbitControls = null;
 // Colour palette — matches your dark UI theme
 const COLORS = {
   base:       0x2a2a30,   // dark grey base plate
-  link:       0x3a3a44,   // arm segments
+  link:       0xC1C1C4,   // arm segments
   joint:      0xf97316,   // orange joints (matches --ac)
   tcp:        0x60a5fa,   // blue TCP marker
-  floor:      0x2a2a30,
+  floor:      0x3a3a40,
   gridMain:   0x3a3a44,
   gridSub:    0x25252a,
   background: 0x0e0e10,   // matches --bg
