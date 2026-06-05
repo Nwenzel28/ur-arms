@@ -212,8 +212,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font:
 }
 
 .fd-ax-btn {
-  border: 1px solid var(--bd2);
-  background: var(--sf2);
+  border: 1px solid var(--bd);
+  background: var(--bg);
   color: var(--tx3);
   font: 600 10px var(--mono);
   padding: 4px 0;
@@ -224,9 +224,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font:
 }
 
 .fd-ax-btn.on {
-  background: var(--aclo);
-  border-color: var(--ac);
-  color: var(--ac);
+  background: var(--sf2);
+  border-color: var(--tx2);
+  color: var(--tx);
 }
 
 /* Clear focus outlines from ranges and ensure proper spacing */
