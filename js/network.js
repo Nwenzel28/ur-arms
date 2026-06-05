@@ -187,7 +187,23 @@ export function startTelemetryPoller() {
   async function poll() {
     try {
       const s = await import('./state.js');
-      if (s.isLiveMonitoring) {
+      
+      if (s.isSimulationMode) {
+        // ── SIMULATION MODE: Feed virtual state directly to 3D Viewer ──
+        updateViewer(s.simJoints, { 
+          x: s.globalSettings.tcpX, y: s.globalSettings.tcpY, z: s.globalSettings.tcpZ, 
+          rx: s.globalSettings.tcpRx, ry: s.globalSettings.tcpRy, rz: s.globalSettings.tcpRz 
+        });
+        
+        // Update the live text panel to show virtual angles (converted to degrees)
+        const toDisp = rad => (rad * 180 / Math.PI).toFixed(2);
+        ['live-j0', 'live-j1', 'live-j2', 'live-j3', 'live-j4', 'live-j5'].forEach((id, i) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = toDisp(s.simJoints[i]);
+        });
+        
+      } else if (s.isLiveMonitoring) {
+        // ── REAL MODE: Fetch hardware state via Python relay ──
         const ip = document.getElementById('robot-ip').value.trim();
         const dot = document.getElementById('robot-dot')?.style.background;
         if (ip && dot !== 'var(--bl)') {

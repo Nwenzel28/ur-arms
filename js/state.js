@@ -53,6 +53,17 @@ export function setGripperActivated(v) { gripperActivated = v; }
 export let isGripperOpen = true;
 export function setIsGripperOpen(v) { isGripperOpen = v; }
 
+// --- SIMULATION MODE STATE ---
+export let isSimulationMode = false;
+export function setIsSimulationMode(val) { isSimulationMode = val; }
+
+// Default virtual robot to a standard "Home" position (angles in radians)
+export let simJoints = [0, -1.5708, 0, -1.5708, -1.5708, 0]; 
+export function setSimJoints(joints) { simJoints = joints; }
+
+export let simTcp = [0, 0, 0, 0, 0, 0];
+export function setSimTcp(tcp) { simTcp = tcp; }
+
 // Global settings (Default Motion, TCP, Payload settings)
 export let globalSettings = {
   js: 1.05, ja: 1.4, ls: 0.25, la: 1.2, br: 0.0,

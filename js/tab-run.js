@@ -50,6 +50,28 @@ export function initRunTab() {
     });
   }
 
+  // Simulation Mode Toggle
+  const simBtn = document.getElementById('dash-sim-btn');
+  if (simBtn) {
+    simBtn.addEventListener('click', () => {
+      import('./state.js').then(s => {
+        s.setIsSimulationMode(!s.isSimulationMode);
+        
+        if (s.isSimulationMode) {
+          simBtn.style.background = 'var(--ac)'; // Highlight with your accent color
+          simBtn.style.borderColor = 'var(--ac)';
+          simBtn.innerHTML = '💻 SIM: ON';
+          logLine('Simulation Mode ENABLED. Hardware disconnected from viewer.');
+        } else {
+          simBtn.style.background = ''; // Reset to default styling
+          simBtn.style.borderColor = '';
+          simBtn.innerHTML = '💻 SIM: OFF';
+          logLine('Simulation Mode DISABLED. Live telemetry restored.');
+        }
+      });
+    });
+  }
+
   // Dashboard play/pause/stop
   document.getElementById('dash-play')?.addEventListener('click',  playProgram); // ◄ Changed to our new compile & send function
   document.getElementById('dash-pause')?.addEventListener('click', dashPause);
