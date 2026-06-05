@@ -167,7 +167,7 @@ export async function initViewer(containerId) {
   floor.rotation.x = -PI/2;
   floor.receiveShadow = true;
   scene.add(floor);
-  const grid = new THREE.GridHelper(2, 16, 0x3a3a44, 0x25252a);
+  const grid = new THREE.GridHelper(2, 16, 0x4a4a54, 0x35353a);
   grid.position.y = 0.001;
   scene.add(grid);
 
