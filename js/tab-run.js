@@ -129,16 +129,17 @@ async function playProgram() {
   try {
     const compiledCode = buildCode(); 
     
-    // Grab the slider value and inject the command
+    // CRITICAL FIX: Use your existing Dashboard Server command to set hardware speed!
     const sliderEl = document.getElementById('dash-speed-slider');
-    const speedFraction = sliderEl ? (parseFloat(sliderEl.value) / 100).toFixed(2) : 1.0;
-    const finalScript = compiledCode.replace('def master_program():', `def master_program():\n    set_speed_slider(${speedFraction})`);
+    if (sliderEl) {
+      dashSpeed(parseFloat(sliderEl.value)); 
+    }
 
     const res = await fetch(RELAY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      // CRITICAL FIX: Send finalScript instead of compiledCode
-      body: JSON.stringify({ ip: ip, code: finalScript }) 
+      // Send the pristine, completely valid URScript
+      body: JSON.stringify({ ip: ip, code: compiledCode }) 
     });
     
     const data = await res.json();
@@ -148,8 +149,7 @@ async function playProgram() {
       btn.innerHTML = '▶︎ RUNNING!';
       btn.style.background = 'var(--gn)';
       btn.style.borderColor = 'var(--gn)';
-      // Updated the log so you get visual confirmation of the injected speed!
-      logLine(`Program accepted. Execution started at ${Math.round(speedFraction * 100)}% speed.`);
+      logLine(`Program accepted. Execution started at ${sliderEl ? sliderEl.value : 100}%.`);
     } else {
       throw new Error(data.error || 'Robot rejected the script');
     }
