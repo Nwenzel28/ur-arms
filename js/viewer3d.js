@@ -262,6 +262,12 @@ function loadAllMeshes() {
           // Wrap in a pivot group so we can apply the URDF mesh origin offset
           const pivot = new THREE.Group();
           const originMat = originMatrix(MESH_ORIGINS[i].xyz, MESH_ORIGINS[i].rpy, THREE);
+
+          if (i === 2 || i === 3) {
+            const humanRotation = new THREE.Matrix4().makeRotationZ(Math.PI);
+            // premultiply applies the rotation to the DH motor shaft, not the mesh's tip
+            originMat.premultiply(humanRotation); 
+          }
           const offsetPos = new THREE.Vector3();
           const offsetQuat = new THREE.Quaternion();
           originMat.decompose(offsetPos, offsetQuat, new THREE.Vector3());
