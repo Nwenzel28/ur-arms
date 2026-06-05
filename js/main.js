@@ -188,6 +188,61 @@ function injectProgramControls() {
   }
 }
 
+// ── KEYBOARD SHORTCUTS ──
+function initKeyboardShortcuts() {
+  const TAB_TARGETS = ['tab-positions', 'tab-program', 'tab-run'];
+
+  document.addEventListener('keydown', e => {
+    // Never fire when the user is typing in an input, textarea, or select
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+    switch (e.key) {
+
+      case 'f':
+      case 'F':
+        e.preventDefault();
+        toggleFreedrive();
+        break;
+
+      case 'e':
+      case 'E':
+        e.preventDefault();
+        emergencyStop();
+        break;
+
+      case ' ':
+        e.preventDefault();
+        recordLivePosition();
+        break;
+
+      case '1':
+      case '2':
+      case '3': {
+        e.preventDefault();
+        const target = TAB_TARGETS[parseInt(e.key) - 1];
+        const tab = document.querySelector(`.tab[data-target="${target}"]`);
+        if (tab) tab.click();
+        break;
+      }
+
+      case 'g':
+      case 'G': {
+        e.preventDefault();
+        import('./state.js').then(s => {
+          if (!s.gripperActivated) return; // ignore if gripper not yet activated
+          if (s.isGripperOpen) {
+            closeGripper();
+          } else {
+            openGripper();
+          }
+        });
+        break;
+      }
+    }
+  });
+}
+
 // ── BOOT ──
 document.addEventListener('DOMContentLoaded', () => {
   // Expose module fns for inline HTML handlers
@@ -196,6 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   initTabs();
   initHeader();
+  initKeyboardShortcuts();
   upgradePalette();
   injectProgramControls();
   initPositionsTab();

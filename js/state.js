@@ -49,6 +49,10 @@ export function setIsLiveMonitoring(v) { isLiveMonitoring = v; }
 export let gripperActivated = false;
 export function setGripperActivated(v) { gripperActivated = v; }
 
+// Gripper open/closed (last commanded direction)
+export let isGripperOpen = true;
+export function setIsGripperOpen(v) { isGripperOpen = v; }
+
 // Global settings (Default Motion, TCP, Payload settings)
 export let globalSettings = {
   js: 1.05, ja: 1.4, ls: 0.25, la: 1.2, br: 0.0,

@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // TAB-SETUP — Positions list, Robot Controls, Live viewer
 // ═══════════════════════════════════════════════════════════
-import { positions, setPositions, steps, setSteps, latestJoints, latestTcp, uid, isFreedrive, setIsFreedrive, fdAxes } from './state.js';
+import { positions, setPositions, steps, setSteps, latestJoints, latestTcp, uid, isFreedrive, setIsFreedrive, fdAxes, setIsGripperOpen } from './state.js';
 import { sendDirect, resetFreedriveUI, fetchRobotState } from './network.js';
 import { renderSteps, refreshCode } from './tab-program.js';
 
@@ -186,8 +186,8 @@ export function activateGripper() {
 }
 
 // Gripper actions
-export function openGripper()  { sendDirect(`def grp():\n  socket_close("rq_srv")\n  socket_open("127.0.0.1", 63352, "rq_srv")\n  socket_send_string("SET SPE 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET FOR 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET POS 0", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_close("rq_srv")\nend\ngrp()`); }
-export function closeGripper() { sendDirect(`def grp():\n  socket_close("rq_srv")\n  socket_open("127.0.0.1", 63352, "rq_srv")\n  socket_send_string("SET SPE 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET FOR 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET POS 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_close("rq_srv")\nend\ngrp()`); }
+export function openGripper()  { sendDirect(`def grp():\n  socket_close("rq_srv")\n  socket_open("127.0.0.1", 63352, "rq_srv")\n  socket_send_string("SET SPE 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET FOR 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET POS 0", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_close("rq_srv")\nend\ngrp()`);  setIsGripperOpen(true); }
+export function closeGripper() { sendDirect(`def grp():\n  socket_close("rq_srv")\n  socket_open("127.0.0.1", 63352, "rq_srv")\n  socket_send_string("SET SPE 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET FOR 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET POS 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_close("rq_srv")\nend\ngrp()`);  setIsGripperOpen(false); }
 
 // Expose to window for inline HTML event handlers
 export function exposeSetup() {
