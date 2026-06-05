@@ -11,11 +11,15 @@ const DH = {
   alpha: [Math.PI/2, 0,        0,       Math.PI/2,-Math.PI/2, 0    ],
 };
 
-// ── Corrected Forward Kinematics (Standard DH) ────────────────
+// ── Corrected Forward Kinematics (Standard DH with Y-Up Alignment) ──
 function fk(joints, THREE) {
   const transforms = [];
-  let T = new THREE.Matrix4(); // Base frame identity
+  
+  // Create a base alignment matrix: Rotates the robot -90 degrees around X
+  // so the robot's Z-axis points straight UP along the Three.js Y-axis.
+  let T = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
 
+  // Base frame tracking
   transforms.push(T.clone());
 
   for (let i = 0; i < 6; i++) {
@@ -27,7 +31,7 @@ function fk(joints, THREE) {
     const ct = Math.cos(theta), st = Math.sin(theta);
     const ca = Math.cos(alpha), sa = Math.sin(alpha);
 
-    // Standard DH transformation matrix (Row-major layout for Three.js .set)
+    // Standard DH matrix
     const Ti = new THREE.Matrix4().set(
       ct, -st * ca,  st * sa, a * ct,
       st,  ct * ca, -ct * sa, a * st,
@@ -184,37 +188,31 @@ for (let i = 0; i < 6; i++) {
   const a = DH.a[i];
   const d = DH.d[i];
 
-  // 1. If there is a 'd' offset, create a cylinder along the local Z axis
+  // 1. Translation along Z by distance 'd'
   if (Math.abs(d) > 0.001) {
     const dGeo = new THREE.CylinderGeometry(LINK_RADIUS, LINK_RADIUS, Math.abs(d), 16);
     const dMesh = new THREE.Mesh(dGeo, linkMat);
     dMesh.castShadow = true;
     
-    // Rotate cylinder (default up is Y) to align with Z axis
-    dMesh.rotation.x = Math.PI / 2;
-    // Position it so it spans from 0 to d along Z
-    dMesh.position.z = d / 2; 
+    dMesh.rotation.x = Math.PI / 2; // Orient along Z axis
+    dMesh.position.z = d / 2;       // Center it along the displacement
     linkGroup.add(dMesh);
   }
 
-  // 2. If there is an 'a' offset (length), create a cylinder along the local X axis
+  // 2. Translation along X by distance 'a' (occurs at the end of 'd')
   if (Math.abs(a) > 0.001) {
     const aGeo = new THREE.CylinderGeometry(LINK_RADIUS, LINK_RADIUS, Math.abs(a), 16);
     const aMesh = new THREE.Mesh(aGeo, linkMat);
     aMesh.castShadow = true;
     
-    // Rotate cylinder to align with X axis
-    aMesh.rotation.z = Math.PI / 2;
-    
-    // Position it so it spans from 0 to a along X.
-    // Note: It must be shifted by 'd' in Z because 'a' happens AFTER 'd' in standard DH sequence
-    aMesh.position.x = a / 2;
-    aMesh.position.z = d; 
+    aMesh.rotation.z = Math.PI / 2; // Orient along X axis
+    aMesh.position.x = a / 2;       // Center it along the displacement
+    aMesh.position.z = d;           // Push it down to the end of the Z offset
     linkGroup.add(aMesh);
   }
 
   scene.add(linkGroup);
-  linkMeshes.push(linkGroup); // Store the group reference
+  linkMeshes.push(linkGroup);
 }
 
   // ── TCP marker (small blue octahedron) ──
@@ -269,26 +267,31 @@ function addTcpAxes() {
 export function updateViewer(joints) {
   if (!THREE || !scene) return;
 
-  // Get cumulative matrices [base, T0, T1, T2, T3, T4, T5]
+  // Get cumulative matrices [base_corrected, T0, T1, T2, T3, T4, T5]
   const transforms = fk(joints, THREE);
 
-  // 1. Position each joint sphere at its exact coordinate frame origin
-  for (let i = 0; i < 6; i++) {
-    const p = pos(transforms[i + 1], THREE);
-    jointMeshes[i].position.copy(p);
-  }
-
-  // 2. Align link meshes using the parent joint's transformation matrix
+  // 1. Position each link group using its parent frame
   for (let i = 0; i < 6; i++) {
     const meshGroup = linkMeshes[i];
     
-    // The link geometry exists in the space of the PARENT frame (transforms[i])
-    // before the i-th joint rotation and translation are applied.
+    // The link geometry moves out from the cumulative position of the previous frame
     meshGroup.position.setFromMatrixPosition(transforms[i]);
     meshGroup.quaternion.setFromRotationMatrix(transforms[i]);
   }
 
-  // 3. TCP marker + axes at end-effector (T5 frame)
+  // 2. Position joint spheres precisely at the connection joints
+  // Joint 0 (Base shoulder attachment) is at transforms[1], Joint 1 at transforms[2], etc.
+  for (let i = 0; i < 6; i++) {
+    const p = pos(transforms[i + 1], THREE);
+    jointMeshes[i].position.copy(p);
+    
+    // Also match rotation so joint decorations rotate accurately
+    const q = new THREE.Quaternion();
+    transforms[i + 1].decompose(new THREE.Vector3(), q, new THREE.Vector3());
+    jointMeshes[i].quaternion.copy(q);
+  }
+
+  // 3. TCP marker + axes at end-effector (transforms[6] / T5 frame)
   const tcpPos = pos(transforms[6], THREE);
   const tcpRot = new THREE.Quaternion();
   transforms[6].decompose(new THREE.Vector3(), tcpRot, new THREE.Vector3());
