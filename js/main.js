@@ -2,6 +2,7 @@
 // MAIN — global init, tab switching, event wiring
 // ═══════════════════════════════════════════════════════════
 import { pingRobot, emergencyStop, startFreedriveDetection, startPopupPoller, resolvePopup, startJog, stopJog, startJogJoint, stopJogJoint } from './network.js';
+import { getRelayIp, saveRelayIp } from './state.js';
 import { renderPositions, exposeSetup, addPos, toggleFreedrive, openGripper, closeGripper, recordLivePosition } from './tab-setup.js';
 import { renderSteps, refreshCode, exposeProgram, addStep, sendToRobot } from './tab-program.js';
 import { initRunTab } from './tab-run.js';
@@ -24,6 +25,16 @@ function initHeader() {
   document.getElementById('ping-btn')?.addEventListener('click', pingRobot);
   document.getElementById('global-estop')?.addEventListener('click', emergencyStop);
   document.getElementById('btn-resolve-popup')?.addEventListener('click', resolvePopup);
+
+  // Relay IP: restore saved value and persist on change
+  const relayIpEl = document.getElementById('relay-ip');
+  if (relayIpEl) {
+    relayIpEl.value = getRelayIp();
+    relayIpEl.addEventListener('input', () => {
+      saveRelayIp(relayIpEl.value);
+      import('./tab-program.js').then(p => p.refreshCode());
+    });
+  }
 }
 
 // ── POSITIONS TAB WIRING ──

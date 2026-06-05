@@ -57,3 +57,16 @@ export let globalSettings = {
 };
 export function setGlobalSettings(obj) { globalSettings = { ...globalSettings, ...obj }; }
 
+
+// ── Relay IP (persisted across sessions) ──
+const RELAY_IP_KEY     = 'ur3e_relay_ip';
+const RELAY_IP_DEFAULT = '169.254.110.37';
+
+export function getRelayIp() {
+  return localStorage.getItem(RELAY_IP_KEY) || RELAY_IP_DEFAULT;
+}
+
+export function saveRelayIp(val) {
+  const clean = (val || '').trim();
+  if (clean) localStorage.setItem(RELAY_IP_KEY, clean);
+}

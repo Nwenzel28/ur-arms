@@ -1,5 +1,5 @@
 // ── CONSTANTS ──
-import { positions, steps, setSteps, uid, selectedStepId, globalSettings, setSelectedStepId } from './state.js';
+import { positions, steps, setSteps, uid, selectedStepId, globalSettings, setSelectedStepId, getRelayIp } from './state.js';
 
 // ── CONSTANTS ──
 const OPENERS = ['loop_start','loop_n','loop_forever','loop_while','if_start','if_din','thread_start','folder'];
@@ -654,8 +654,7 @@ export function buildCode() {
         L.push(`${tab}socket_close("rq_srv")`);
         break;
       case 'popup':
-        // CHANGE IP ADDRESS TO MATCH COMPUTER NETWORK
-        L.push(`${tab}socket_open("169.254.110.37", 50000, "ui_socket")`);
+        L.push(`${tab}socket_open("${getRelayIp()}", 50000, "ui_socket")`);
         L.push(`${tab}socket_send_string("${s.msg}", "ui_socket")`);
         L.push(`${tab}local ui_response = ""`);
         L.push(`${tab}while (ui_response != "continue"):`);
