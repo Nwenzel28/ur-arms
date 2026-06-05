@@ -129,6 +129,10 @@ async function playProgram() {
   try {
     const compiledCode = buildCode(); 
     
+    const sliderEl = document.getElementById('dash-speed-slider');
+    const speedFraction = sliderEl ? (parseFloat(sliderEl.value) / 100).toFixed(2) : 1.0;
+    const finalScript = compiledCode.replace('def master_program():', `def master_program():\n    set_speed_slider(${speedFraction})`);
+
     const res = await fetch(RELAY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
