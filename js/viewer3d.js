@@ -189,8 +189,8 @@ export async function initViewer(containerId) {
     const a = DH.a[i];
     const d = DH.d[i];
 
-    // 1. Z-Axis Offset (Standard DH 'd' — Covers Base and Wrists)
-    if (Math.abs(d) > 0.001) {
+    // 1. Base and Wrists (Standard DH 'd' offset tracking)
+    if (i !== 1 && i !== 2 && Math.abs(d) > 0.001) {
       const dMesh = new THREE.Mesh(new THREE.CylinderGeometry(LINK_RADIUS, LINK_RADIUS, Math.abs(d), 16), linkMat);
       dMesh.castShadow = true;
       dMesh.rotation.x = Math.PI / 2;
@@ -198,27 +198,26 @@ export async function initViewer(containerId) {
       linkGroup.add(dMesh);
     }
 
-    // 2. Physical "U-Bracket" Offsets for Shoulder and Elbow
-    // Standard DH compresses these physical widths into d4. We visually expand them here.
-    if (i === 1 || i === 2) {
-      const visualOffset = (i === 1) ? 0.12 : 0.09; // Physical motor casing widths
+    // 2. SHOULDER LINK (i === 1): Outward offset, horizontal run, return to 0
+    if (i === 1) {
+      const visualOffset = 0.12; // Outward offset width
       
-      // A. Motor cap pushing outward from the DH origin along Z
+      // Motor cap pushing outward along Z
       const capOut = new THREE.Mesh(new THREE.CylinderGeometry(LINK_RADIUS * 1.15, LINK_RADIUS * 1.15, visualOffset, 16), linkMat);
       capOut.castShadow = true;
       capOut.rotation.x = Math.PI / 2;
       capOut.position.z = visualOffset / 2;
       linkGroup.add(capOut);
 
-      // B. Main arm tube running parallel to X, shifted out by the motor width
+      // Main upper arm tube running along X, sitting on the offset plane
       const mainTube = new THREE.Mesh(new THREE.CylinderGeometry(LINK_RADIUS, LINK_RADIUS, Math.abs(a), 16), linkMat);
       mainTube.castShadow = true;
       mainTube.rotation.z = Math.PI / 2;
-      mainTube.position.x = a / 2; // 'a' is negative, this correctly centers it backwards
+      mainTube.position.x = a / 2; 
       mainTube.position.z = visualOffset;
       linkGroup.add(mainTube);
 
-      // C. Return bracket connecting back to the next true mathematical DH origin
+      // Return bracket bringing the casing back to the mathematical joint sphere
       const capIn = new THREE.Mesh(new THREE.CylinderGeometry(LINK_RADIUS * 1.15, LINK_RADIUS * 1.15, visualOffset, 16), linkMat);
       capIn.castShadow = true;
       capIn.rotation.x = Math.PI / 2;
@@ -227,7 +226,28 @@ export async function initViewer(containerId) {
       linkGroup.add(capIn);
     } 
     
-    // 3. Standard X-Axis Offset (Fallback for strict DH, not used by UR3e due to brackets above)
+    // 3. ELBOW LINK (i === 2): Starts at 0, runs along X on the offset plane, stays there!
+    else if (i === 2) {
+      const visualOffset = 0.12; // Must match the shoulder's outward shift
+      
+      // Connector piece stepping out to match the shoulder's offset plane
+      const capOut = new THREE.Mesh(new THREE.CylinderGeometry(LINK_RADIUS * 1.15, LINK_RADIUS * 1.15, visualOffset, 16), linkMat);
+      capOut.castShadow = true;
+      capOut.rotation.x = Math.PI / 2;
+      capOut.position.z = visualOffset / 2;
+      linkGroup.add(capOut);
+
+      // Main forearm tube running along X. 
+      // It stays on the offset plane (position.z = visualOffset) to land directly on J3!
+      const mainTube = new THREE.Mesh(new THREE.CylinderGeometry(LINK_RADIUS, LINK_RADIUS, Math.abs(a), 16), linkMat);
+      mainTube.castShadow = true;
+      mainTube.rotation.z = Math.PI / 2;
+      mainTube.position.x = a / 2; 
+      mainTube.position.z = visualOffset; 
+      linkGroup.add(mainTube);
+    }
+    
+    // 4. Fallback for Standard X-Axis tracking (Wrists)
     else if (Math.abs(a) > 0.001) {
       const aMesh = new THREE.Mesh(new THREE.CylinderGeometry(LINK_RADIUS, LINK_RADIUS, Math.abs(a), 16), linkMat);
       aMesh.castShadow = true;
