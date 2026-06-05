@@ -129,16 +129,16 @@ async function playProgram() {
   try {
     const compiledCode = buildCode(); 
     
-    // CRITICAL FIX: Use your existing Dashboard Server command to set hardware speed!
+    // CRITICAL FIX: Trigger the Python relay to hit Port 30003!
     const sliderEl = document.getElementById('dash-speed-slider');
     if (sliderEl) {
-      dashSpeed(parseFloat(sliderEl.value)); 
+      await dashSpeed(parseFloat(sliderEl.value)); 
     }
 
     const res = await fetch(RELAY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      // Send the pristine, completely valid URScript
+      // Send the clean, original compiled code!
       body: JSON.stringify({ ip: ip, code: compiledCode }) 
     });
     

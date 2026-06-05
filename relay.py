@@ -245,21 +245,24 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 resp = json.dumps({"ok": False, "error": str(e)}).encode()
 
-        # ── Dashboard Server Speed Override ────────────────────────────
+        # ── Hardware Speed Override (Port 30003) ───────────────────────
         elif action == 'dashboard_speed':
             try:
-                # The slider sends 0-100, but Port 29999 expects a fraction (0.0 to 1.0)
-                raw_speed = float(data.get('speed', 100))
-                frac_speed = raw_speed if raw_speed <= 1.0 else raw_speed / 100.0
+                # 1. Grab 'fraction' instead of 'speed' to match network.js
+                frac_speed = float(data.get('fraction', 1.0))
                 
+                # 2. Hard safety bounds (1% to 100%)
+                frac_speed = max(0.01, min(frac_speed, 1.0))
+                
+                # 3. Connect to Port 30003 (Real-Time Port) and use 'set speed'
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.settimeout(2.0)
-                    s.connect((ip, 29999))
-                    s.recv(1024) # Consume the robot's welcome message
-                    s.sendall(f"speed {frac_speed}\n".encode())
+                    s.connect((ip, 30003))
+                    # Port 30003 does not have a welcome message, so no recv() needed
+                    s.sendall(f"set speed {frac_speed}\n".encode())
                 resp = b'{"ok":true}'
             except Exception as e:
-                resp = json.dumps({"ok": False, "error": str(e)}).encode()    
+                resp = json.dumps({"ok": False, "error": str(e)}).encode()
 
         # ── Gripper Move ───────────────────────────────────────────────
         elif action == 'gripper_move':
