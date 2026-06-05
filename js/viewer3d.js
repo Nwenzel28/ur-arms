@@ -81,7 +81,7 @@ const COLORS = {
 const JOINT_RADIUS = 0.022;
 const LINK_RADIUS  = 0.018;
 const BASE_RADIUS  = 0.040;
-const BASE_HEIGHT  = 0.030;
+const BASE_HEIGHT  = 0.048;
 const TCP_SIZE     = 0.018;
 
 export async function initViewer(containerId) {
