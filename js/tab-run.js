@@ -60,12 +60,12 @@ export function initRunTab() {
         if (s.isSimulationMode) {
           simBtn.style.background = 'var(--ac)'; // Highlight with your accent color
           simBtn.style.borderColor = 'var(--ac)';
-          simBtn.innerHTML = '💻 SIM: ON';
+          simBtn.innerHTML = 'SIM: ON';
           logLine('Simulation Mode ENABLED. Hardware disconnected from viewer.');
         } else {
           simBtn.style.background = ''; // Reset to default styling
           simBtn.style.borderColor = '';
-          simBtn.innerHTML = '💻 SIM: OFF';
+          simBtn.innerHTML = 'SIM: OFF';
           logLine('Simulation Mode DISABLED. Live telemetry restored.');
         }
       });
