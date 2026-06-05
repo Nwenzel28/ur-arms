@@ -620,7 +620,16 @@ export function buildCode() {
       case 'movel': { const p=positions.find(x=>x.id===s.pid); L.push(`${tab}movel(${p?p.name+'_C':'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED, r=BLEND_RADIUS)`); break; }
       case 'movec': { const v=positions.find(x=>x.id===s.via),t=positions.find(x=>x.id===s.to); L.push(`${tab}movec(${v?v.name+'_C':'UNKNOWN'}, ${t?t.name+'_C':'UNKNOWN'}, a=LINEAR_ACCEL, v=LINEAR_SPEED)`); break; }
       case 'sleep':           L.push(`${tab}sleep(${s.sec??1.0})`); break;
-      case 'textmsg':         L.push(`${tab}textmsg("${s.msg??'Log'}")`); break;
+      case 'textmsg':
+        const safeMsg = s.msg ?? 'Log';
+        // 1. Keep the native log for the physical pendant
+        L.push(`${tab}textmsg("${safeMsg}")`);
+        
+        // 2. Fire and forget to the Python relay (Port 50001)
+        L.push(`${tab}socket_open("${getRelayIp()}", 50001, "log_sock")`);
+        L.push(`${tab}socket_send_string("${safeMsg}", "log_sock")`);
+        L.push(`${tab}socket_close("log_sock")`);
+        break;
       case 'set_digital_out': L.push(`${tab}set_digital_out(${s.port??0}, ${s.val!==false?'True':'False'})`); break;
       case 'set_payload':     L.push(`${tab}set_payload(${s.weight??0})`); break;
       case 'set_tcp':         L.push(`${tab}set_tcp(p[${s.pose??'0,0,0,0,0,0'}])`); break;

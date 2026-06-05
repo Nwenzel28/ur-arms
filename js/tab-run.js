@@ -64,6 +64,7 @@ export function initRunTab() {
 
   // Start log polling
   startLogPoller();
+  startUiLogPoller();
 }
 
 /**
@@ -249,4 +250,27 @@ function startLogPoller() {
     setTimeout(poll, 2000);
   }
   setTimeout(poll, 2000);
+}
+
+function startUiLogPoller() {
+  async function poll() {
+    try {
+      const res = await fetch(RELAY, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'fetch_logs' })
+      });
+      const data = await res.json();
+      
+      // If Python sends back an array of messages, print each one!
+      if (data.ok && data.logs && data.logs.length > 0) {
+        data.logs.forEach(msg => logLine(`[Robot] ${msg}`));
+      }
+    } catch(e) { 
+      /* silently ignore network drops */ 
+    }
+    // Poll twice a second for near-instant updates
+    setTimeout(poll, 500); 
+  }
+  setTimeout(poll, 1000);
 }

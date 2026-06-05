@@ -14,6 +14,7 @@ ignore_popups_until = 0
 
 # ── 🌟 Global State (Digital Twin Caching) ──────────────────────────────
 target_ip = None
+ui_logs = []
 
 robot_state = {
     "connected": False,
@@ -340,6 +341,11 @@ class Handler(BaseHTTPRequestHandler):
                         print(f"Failed to auto-dismiss pendant popup: {e}")
                 
                 resp = json.dumps({"ok": True}).encode()
+        # ── Fetch Live UI Logs ─────────────────────────────────────────
+        elif action == 'fetch_logs':
+            # Send the current logs, then immediately clear the list
+            resp = json.dumps({"ok": True, "logs": ui_logs}).encode()
+            ui_logs = []
 
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
@@ -381,6 +387,25 @@ def popup_server():
         except Exception as e:
             print(f"⚠️ [Popup] Error: {e}")
 
+def log_server():
+    """Listens for fire-and-forget log messages from the URScript socket."""
+    global ui_logs
+    
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind(('0.0.0.0', 50001))
+    server.listen(5)
+    print("📝 [Logger] Listening for robot logs on port 50001...")
+    
+    while True:
+        try:
+            conn, addr = server.accept()
+            data = conn.recv(1024).decode('utf-8')
+            if data:
+                print(f"📝 [Log] {data}")
+                ui_logs.append(data)
+            conn.close()
+        except Exception as e:
+            pass
 
 if __name__ == '__main__':
     print("╔══════════════════════════════════════╗")
@@ -391,5 +416,5 @@ if __name__ == '__main__':
     threading.Thread(target=state_monitor, daemon=True).start()
     threading.Thread(target=dashboard_monitor, daemon=True).start()
     threading.Thread(target=popup_server, daemon=True).start()
-    
+    threading.Thread(target=log_server, daemon=True).start()
     HTTPServer(('', 5678), Handler).serve_forever()
