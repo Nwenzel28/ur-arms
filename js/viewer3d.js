@@ -1,475 +1,377 @@
 // ═══════════════════════════════════════════════════════════
-// VIEWER 3D — UR3e forward kinematics + Three.js renderer
+// VIEWER 3D — UR3e with official mesh files
+// Mesh origins sourced from official ur3e.urdf (ros-industrial)
+// DH parameters from Universal Robots official spec sheet
 // ═══════════════════════════════════════════════════════════
 
-// ── UR3e DH Parameters (from Universal Robots spec sheet) ──
-// Standard Modified DH convention
-// ── UR3e Standard DH Parameters (Official UR Spec Sheet) ──
+const PI = Math.PI;
+
+// ── UR3e Standard DH Parameters ────────────────────────────
 const DH = {
   a:     [0,        -0.24355, -0.2132,  0,        0,        0      ],
   d:     [0.15185,   0,        0,       0.13105,  0.08535,  0.0921 ],
-  alpha: [Math.PI/2, 0,        0,       Math.PI/2,-Math.PI/2, 0    ],
+  alpha: [PI/2,      0,        0,       PI/2,    -PI/2,     0      ],
 };
 
-// ── Corrected Forward Kinematics (Standard DH with Y-Up Alignment) ──
+// ── Forward Kinematics ──────────────────────────────────────
+// Standard DH: T = Rz(θ)·Tz(d)·Tx(a)·Rx(α)
+// Base rotated -90° around X so robot Z-up maps to Three.js Y-up
 function fk(joints, THREE) {
   const transforms = [];
-  
-  // Create a base alignment matrix: Rotates the robot -90 degrees around X
-  // so the robot's Z-axis points straight UP along the Three.js Y-axis.
-  let T = new THREE.Matrix4().makeRotationX(-Math.PI / 2);
-
-  // Base frame tracking
+  let T = new THREE.Matrix4().makeRotationX(-PI / 2);
   transforms.push(T.clone());
 
   for (let i = 0; i < 6; i++) {
-    const theta = joints[i];
-    const a     = DH.a[i];
-    const d     = DH.d[i];
-    const alpha = DH.alpha[i];
-
-    const ct = Math.cos(theta), st = Math.sin(theta);
-    const ca = Math.cos(alpha), sa = Math.sin(alpha);
-
-    // Standard DH matrix
+    const ct = Math.cos(joints[i]), st = Math.sin(joints[i]);
+    const ca = Math.cos(DH.alpha[i]), sa = Math.sin(DH.alpha[i]);
+    const a = DH.a[i], d = DH.d[i];
     const Ti = new THREE.Matrix4().set(
-      ct, -st * ca,  st * sa, a * ct,
-      st,  ct * ca, -ct * sa, a * st,
-       0,       sa,       ca,      d,
-       0,        0,        0,      1
+      ct, -st*ca,  st*sa, a*ct,
+      st,  ct*ca, -ct*sa, a*st,
+       0,     sa,     ca,    d,
+       0,      0,      0,    1
     );
-
     T = new THREE.Matrix4().multiplyMatrices(T, Ti);
     transforms.push(T.clone());
   }
-
   return transforms;
 }
 
-// Extract position from a Matrix4
-function pos(mat, THREE) {
-  const p = new THREE.Vector3();
-  p.setFromMatrixPosition(mat);
-  return p;
+function getPos(mat, THREE) {
+  return new THREE.Vector3().setFromMatrixPosition(mat);
 }
 
-// ── Scene Setup ─────────────────────────────────────────────
-let scene, camera, renderer, controls;
-let jointMeshes   = [];  // 6 sphere meshes at joint origins
-let linkMeshes    = [];  // 6 cylinder meshes for links
-let tcpMesh       = null;
-let floorGrid     = null;
-let animFrameId   = null;
-let THREE         = null;
-let OrbitControls = null;
+// ── Mesh origin data from official ur3e.urdf ───────────────
+// Each entry: { xyz: [x,y,z], rpy: [r,p,y] }
+// These are the <visual><origin> values for each link.
+// Applied as a local offset when attaching mesh to its DH frame.
+const MESH_ORIGINS = [
+  { xyz: [0,      0,       0     ], rpy: [0,      0,   PI   ] }, // base       (frame 0)
+  { xyz: [0,      0,       0     ], rpy: [0,      0,   PI   ] }, // shoulder   (frame 1)
+  { xyz: [0,      0,       0.12  ], rpy: [PI/2,   0,  -PI/2 ] }, // upperarm   (frame 2)
+  { xyz: [0,      0,       0.027 ], rpy: [PI/2,   0,  -PI/2 ] }, // forearm    (frame 3)
+  { xyz: [0,      0,      -0.104 ], rpy: [PI/2,   0,   0    ] }, // wrist1     (frame 4)
+  { xyz: [0,      0,      -0.08535], rpy: [0,     0,   0    ] }, // wrist2     (frame 5)
+  { xyz: [0,      0,      -0.0921 ], rpy: [PI/2,  0,   0    ] }, // wrist3     (frame 6)
+];
 
-// Colour palette — matches your dark UI theme
-const COLORS = {
-  base:       0x2a2a30,   // dark grey base plate
-  link:       0xC1C1C4,   // arm segments
-  joint:      0xf97316,   // orange joints (matches --ac)
-  tcp:        0x60a5fa,   // blue TCP marker
-  floor:      0x3a3a40,
-  gridMain:   0x3a3a44,
-  gridSub:    0x25252a,
-  background: 0x0e0e10,   // matches --bg
-  ambient:    0xffffff,
-  shadow:     0x000000,
-};
+const MESH_NAMES = ['base','shoulder','upperarm','forearm','wrist1','wrist2','wrist3'];
+const MESH_BASE_URL = 'https://nwenzel28.github.io/ur-arms/meshes/ur3e/';
 
-// Physical radii for visual clarity (not spec, just rendering)
-const JOINT_RADIUS = 0.022;
-const LINK_RADIUS  = 0.018;
-const BASE_RADIUS  = 0.040;
-const BASE_HEIGHT  = 0.048;
-const TCP_SIZE     = 0.018;
-
-export async function initViewer(containerId) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-
-  // Remove placeholder text
-  container.innerHTML = '';
-  container.style.position = 'relative';
-
-  // ── Lazy-load Three.js from CDN ──
-  THREE = await loadThree();
-  OrbitControls = await loadOrbitControls(THREE);
-
-  // ── Renderer ──
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-  renderer.setPixelRatio(window.devicePixelRatio);
-  renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.setClearColor(COLORS.background, 1);
-  container.appendChild(renderer.domElement);
-  resizeRenderer(container);
-
-  // ── Scene ──
-  scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(COLORS.background, 0.8);
-
-  // ── Camera ──
-  const aspect = container.clientWidth / container.clientHeight;
-  camera = new THREE.PerspectiveCamera(45, aspect, 0.001, 20);
-  camera.position.set(0.6, 0.5, 0.7);
-  camera.lookAt(0, 0.2, 0);
-
-  // ── Orbit Controls ──
-  controls = new OrbitControls(camera, renderer.domElement);
-  controls.target.set(0, 0.2, 0);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.08;
-  controls.minDistance = 0.2;
-  controls.maxDistance = 3.0;
-  controls.update();
-
-  // ── Lighting ──
-  const ambient = new THREE.AmbientLight(COLORS.ambient, 0.45);
-  scene.add(ambient);
-
-  const keyLight = new THREE.DirectionalLight(0xffffff, 0.8);
-  keyLight.position.set(1, 2, 1.5);
-  keyLight.castShadow = true;
-  keyLight.shadow.mapSize.set(1024, 1024);
-  keyLight.shadow.camera.near = 0.1;
-  keyLight.shadow.camera.far  = 10;
-  keyLight.shadow.camera.left = -1;
-  keyLight.shadow.camera.right = 1;
-  keyLight.shadow.camera.top  = 1;
-  keyLight.shadow.camera.bottom = -1;
-  scene.add(keyLight);
-
-  const fillLight = new THREE.DirectionalLight(0x8888ff, 0.25);
-  fillLight.position.set(-1, 0.5, -1);
-  scene.add(fillLight);
-
-  // ── Floor grid ──
-  const gridHelper = new THREE.GridHelper(2, 20, COLORS.gridMain, COLORS.gridSub);
-  gridHelper.position.y = -0.001;
-  scene.add(gridHelper);
-
-  // Floor plane (receives shadows)
-  const floorGeo = new THREE.PlaneGeometry(4, 4);
-  const floorMat = new THREE.MeshStandardMaterial({
-    color: COLORS.floor,
-    roughness: 0.9,
-    metalness: 0.1,
-  });
-  const floor = new THREE.Mesh(floorGeo, floorMat);
-  floor.rotation.x = -Math.PI / 2;
-  floor.receiveShadow = true;
-  scene.add(floor);
-
-  // ── Base plate ──
-  const baseMat = new THREE.MeshStandardMaterial({ color: COLORS.base, roughness: 0.7, metalness: 0.3 });
-  const baseGeo = new THREE.CylinderGeometry(BASE_RADIUS * 1.4, BASE_RADIUS * 1.6, BASE_HEIGHT, 32);
-  const baseMesh = new THREE.Mesh(baseGeo, baseMat);
-  baseMesh.position.y = BASE_HEIGHT / 2;
-  baseMesh.castShadow = true;
-  scene.add(baseMesh);
-
-  // ── Joint & link materials ──
-  const jointMat = new THREE.MeshStandardMaterial({ color: COLORS.joint, roughness: 0.4, metalness: 0.6 });
-  const linkMat  = new THREE.MeshStandardMaterial({ color: COLORS.link,  roughness: 0.6, metalness: 0.4 });
-
-  // ── Build joints (spheres) ──
-  for (let i = 0; i < 6; i++) {
-    const r = (i === 0) ? BASE_RADIUS : JOINT_RADIUS * (i < 3 ? 1.3 : 1.0);
-    const geo  = new THREE.SphereGeometry(r, 24, 16);
-    const mesh = new THREE.Mesh(geo, jointMat.clone());
-    mesh.castShadow = true;
-    scene.add(mesh);
-    jointMeshes.push(mesh);
-  }
-
-
-  for (let i = 0; i < 6; i++) {
-    const linkGroup = new THREE.Group();
-    const a = DH.a[i];
-    const d = DH.d[i];
-
-    // 1. Base and Wrists (Standard DH 'd' offset tracking)
-    if (i !== 1 && i !== 2 && Math.abs(d) > 0.001) {
-      const dMesh = new THREE.Mesh(new THREE.CylinderGeometry(LINK_RADIUS, LINK_RADIUS, Math.abs(d), 16), linkMat);
-      dMesh.castShadow = true;
-      dMesh.rotation.x = Math.PI / 2;
-      dMesh.position.z = d / 2;
-      linkGroup.add(dMesh);
-    }
-
-    // 2. SHOULDER LINK (i === 1): Outward offset, horizontal run, return to 0
-    if (i === 1) {
-      const visualOffset = 0.12; // Outward offset width
-      
-      // Motor cap pushing outward along Z
-      const capOut = new THREE.Mesh(new THREE.CylinderGeometry(LINK_RADIUS * 1.15, LINK_RADIUS * 1.15, visualOffset, 16), linkMat);
-      capOut.castShadow = true;
-      capOut.rotation.x = Math.PI / 2;
-      capOut.position.z = visualOffset / 2;
-      linkGroup.add(capOut);
-
-      // Main upper arm tube running along X, sitting on the offset plane
-      const mainTube = new THREE.Mesh(new THREE.CylinderGeometry(LINK_RADIUS, LINK_RADIUS, Math.abs(a), 16), linkMat);
-      mainTube.castShadow = true;
-      mainTube.rotation.z = Math.PI / 2;
-      mainTube.position.x = a / 2; 
-      mainTube.position.z = visualOffset;
-      linkGroup.add(mainTube);
-
-      // Return bracket bringing the casing back to the mathematical joint sphere
-      const capIn = new THREE.Mesh(new THREE.CylinderGeometry(LINK_RADIUS * 1.15, LINK_RADIUS * 1.15, visualOffset, 16), linkMat);
-      capIn.castShadow = true;
-      capIn.rotation.x = Math.PI / 2;
-      capIn.position.x = a; 
-      capIn.position.z = visualOffset / 2;
-      linkGroup.add(capIn);
-    } 
-    
-    // 3. ELBOW LINK (i === 2): Starts at 0, runs along X on the offset plane, stays there!
-    else if (i === 2) {
-      const visualOffset = 0; // Must match the shoulder's outward shift
-      
-      // Connector piece stepping out to match the shoulder's offset plane
-      const capOut = new THREE.Mesh(new THREE.CylinderGeometry(LINK_RADIUS * 1.15, LINK_RADIUS * 1.15, visualOffset, 16), linkMat);
-      capOut.castShadow = true;
-      capOut.rotation.x = Math.PI / 2;
-      capOut.position.z = visualOffset / 2;
-      linkGroup.add(capOut);
-
-      // Main forearm tube running along X. 
-      // It stays on the offset plane (position.z = visualOffset) to land directly on J3!
-      const mainTube = new THREE.Mesh(new THREE.CylinderGeometry(LINK_RADIUS, LINK_RADIUS, Math.abs(a), 16), linkMat);
-      mainTube.castShadow = true;
-      mainTube.rotation.z = Math.PI / 2;
-      mainTube.position.x = a / 2; 
-      mainTube.position.z = visualOffset; 
-      linkGroup.add(mainTube);
-    }
-    
-    // 4. Fallback for Standard X-Axis tracking (Wrists)
-    else if (Math.abs(a) > 0.001) {
-      const aMesh = new THREE.Mesh(new THREE.CylinderGeometry(LINK_RADIUS, LINK_RADIUS, Math.abs(a), 16), linkMat);
-      aMesh.castShadow = true;
-      aMesh.rotation.z = Math.PI / 2;
-      aMesh.position.x = a / 2;
-      aMesh.position.z = d;
-      linkGroup.add(aMesh);
-    }
-
-    scene.add(linkGroup);
-    linkMeshes.push(linkGroup);
-  }
-
-  // ── TCP marker (small blue octahedron) ──
-  const tcpGeo = new THREE.OctahedronGeometry(TCP_SIZE, 0);
-  const tcpMat = new THREE.MeshStandardMaterial({ color: COLORS.tcp, roughness: 0.3, metalness: 0.7, emissive: COLORS.tcp, emissiveIntensity: 0.2 });
-  tcpMesh = new THREE.Mesh(tcpGeo, tcpMat);
-  tcpMesh.castShadow = true;
-  scene.add(tcpMesh);
-
-  // ── TCP axis indicator lines ──
-  addTcpAxes();
-
-  // ── Resize observer ──
-  const ro = new ResizeObserver(() => resizeRenderer(container));
-  ro.observe(container);
-
-  // ── Flange marker: white torus ring at J6, shown only when TCP offset is active ──
-  const flangeGeo = new THREE.TorusGeometry(0.022, 0.0025, 8, 32);
-  const flangeMat = new THREE.MeshStandardMaterial({
-    color: 0xffffff, roughness: 0.3, metalness: 0.5, transparent: true, opacity: 0.7
-  });
-  flangeMarker = new THREE.Mesh(flangeGeo, flangeMat);
-  flangeMarker.visible = false;
-  scene.add(flangeMarker);
-
-  // ── Offset line: dashed line from flange to TCP ──
-  const lineMat = new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.6 });
-  const lineGeo = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)
-  ]);
-  offsetLine = new THREE.Line(lineGeo, lineMat);
-  offsetLine.visible = false;
-  scene.add(offsetLine);
-
-  // ── Render loop ──
-  function animate() {
-    animFrameId = requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
-  }
-  animate();
-
-  // Draw once in home position
-  updateViewer([0, -Math.PI/2, 0, -Math.PI/2, -Math.PI/2, 0]);
+// Build a 4×4 matrix from xyz + rpy (intrinsic XYZ Euler)
+function originMatrix(xyz, rpy, THREE) {
+  const mat = new THREE.Matrix4();
+  const pos = new THREE.Vector3(...xyz);
+  const euler = new THREE.Euler(rpy[0], rpy[1], rpy[2], 'XYZ');
+  const quat = new THREE.Quaternion().setFromEuler(euler);
+  mat.compose(pos, quat, new THREE.Vector3(1, 1, 1));
+  return mat;
 }
 
-// ── TCP Axes helper lines ────────────────────────────────────
-let tcpAxesGroup  = null;
-let flangeMarker  = null;  // thin ring at J6 flange, visible only when TCP offset is set
-let offsetLine    = null;  // line from flange to TCP
-function addTcpAxes() {
-  tcpAxesGroup = new THREE.Group();
-  const len = 0.05;
-  const axes = [
-    { dir: [1,0,0], color: 0xef4444 },  // X — red
-    { dir: [0,1,0], color: 0x22c55e },  // Y — green
-    { dir: [0,0,1], color: 0x60a5fa },  // Z — blue
-  ];
-  axes.forEach(({ dir, color }) => {
-    const mat = new THREE.LineBasicMaterial({ color });
-    const pts = [
-      new THREE.Vector3(0, 0, 0),
-      new THREE.Vector3(...dir).multiplyScalar(len),
-    ];
-    const geo = new THREE.BufferGeometry().setFromPoints(pts);
-    tcpAxesGroup.add(new THREE.Line(geo, mat));
-  });
-  scene.add(tcpAxesGroup);
-}
-
-// ── TCP Offset Transform ────────────────────────────────────
-// UR stores TCP offset as a pose vector [x, y, z, rx, ry, rz]
-// where rx/ry/rz is a rotation vector (axis * angle).
-// We convert it to a 4x4 homogeneous transform and post-multiply
-// onto the flange (J6) frame to get the true TCP frame.
+// ── TCP offset helpers ──────────────────────────────────────
 function tcpOffsetMatrix(offset, THREE) {
-  const { x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0 } = offset;
-
-  // Rotation vector → angle-axis → quaternion
+  const { x=0, y=0, z=0, rx=0, ry=0, rz=0 } = offset;
   const angle = Math.sqrt(rx*rx + ry*ry + rz*rz);
   const q = new THREE.Quaternion();
-  if (angle > 1e-9) {
-    q.setFromAxisAngle(new THREE.Vector3(rx/angle, ry/angle, rz/angle), angle);
-  }
-
-  const mat = new THREE.Matrix4();
-  mat.makeRotationFromQuaternion(q);
+  if (angle > 1e-9) q.setFromAxisAngle(new THREE.Vector3(rx/angle, ry/angle, rz/angle), angle);
+  const mat = new THREE.Matrix4().makeRotationFromQuaternion(q);
   mat.setPosition(x, y, z);
   return mat;
 }
 
-// Cached last known joints so TCP offset changes can re-render without new telemetry
-let _lastJoints = [0, -Math.PI/2, 0, -Math.PI/2, -Math.PI/2, 0];
+// ── Scene state ─────────────────────────────────────────────
+let scene, camera, renderer, orbitControls;
+let meshObjects   = [];   // one THREE.Object3D per link (0=base … 6=wrist3)
+let tcpMesh       = null;
+let tcpAxesGroup  = null;
+let flangeMarker  = null;
+let offsetLine    = null;
+let THREE         = null;
+let OC            = null;
+let _lastJoints   = [0, -PI/2, 0, -PI/2, -PI/2, 0];
+let _meshesLoaded = false;
 
-// ── Main Update ──────────────────────────────────────────────
-// joints     : [j0..j5] in radians
-// tcpOffset  : { x, y, z, rx, ry, rz } in metres / radians (optional)
+// ── Public: init ────────────────────────────────────────────
+export async function initViewer(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = '';
+  container.style.position = 'relative';
+
+  THREE = await loadScript(
+    'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js',
+    () => window.THREE
+  );
+  OC = await loadScript(
+    'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js',
+    () => window.THREE.OrbitControls || window.OrbitControls
+  );
+
+  // ── Renderer ──
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.setClearColor(0x0e0e10, 1);
+  container.appendChild(renderer.domElement);
+  sizeRenderer(container);
+
+  // ── Scene ──
+  scene = new THREE.Scene();
+
+  // ── Camera ──
+  camera = new THREE.PerspectiveCamera(42, 1, 0.001, 10);
+  camera.position.set(0.7, 0.55, 0.65);
+  camera.lookAt(0, 0.25, 0);
+
+  // ── Orbit controls ──
+  orbitControls = new OC(camera, renderer.domElement);
+  orbitControls.target.set(0, 0.25, 0);
+  orbitControls.enableDamping = true;
+  orbitControls.dampingFactor = 0.08;
+  orbitControls.minDistance = 0.15;
+  orbitControls.maxDistance = 2.5;
+  orbitControls.update();
+
+  // ── Lighting ──
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const key = new THREE.DirectionalLight(0xffffff, 0.9);
+  key.position.set(1.0, 2.0, 1.5);
+  key.castShadow = true;
+  key.shadow.mapSize.setScalar(1024);
+  key.shadow.camera.near = 0.1; key.shadow.camera.far = 8;
+  key.shadow.camera.left = -0.8; key.shadow.camera.right = 0.8;
+  key.shadow.camera.top = 1.2;  key.shadow.camera.bottom = -0.2;
+  scene.add(key);
+  const rim = new THREE.DirectionalLight(0x6688cc, 0.30);
+  rim.position.set(-1.0, 0.6, -1.2);
+  scene.add(rim);
+
+  // ── Floor ──
+  const floor = new THREE.Mesh(
+    new THREE.PlaneGeometry(3, 3),
+    new THREE.MeshStandardMaterial({ color: 0x17171a, roughness: 0.92, metalness: 0.05 })
+  );
+  floor.rotation.x = -PI/2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+  const grid = new THREE.GridHelper(2, 16, 0x3a3a44, 0x25252a);
+  grid.position.y = 0.001;
+  scene.add(grid);
+
+  // ── TCP octahedron ──
+  tcpMesh = new THREE.Mesh(
+    new THREE.OctahedronGeometry(0.014, 0),
+    new THREE.MeshStandardMaterial({ color: 0x60a5fa, roughness: 0.25, metalness: 0.75, emissive: 0x60a5fa, emissiveIntensity: 0.18 })
+  );
+  scene.add(tcpMesh);
+
+  // ── TCP axis lines ──
+  tcpAxesGroup = new THREE.Group();
+  [
+    { dir: [1,0,0], color: 0xef4444 },
+    { dir: [0,1,0], color: 0x22c55e },
+    { dir: [0,0,1], color: 0x60a5fa },
+  ].forEach(({ dir, color }) => {
+    const geo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(0,0,0),
+      new THREE.Vector3(...dir).multiplyScalar(0.055)
+    ]);
+    tcpAxesGroup.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color })));
+  });
+  scene.add(tcpAxesGroup);
+
+  // ── Flange ring (visible only when TCP offset is non-zero) ──
+  flangeMarker = new THREE.Mesh(
+    new THREE.TorusGeometry(0.022, 0.0025, 8, 32),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.5, transparent: true, opacity: 0.7 })
+  );
+  flangeMarker.visible = false;
+  scene.add(flangeMarker);
+
+  // ── Offset line ──
+  offsetLine = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]),
+    new THREE.LineBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.6 })
+  );
+  offsetLine.visible = false;
+  scene.add(offsetLine);
+
+  // ── Resize observer ──
+  new ResizeObserver(() => sizeRenderer(container)).observe(container);
+
+  // ── Render loop ──
+  (function animate() {
+    requestAnimationFrame(animate);
+    orbitControls.update();
+    renderer.render(scene, camera);
+  })();
+
+  // Show loading indicator while meshes load
+  showLoadingOverlay(container);
+
+  // Load Collada loader then all meshes
+  await loadColladaLoader();
+  await loadAllMeshes();
+
+  hideLoadingOverlay(container);
+  updateViewer(_lastJoints);
+}
+
+// ── Load ColladaLoader from CDN ─────────────────────────────
+function loadColladaLoader() {
+  return loadScript(
+    'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/ColladaLoader.js',
+    () => window.THREE.ColladaLoader
+  );
+}
+
+// ── Load all 7 meshes ───────────────────────────────────────
+function loadAllMeshes() {
+  const loader = new THREE.ColladaLoader();
+  const grey = new THREE.MeshStandardMaterial({ color: 0xb0b0b5, roughness: 0.55, metalness: 0.35 });
+
+  const promises = MESH_NAMES.map((name, i) => {
+    return new Promise((resolve) => {
+      loader.load(
+        MESH_BASE_URL + name + '.dae',
+        (collada) => {
+          const obj = collada.scene;
+
+          // Override all materials to match the dark UI theme
+          obj.traverse(child => {
+            if (child.isMesh) {
+              child.material = grey.clone();
+              child.castShadow = true;
+              child.receiveShadow = true;
+            }
+          });
+
+          // Wrap in a pivot group so we can apply the URDF mesh origin offset
+          const pivot = new THREE.Group();
+          const originMat = originMatrix(MESH_ORIGINS[i].xyz, MESH_ORIGINS[i].rpy, THREE);
+          const offsetPos = new THREE.Vector3();
+          const offsetQuat = new THREE.Quaternion();
+          originMat.decompose(offsetPos, offsetQuat, new THREE.Vector3());
+          obj.position.copy(offsetPos);
+          obj.quaternion.copy(offsetQuat);
+          pivot.add(obj);
+
+          meshObjects[i] = pivot;
+          scene.add(pivot);
+          resolve();
+        },
+        undefined,
+        (err) => {
+          console.warn(`Failed to load ${name}.dae:`, err);
+          // Fallback: tiny invisible group so index stays correct
+          meshObjects[i] = new THREE.Group();
+          scene.add(meshObjects[i]);
+          resolve();
+        }
+      );
+    });
+  });
+
+  return Promise.all(promises).then(() => { _meshesLoaded = true; });
+}
+
+// ── Public: update ──────────────────────────────────────────
 export function updateViewer(joints, tcpOffset = null) {
   if (!THREE || !scene) return;
   if (joints) _lastJoints = joints;
+  if (!_meshesLoaded) return;
 
   const transforms = fk(_lastJoints, THREE);
-  const origins = transforms.map(t => pos(t, THREE));
 
-  // 1. Position Joint Spheres precisely at mathematical origins
-  for (let i = 0; i < 6; i++) {
-    const p = origins[i + 1]; 
-    jointMeshes[i].position.copy(p);
-    
+  // Each mesh pivot sits at its DH frame transform
+  // Frame 0 = base (world/fixed), frames 1-6 = after each joint
+  for (let i = 0; i < 7; i++) {
+    if (!meshObjects[i]) continue;
+    const mat = transforms[i]; // base uses transform[0], shoulder uses transform[1], etc.
+    const p = new THREE.Vector3();
     const q = new THREE.Quaternion();
-    transforms[i + 1].decompose(new THREE.Vector3(), q, new THREE.Vector3());
-    jointMeshes[i].quaternion.copy(q);
+    mat.decompose(p, q, new THREE.Vector3());
+    meshObjects[i].position.copy(p);
+    meshObjects[i].quaternion.copy(q);
   }
 
-  // 2. Position Link Brackets
-  for (let i = 0; i < 6; i++) {
-    const meshGroup = linkMeshes[i];
-    meshGroup.position.setFromMatrixPosition(transforms[i]);
-    meshGroup.quaternion.setFromRotationMatrix(transforms[i]);
-    meshGroup.rotateZ(_lastJoints[i]);
-  }
+  // ── TCP ──
+  const flangePos = getPos(transforms[6], THREE);
+  const flangeQuat = new THREE.Quaternion();
+  transforms[6].decompose(new THREE.Vector3(), flangeQuat, new THREE.Vector3());
 
-  // 3. Flange frame (J6 — end of the DH chain)
-  const flangePos = origins[6];
-  const flangeRot = new THREE.Quaternion();
-  transforms[6].decompose(new THREE.Vector3(), flangeRot, new THREE.Vector3());
-
-  // 4. TCP = flange * tcpOffsetMatrix
-  //    If no offset, TCP sits exactly at the flange.
   let tcpPos = flangePos.clone();
-  let tcpRot = flangeRot.clone();
+  let tcpQuat = flangeQuat.clone();
 
   if (tcpOffset) {
-    const offsetMat = tcpOffsetMatrix(tcpOffset, THREE);
-    const tcpMat = new THREE.Matrix4().multiplyMatrices(transforms[6], offsetMat);
-    tcpMat.decompose(tcpPos, tcpRot, new THREE.Vector3());
+    const tcpMat = new THREE.Matrix4().multiplyMatrices(transforms[6], tcpOffsetMatrix(tcpOffset, THREE));
+    tcpMat.decompose(tcpPos, tcpQuat, new THREE.Vector3());
   }
 
-  // 5. TCP octahedron at true TCP position
   tcpMesh.position.copy(tcpPos);
-  tcpMesh.quaternion.copy(tcpRot);
+  tcpMesh.quaternion.copy(tcpQuat);
+  tcpAxesGroup.position.copy(tcpPos);
+  tcpAxesGroup.quaternion.copy(tcpQuat);
 
-  // 6. TCP axes follow the TCP frame
-  if (tcpAxesGroup) {
-    tcpAxesGroup.position.copy(tcpPos);
-    tcpAxesGroup.quaternion.copy(tcpRot);
-  }
-
-  // 7. Flange indicator: thin white ring at J6 to show where the physical
-  //    flange is when there IS a TCP offset (hidden when offset is zero)
   const hasOffset = tcpOffset &&
     (Math.abs(tcpOffset.x) + Math.abs(tcpOffset.y) + Math.abs(tcpOffset.z) +
      Math.abs(tcpOffset.rx) + Math.abs(tcpOffset.ry) + Math.abs(tcpOffset.rz)) > 1e-6;
 
   if (flangeMarker) {
     flangeMarker.visible = !!hasOffset;
-    if (hasOffset) {
-      flangeMarker.position.copy(flangePos);
-      flangeMarker.quaternion.copy(flangeRot);
-    }
+    if (hasOffset) { flangeMarker.position.copy(flangePos); flangeMarker.quaternion.copy(flangeQuat); }
   }
 
-  // 8. TCP offset line: dashed line from flange to TCP when offset is non-zero
   updateOffsetLine(flangePos, tcpPos, !!hasOffset);
 }
 
-// ── Offset line helper ───────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────
 function updateOffsetLine(from, to, visible) {
   if (!offsetLine) return;
   offsetLine.visible = visible;
   if (!visible) return;
-  const positions = offsetLine.geometry.attributes.position;
-  if (positions) {
-    positions.setXYZ(0, from.x, from.y, from.z);
-    positions.setXYZ(1, to.x, to.y, to.z);
-    positions.needsUpdate = true;
+  const pos = offsetLine.geometry.attributes.position;
+  if (pos) {
+    pos.setXYZ(0, from.x, from.y, from.z);
+    pos.setXYZ(1, to.x, to.y, to.z);
+    pos.needsUpdate = true;
   } else {
     offsetLine.geometry.setFromPoints([from.clone(), to.clone()]);
   }
 }
 
-// ── Helpers ──────────────────────────────────────────────────
-function resizeRenderer(container) {
+function sizeRenderer(container) {
   if (!renderer || !camera) return;
   const w = container.clientWidth;
-  const h = container.clientHeight;
+  const h = container.clientHeight || 380;
   renderer.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
 }
 
-// ── CDN loaders ──────────────────────────────────────────────
-function loadThree() {
+function loadScript(url, getResult) {
   return new Promise((resolve, reject) => {
-    if (window.THREE) { resolve(window.THREE); return; }
+    try { const r = getResult(); if (r) { resolve(r); return; } } catch(e) {}
     const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
-    s.onload = () => resolve(window.THREE);
+    s.src = url;
+    s.onload  = () => resolve(getResult());
     s.onerror = reject;
     document.head.appendChild(s);
   });
 }
 
-function loadOrbitControls(THREE) {
-  return new Promise((resolve, reject) => {
-    if (window.OrbitControls) { resolve(window.OrbitControls); return; }
-    const s = document.createElement('script');
-    // r128-compatible OrbitControls
-    s.src = 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js';
-    s.onload = () => resolve(window.THREE.OrbitControls || window.OrbitControls);
-    s.onerror = reject;
-    document.head.appendChild(s);
-  });
+function showLoadingOverlay(container) {
+  const el = document.createElement('div');
+  el.id = 'viewer-loading';
+  el.style.cssText = `position:absolute;inset:0;display:flex;align-items:center;
+    justify-content:center;color:var(--tx3);font:600 12px var(--mono);
+    background:var(--bg);pointer-events:none;letter-spacing:.08em;`;
+  el.textContent = 'LOADING MESHES…';
+  container.appendChild(el);
+}
+
+function hideLoadingOverlay(container) {
+  const el = container.querySelector('#viewer-loading');
+  if (el) el.remove();
 }
