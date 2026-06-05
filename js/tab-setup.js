@@ -100,26 +100,78 @@ export function deletePos(pid) {
 
 export function startMoveHere(pid) {
   const pos = positions.find(p => p.id === pid);
-  if (!pos || !pos.c) return;
-  const cartStr = pos.c.map(v => v.toFixed(4)).join(',');
-  const urscript = `def move_here():\n  movej(p[${cartStr}], a=1.2, v=0.25)\nend\n`;
-  resetFreedriveUI();
-  sendDirect(urscript);
+  if (!pos) return;
+
+  import('./state.js').then(s => {
+    if (s.isSimulationMode) {
+      // ── SIM MODE: Animate simJoints toward the target joint values ──
+      if (!pos.j || pos.j.every(v => v === 0)) {
+        console.warn('[Sim] No joint data for position:', pos.name);
+        return;
+      }
+      const TARGET  = [...pos.j];
+      const STEPS   = 60;   // frames to complete the move
+      const START   = [...s.simJoints];
+      let frame     = 0;
+
+      // Store cancel handle so stopMoveHere can abort it
+      window._simMoveRaf = true;
+
+      function step() {
+        if (!window._simMoveRaf) return;
+        frame++;
+        const t = Math.min(frame / STEPS, 1);
+        // Smooth-step easing
+        const ease = t * t * (3 - 2 * t);
+        const j = START.map((v, i) => v + (TARGET[i] - v) * ease);
+        s.setSimJoints(j);
+        if (t < 1) {
+          requestAnimationFrame(step);
+        } else {
+          window._simMoveRaf = false;
+        }
+      }
+      requestAnimationFrame(step);
+      return;
+    }
+
+    // ── REAL MODE ──
+    if (!pos.c) return;
+    const cartStr = pos.c.map(v => v.toFixed(4)).join(',');
+    const urscript = `def move_here():\n  movej(p[${cartStr}], a=1.2, v=0.25)\nend\n`;
+    resetFreedriveUI();
+    sendDirect(urscript);
+  });
 }
 
 export function stopMoveHere() {
-  sendDirect("def stop_move():\n  stopl(2.5)\nend\n");
+  import('./state.js').then(s => {
+    if (s.isSimulationMode) {
+      window._simMoveRaf = false; // Cancel the RAF loop
+      return;
+    }
+    sendDirect("def stop_move():\n  stopl(2.5)\nend\n");
+  });
 }
 
 export function setToCurrent(pid) {
-  // Re-import to get current module-level values
   import('./state.js').then(s => {
+    const pos = positions.find(p => p.id === pid);
+    if (!pos) return;
+
+    if (s.isSimulationMode) {
+      // ── SIM MODE: Capture current simulated joint/TCP values ──
+      pos.j = [...s.simJoints];
+      pos.c = [...(s.simTcp || [0,0,0,0,0,0])];
+      renderPositions(); renderSteps(); refreshCode();
+      return;
+    }
+
+    // ── REAL MODE ──
     if (!s.latestJoints || !s.latestTcp) {
       alert("Enable Live Tracker first to get the robot's current coordinates.");
       return;
     }
-    const pos = positions.find(p => p.id === pid);
-    if (!pos) return;
     pos.j = [...s.latestJoints];
     pos.c = [...s.latestTcp];
     renderPositions(); renderSteps(); refreshCode();
@@ -128,6 +180,19 @@ export function setToCurrent(pid) {
 
 export function recordLivePosition() {
   import('./state.js').then(s => {
+    if (s.isSimulationMode) {
+      // ── SIM MODE: Record current simulated pose as a new position ──
+      positions.push({
+        id: uid(),
+        name: 'SIM_' + (positions.length + 1),
+        j: [...s.simJoints],
+        c: [...(s.simTcp || [0,0,0,0,0,0])]
+      });
+      renderPositions(); renderSteps(); refreshCode();
+      return;
+    }
+
+    // ── REAL MODE ──
     if (!s.latestJoints || !s.latestTcp) {
       alert("Enable Live Tracker first to get the robot's current coordinates.");
       return;
@@ -144,6 +209,14 @@ export function recordLivePosition() {
 
 export function toggleFreedrive() {
   import('./state.js').then(s => {
+    if (s.isSimulationMode) {
+      // Freedrive is a physical robot feature — not available in sim
+      const btn = document.getElementById('btn-freedrive');
+      const orig = btn?.textContent;
+      if (btn) { btn.textContent = 'N/A in Sim'; btn.style.opacity = '0.5'; }
+      setTimeout(() => { if (btn) { btn.textContent = orig; btn.style.opacity = ''; } }, 1500);
+      return;
+    }
     const ip = document.getElementById('robot-ip').value;
     if (!ip) return alert("Enter Robot IP first.");
     const btn = document.getElementById('btn-freedrive');
@@ -174,15 +247,25 @@ export function toggleFdAxis(index) {
 }
 
 export function activateGripper() {
-  const ip = document.getElementById('robot-ip').value.trim();
-  if (!ip) return alert("Enter Robot IP first.");
-  const btn = document.getElementById('btn-gripper-activate');
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = 'Activating...';
-  }
-  const urscript = `def live_grp():\n  socket_close("rq_srv")\n  socket_open("127.0.0.1", 63352, "rq_srv")\n  socket_send_string("SET ACT 1", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET GTO 1", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_close("rq_srv")\nend\nlive_grp()`;
-  sendDirect(urscript);
+  import('./state.js').then(s => {
+    if (s.isSimulationMode) {
+      // In sim mode, skip physical activation and just show the gripper controls
+      const actBtn = document.getElementById('btn-gripper-activate');
+      const grpBox = document.getElementById('gripper-actions-box');
+      if (actBtn) actBtn.style.display = 'none';
+      if (grpBox) grpBox.style.display = 'flex';
+      return;
+    }
+    const ip = document.getElementById('robot-ip').value.trim();
+    if (!ip) { alert("Enter Robot IP first."); return; }
+    const btn = document.getElementById('btn-gripper-activate');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Activating...';
+    }
+    const urscript = `def live_grp():\n  socket_close("rq_srv")\n  socket_open("127.0.0.1", 63352, "rq_srv")\n  socket_send_string("SET ACT 1", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET GTO 1", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_close("rq_srv")\nend\nlive_grp()`;
+    sendDirect(urscript);
+  });
 }
 
 // Gripper actions

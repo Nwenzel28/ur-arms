@@ -53,16 +53,25 @@ export function setGripperActivated(v) { gripperActivated = v; }
 export let isGripperOpen = true;
 export function setIsGripperOpen(v) { isGripperOpen = v; }
 
-// --- SIMULATION MODE STATE ---
+// ── Simulation Mode ──────────────────────────────────────────
 export let isSimulationMode = false;
 export function setIsSimulationMode(val) { isSimulationMode = val; }
 
-// Default virtual robot to a standard "Home" position (angles in radians)
-export let simJoints = [0, -1.5708, 0, -1.5708, -1.5708, 0]; 
+// Virtual joint state — starts at HOME position
+export let simJoints = [0, -1.5708, 0, -1.5708, -1.5708, 0];
 export function setSimJoints(joints) { simJoints = joints; }
 
-export let simTcp = [0, 0, 0, 0, 0, 0];
+// Virtual TCP state — matches HOME joint position
+export let simTcp = [-0.2667, -0.1304, 0.6942, -1.2113, -1.2071, 1.2057];
 export function setSimTcp(tcp) { simTcp = tcp; }
+
+// Convenience getters — return sim or real values depending on mode
+export function getCurrentJoints() {
+  return isSimulationMode ? simJoints : latestJoints;
+}
+export function getCurrentTcp() {
+  return isSimulationMode ? simTcp : latestTcp;
+}
 
 // Global settings (Default Motion, TCP, Payload settings)
 export let globalSettings = {
@@ -80,8 +89,7 @@ export function setGlobalSettings(obj) {
   }));
 }
 
-
-// ── Relay IP (persisted across sessions) ──
+// ── Relay IP (persisted across sessions) ────────────────────
 const RELAY_IP_KEY     = 'ur3e_relay_ip';
 const RELAY_IP_DEFAULT = '169.254.110.37';
 

@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // NETWORK — all fetch() calls to relay.py
 // ═══════════════════════════════════════════════════════════
-import { steps, positions, isJogging, setIsJogging, setIsFreedrive, fdAxes, isJointJogging, setIsJointJogging, isSimulationMode, simJoints, setSimJoints } from './state.js';
+import { steps, positions, isJogging, setIsJogging, setIsFreedrive, fdAxes, isJointJogging, setIsJointJogging } from './state.js';
 import { updateViewer } from './viewer3d.js';
 import { buildCode } from './tab-program.js';
 
@@ -58,6 +58,8 @@ export async function pingRobot() {
 }
 
 export function sendDirect(codeStr) {
+  // In simulation mode, never send anything to the real robot
+  if (isSimulationMode) return;
   const ip = document.getElementById('robot-ip').value.trim();
   if (!ip) return;
   fetch(RELAY, {
@@ -187,23 +189,7 @@ export function startTelemetryPoller() {
   async function poll() {
     try {
       const s = await import('./state.js');
-      
-      if (s.isSimulationMode) {
-        // ── SIMULATION MODE: Feed virtual state directly to 3D Viewer ──
-        updateViewer(s.simJoints, { 
-          x: s.globalSettings.tcpX, y: s.globalSettings.tcpY, z: s.globalSettings.tcpZ, 
-          rx: s.globalSettings.tcpRx, ry: s.globalSettings.tcpRy, rz: s.globalSettings.tcpRz 
-        });
-        
-        // Update the live text panel to show virtual angles (converted to degrees)
-        const toDisp = rad => (rad * 180 / Math.PI).toFixed(2);
-        ['live-j0', 'live-j1', 'live-j2', 'live-j3', 'live-j4', 'live-j5'].forEach((id, i) => {
-          const el = document.getElementById(id);
-          if (el) el.textContent = toDisp(s.simJoints[i]);
-        });
-        
-      } else if (s.isLiveMonitoring) {
-        // ── REAL MODE: Fetch hardware state via Python relay ──
+      if (s.isLiveMonitoring) {
         const ip = document.getElementById('robot-ip').value.trim();
         const dot = document.getElementById('robot-dot')?.style.background;
         if (ip && dot !== 'var(--bl)') {
@@ -286,6 +272,42 @@ export function startGripperTelemetry() {
 export function startJog(axis, direction) {
   setIsJogging(true);
   resetFreedriveUI();
+
+  if (isSimulationMode) {
+    // ── SIM MODE: Nudge simTcp in the requested Cartesian axis ──
+    // Axes 0-2 are translation (m/s), 3-5 are rotation (rad/s)
+    const LINEAR_SPEED  = 0.05;   // m per tick at 60fps
+    const ANGULAR_SPEED = 0.025;  // rad per tick at 60fps
+
+    function simCartJogLoop() {
+      if (!isJogging) return;
+      import('./state.js').then(s => {
+        const tcp = [...(s.simTcp || [0,0,0,0,0,0])];
+        const delta = axis < 3 ? LINEAR_SPEED * direction : ANGULAR_SPEED * direction;
+        tcp[axis] += delta;
+        s.setSimTcp(tcp);
+        // Convert TCP nudge to approximate joint update via viewer
+        // For now update the viewer directly with existing simJoints — 
+        // full IK is sim-play territory. The TCP display still updates.
+        import('./viewer3d.js').then(v => v.updateViewer(s.simJoints, {
+          x: s.globalSettings.tcpX, y: s.globalSettings.tcpY, z: s.globalSettings.tcpZ,
+          rx: s.globalSettings.tcpRx, ry: s.globalSettings.tcpRy, rz: s.globalSettings.tcpRz
+        }));
+        // Update telemetry display
+        const fmt = (v, dec) => v.toFixed(dec);
+        const ids = ['live-x','live-y','live-z','live-rx','live-ry','live-rz'];
+        ids.forEach((id, i) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = fmt(tcp[i], i < 3 ? 4 : 4);
+        });
+      });
+      requestAnimationFrame(simCartJogLoop);
+    }
+    simCartJogLoop();
+    return;
+  }
+
+  // ── REAL MODE ──
   let vector = [0, 0, 0, 0, 0, 0];
   vector[axis] = direction * (axis < 3 ? 0.05 : 0.25);
   const speedlCmd = `def jog():\n  while True:\n    speedl([${vector.join(',')}], a=0.3, t=0.1)\n  end\nend\n`;
@@ -295,7 +317,10 @@ export function startJog(axis, direction) {
 export function stopJog() {
   if (!isJogging) return;
   setIsJogging(false);
-  sendDirect("def stop_jog():\n  stopl(2.5)\nend\n");
+  // In sim mode sendDirect is already a no-op, but we still clear the flag
+  if (!isSimulationMode) {
+    sendDirect("def stop_jog():\n  stopl(2.5)\nend\n");
+  }
 }
 
 export function startJogJoint(jointIdx, direction) {
@@ -303,32 +328,31 @@ export function startJogJoint(jointIdx, direction) {
   resetFreedriveUI();
 
   if (isSimulationMode) {
-    // ── SIMULATION MODE: Smoothly animate the virtual joint ──
-    const speed = 0.02 * direction; // Adjust this float to make the virtual jog faster/slower
-    
+    // ── SIM MODE: Animate simJoints via RAF ──
+    const speed = 0.02 * direction; // rad per frame at ~60fps
     function jogLoop() {
-      if (!isJointJogging) return; // Stop the loop when the mouse is released
-      
-      let newJoints = [...simJoints];
-      newJoints[jointIdx] += speed;
-      setSimJoints(newJoints);
-      
+      if (!isJointJogging) return;
+      import('./state.js').then(s => {
+        const j = [...s.simJoints];
+        j[jointIdx] += speed;
+        s.setSimJoints(j);
+      });
       requestAnimationFrame(jogLoop);
     }
     jogLoop();
-  } else {
-    // ── REAL MODE: Send speedj command to hardware ──
-    let qd = [0, 0, 0, 0, 0, 0];
-    qd[jointIdx] = direction * 0.3; // 0.3 rad/s
-    const cmd = `def jog_j():\n  while True:\n    speedj([${qd.join(',')}], a=1.5, t=0.1)\n  end\nend\n`;
-    sendDirect(cmd);
+    return;
   }
+
+  // ── REAL MODE ──
+  let qd = [0, 0, 0, 0, 0, 0];
+  qd[jointIdx] = direction * 0.3;
+  const cmd = `def jog_j():\n  while True:\n    speedj([${qd.join(',')}], a=1.5, t=0.1)\n  end\nend\n`;
+  sendDirect(cmd);
 }
 
 export function stopJogJoint() {
   if (!isJointJogging) return;
   setIsJointJogging(false);
-  
   if (!isSimulationMode) {
     sendDirect("def stop_jog_j():\n  stopj(2.5)\nend\n");
   }
