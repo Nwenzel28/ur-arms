@@ -228,7 +228,7 @@ export async function initViewer(containerId) {
     
     // 3. ELBOW LINK (i === 2): Starts at 0, runs along X on the offset plane, stays there!
     else if (i === 2) {
-      const visualOffset = -0.12; // Must match the shoulder's outward shift
+      const visualOffset = 0; // Must match the shoulder's outward shift
       
       // Connector piece stepping out to match the shoulder's offset plane
       const capOut = new THREE.Mesh(new THREE.CylinderGeometry(LINK_RADIUS * 1.15, LINK_RADIUS * 1.15, visualOffset, 16), linkMat);
