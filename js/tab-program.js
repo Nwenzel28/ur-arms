@@ -655,7 +655,7 @@ export function buildCode() {
         break;
       case 'popup':
         // CHANGE IP ADDRESS TO MATCH COMPUTER NETWORK
-        L.push(`${tab}socket_open("169.254.9.203", 50000, "ui_socket")`);
+        L.push(`${tab}socket_open("169.254.110.37", 50000, "ui_socket")`);
         L.push(`${tab}socket_send_string("${s.msg}", "ui_socket")`);
         L.push(`${tab}local ui_response = ""`);
         L.push(`${tab}while (ui_response != "continue"):`);
