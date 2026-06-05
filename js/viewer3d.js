@@ -287,10 +287,14 @@ export function updateViewer(joints) {
   for (let i = 0; i < 6; i++) {
     const meshGroup = linkMeshes[i];
     
-    // CRITICAL FIX: Link i physically starts at the frame of Joint i (transforms[i])
-    // but its orientation and rotation depend on the active joint matrix.
+    // 1. Snap to the parent joint's coordinate frame
     meshGroup.position.setFromMatrixPosition(transforms[i]);
     meshGroup.quaternion.setFromRotationMatrix(transforms[i]);
+    
+    // CRITICAL FIX: The physical link must rotate with the joint!
+    // In Standard DH, the theta rotation happens around the local Z-axis 
+    // BEFORE the structural lengths (d and a) are drawn out.
+    meshGroup.rotateZ(joints[i]);
   }
 
   // 3. TCP Marker + Axis Indicators at end-effector (transforms[6] / T5 frame)
