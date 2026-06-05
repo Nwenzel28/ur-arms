@@ -14,27 +14,38 @@ const DH = {
 };
 
 // ── Forward Kinematics ──────────────────────────────────────
-// Standard DH: T = Rz(θ)·Tz(d)·Tx(a)·Rx(α)
-// Base rotated -90° around X so robot Z-up maps to Three.js Y-up
 function fk(joints, THREE) {
-  const transforms = [];
+  const transforms = []; // End-of-link frames (for TCP / next link)
+  const meshFrames = []; // Start-of-link frames (for URDF meshes)
+
   let T = new THREE.Matrix4().makeRotationX(-PI / 2);
   transforms.push(T.clone());
+  meshFrames.push(T.clone()); // Frame 0: Base mesh attaches here
 
   for (let i = 0; i < 6; i++) {
-    const ct = Math.cos(joints[i]), st = Math.sin(joints[i]);
-    const ca = Math.cos(DH.alpha[i]), sa = Math.sin(DH.alpha[i]);
-    const a = DH.a[i], d = DH.d[i];
-    const Ti = new THREE.Matrix4().set(
-      ct, -st*ca,  st*sa, a*ct,
-      st,  ct*ca, -ct*sa, a*st,
-       0,     sa,     ca,    d,
-       0,      0,      0,    1
-    );
-    T = new THREE.Matrix4().multiplyMatrices(T, Ti);
+    const theta = joints[i];
+    const a = DH.a[i];
+    const d = DH.d[i];
+    const alpha = DH.alpha[i];
+
+    // 1. Joint Rotation & Z-Translation (Start of Link)
+    // URDF visual meshes are physically anchored here!
+    const Rz = new THREE.Matrix4().makeRotationZ(theta);
+    const Tz = new THREE.Matrix4().makeTranslation(0, 0, d);
+    const T_mesh = T.clone().multiply(Rz).multiply(Tz);
+
+    meshFrames.push(T_mesh.clone()); // Frame i+1: Link mesh attaches here
+
+    // 2. Link Length & Twist (End of Link)
+    // Moves the frame to the starting point of the NEXT joint
+    const Tx = new THREE.Matrix4().makeTranslation(a, 0, 0);
+    const Rx = new THREE.Matrix4().makeRotationX(alpha);
+    T = T_mesh.multiply(Tx).multiply(Rx);
+
     transforms.push(T.clone());
   }
-  return transforms;
+  
+  return { transforms, meshFrames };
 }
 
 function getPos(mat, THREE) {
@@ -282,16 +293,20 @@ export function updateViewer(joints, tcpOffset = null) {
   if (joints) _lastJoints = joints;
   if (!_meshesLoaded) return;
 
-  const transforms = fk(_lastJoints, THREE);
+  // Extract both the mesh anchorage frames and the cumulative transforms
+  const { transforms, meshFrames } = fk(_lastJoints, THREE);
 
-  // Each mesh pivot sits at its DH frame transform
-  // Frame 0 = base (world/fixed), frames 1-6 = after each joint
+  // ── Position Meshes ──
+  // Each mesh pivot sits at its start-of-link DH frame
   for (let i = 0; i < 7; i++) {
     if (!meshObjects[i]) continue;
-    const mat = transforms[i]; // base uses transform[0], shoulder uses transform[1], etc.
+    
+    // CRITICAL FIX: Use meshFrames, NOT transforms!
+    const mat = meshFrames[i]; 
     const p = new THREE.Vector3();
     const q = new THREE.Quaternion();
     mat.decompose(p, q, new THREE.Vector3());
+    
     meshObjects[i].position.copy(p);
     meshObjects[i].quaternion.copy(q);
   }
