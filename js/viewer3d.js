@@ -183,31 +183,32 @@ export async function initViewer(containerId) {
     jointMeshes.push(mesh);
   }
 
+
 for (let i = 0; i < 6; i++) {
   const linkGroup = new THREE.Group();
   const a = DH.a[i];
   const d = DH.d[i];
 
-  // 1. Translation along Z by distance 'd'
+  // 1. Clean vertical/offset segment along the Z-axis
   if (Math.abs(d) > 0.001) {
     const dGeo = new THREE.CylinderGeometry(LINK_RADIUS, LINK_RADIUS, Math.abs(d), 16);
     const dMesh = new THREE.Mesh(dGeo, linkMat);
     dMesh.castShadow = true;
     
-    dMesh.rotation.x = Math.PI / 2; // Orient along Z axis
-    dMesh.position.z = d / 2;       // Center it along the displacement
+    dMesh.rotation.x = Math.PI / 2; // Orient flat along Z-axis
+    dMesh.position.z = d / 2;       // Center it perfectly along the displacement
     linkGroup.add(dMesh);
   }
 
-  // 2. Translation along X by distance 'a' (occurs at the end of 'd')
+  // 2. Clean horizontal segment along the X-axis (Drawn at the top of the Z offset)
   if (Math.abs(a) > 0.001) {
     const aGeo = new THREE.CylinderGeometry(LINK_RADIUS, LINK_RADIUS, Math.abs(a), 16);
     const aMesh = new THREE.Mesh(aGeo, linkMat);
     aMesh.castShadow = true;
     
-    aMesh.rotation.z = Math.PI / 2; // Orient along X axis
+    aMesh.rotation.z = Math.PI / 2; // Orient flat along X-axis
     aMesh.position.x = a / 2;       // Center it along the displacement
-    aMesh.position.z = d;           // Push it down to the end of the Z offset
+    aMesh.position.z = d;           // CRITICAL: Sit it right at the end of the Z cylinder
     linkGroup.add(aMesh);
   }
 
@@ -264,34 +265,31 @@ function addTcpAxes() {
 }
 
 // ── Main update — call with [j0..j5] in radians ─────────────
+// ── Main update — call with [j0..j5] in radians ─────────────
 export function updateViewer(joints) {
   if (!THREE || !scene) return;
 
   // Get cumulative matrices [base_corrected, T0, T1, T2, T3, T4, T5]
   const transforms = fk(joints, THREE);
 
-  // 1. Position each link group using its parent frame
+  // 1. Update Link Groups (Aligns them strictly to the parent joint frame)
   for (let i = 0; i < 6; i++) {
     const meshGroup = linkMeshes[i];
-    
-    // The link geometry moves out from the cumulative position of the previous frame
     meshGroup.position.setFromMatrixPosition(transforms[i]);
     meshGroup.quaternion.setFromRotationMatrix(transforms[i]);
   }
 
-  // 2. Position joint spheres precisely at the connection joints
-  // Joint 0 (Base shoulder attachment) is at transforms[1], Joint 1 at transforms[2], etc.
+  // 2. Update Joint Spheres (Placed at the final calculated frame origins)
   for (let i = 0; i < 6; i++) {
     const p = pos(transforms[i + 1], THREE);
     jointMeshes[i].position.copy(p);
     
-    // Also match rotation so joint decorations rotate accurately
     const q = new THREE.Quaternion();
     transforms[i + 1].decompose(new THREE.Vector3(), q, new THREE.Vector3());
     jointMeshes[i].quaternion.copy(q);
   }
 
-  // 3. TCP marker + axes at end-effector (transforms[6] / T5 frame)
+  // 3. TCP marker + axes at end-effector
   const tcpPos = pos(transforms[6], THREE);
   const tcpRot = new THREE.Quaternion();
   transforms[6].decompose(new THREE.Vector3(), tcpRot, new THREE.Vector3());
