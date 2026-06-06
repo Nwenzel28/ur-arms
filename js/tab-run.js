@@ -73,9 +73,9 @@ export function initRunTab() {
   }
 
   // Dashboard play/pause/stop
-  document.getElementById('dash-play')?.addEventListener('click',  playProgram); // ◄ Changed to our new compile & send function
-  document.getElementById('dash-pause')?.addEventListener('click', dashPause);
-  document.getElementById('dash-stop')?.addEventListener('click',  dashStop);
+  document.getElementById('dash-play')?.addEventListener('click',  playProgram);
+  document.getElementById('dash-pause')?.addEventListener('click', dashPauseOrSim);
+  document.getElementById('dash-stop')?.addEventListener('click',  dashStopOrSim);
 
   // Save / load project
   document.getElementById('btn-save-project')?.addEventListener('click', exportProject);
@@ -89,18 +89,75 @@ export function initRunTab() {
   startUiLogPoller();
 }
 
+async function dashPauseOrSim() {
+  const simMode = (await import('./state.js')).isSimulationMode;
+  if (simMode) {
+    const { pauseSimExecution } = await import('./sim-executor.js');
+    pauseSimExecution();
+    logLine('Simulation paused');
+  } else {
+    dashPause();
+  }
+}
+
+async function dashStopOrSim() {
+  const simMode = (await import('./state.js')).isSimulationMode;
+  if (simMode) {
+    const { stopSimExecution } = await import('./sim-executor.js');
+    stopSimExecution();
+    logLine('Simulation stopped');
+  } else {
+    dashStop();
+  }
+}
+
 /**
- * SMART PLAY: 
- * If the robot is paused, it resumes via Port 29999.
- * If stopped/idle, it compiles and sends fresh code to Port 30002.
+ * SMART PLAY:
+ * In sim mode: Execute program visually in the 3D viewer
+ * In real mode: If paused, resume via Port 29999. If stopped, send fresh code.
  */
 async function playProgram() {
-  const ip = document.getElementById('robot-ip').value.trim();
-  if (!ip) { 
-    alert('Enter the robot IP address first.'); 
-    return; 
+  const simMode = (await import('./state.js')).isSimulationMode;
+
+  // ── SIMULATION MODE: Execute in viewer ──
+  if (simMode) {
+    const { executeProgramSim } = await import('./sim-executor.js');
+    const btn = document.getElementById('dash-play');
+    btn.innerHTML = '▶︎ RUNNING...';
+    btn.disabled = true;
+
+    // Get speed multiplier from slider
+    const sliderEl = document.getElementById('dash-speed-slider');
+    const speedMult = sliderEl ? parseFloat(sliderEl.value) / 100 : 1.0;
+
+    logLine(`Starting simulation mode execution at ${Math.round(speedMult * 100)}% speed...`);
+    try {
+      await executeProgramSim(speedMult);
+      btn.innerHTML = '▶︎ COMPLETE';
+      btn.style.background = 'var(--gn)';
+      btn.style.borderColor = 'var(--gn)';
+    } catch (err) {
+      logLine(`Simulation error: ${err.message}`);
+      btn.innerHTML = '✕ ERROR';
+      btn.style.background = 'var(--rd)';
+    } finally {
+      setTimeout(() => {
+        btn.innerHTML = '▶︎';
+        btn.style.background = '';
+        btn.style.borderColor = '';
+        btn.disabled = false;
+      }, 2000);
+    }
+    return;
   }
-  
+
+  // ── REAL MODE ──
+  const ip = document.getElementById('robot-ip').value.trim();
+  if (!ip) {
+    alert('Enter the robot IP address first.');
+    return;
+  }
+
   const btn = document.getElementById('dash-play');
   const originalText = btn.innerHTML;
   
