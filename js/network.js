@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // NETWORK — all fetch() calls to relay.py
 // ═══════════════════════════════════════════════════════════
-import { steps, positions, isJogging, setIsJogging, setIsFreedrive, fdAxes, isJointJogging, setIsJointJogging } from './state.js';
+import { steps, positions, isJogging, setIsJogging, setIsFreedrive, fdAxes, isJointJogging, setIsJointJogging, isSimulationMode, simJoints, setSimJoints, globalSettings } from './state.js';
 import { updateViewer } from './viewer3d.js';
 import { buildCode } from './tab-program.js';
 
@@ -95,8 +95,8 @@ export function startFreedriveDetection() {
   })
   .then(r => r.json())
   .then(data => {
-    if (data.ok && data.raw) {
-      if (data.raw.includes("STOPPED") || data.raw.includes("PAUSED")) {
+    if (data.ok && data.prog) {
+      if (data.prog.includes("STOPPED") || data.prog.includes("PAUSED")) {
         resetFreedriveUI();
       }
     }
@@ -189,7 +189,28 @@ export function startTelemetryPoller() {
   async function poll() {
     try {
       const s = await import('./state.js');
-      if (s.isLiveMonitoring) {
+
+      if (s.isSimulationMode) {
+        // ── SIM MODE: Feed simJoints to the 3D viewer and telemetry display ──
+        updateViewer(s.simJoints, {
+          x: s.globalSettings.tcpX, y: s.globalSettings.tcpY, z: s.globalSettings.tcpZ,
+          rx: s.globalSettings.tcpRx, ry: s.globalSettings.tcpRy, rz: s.globalSettings.tcpRz
+        });
+        const toDisp = rad => (rad * 180 / Math.PI).toFixed(2);
+        ['live-j0','live-j1','live-j2','live-j3','live-j4','live-j5'].forEach((id, i) => {
+          const el = document.getElementById(id);
+          if (el) el.textContent = toDisp(s.simJoints[i]);
+        });
+        // Update TCP display from simTcp
+        const tcp = s.simTcp;
+        if (tcp) {
+          ['live-x','live-y','live-z','live-rx','live-ry','live-rz'].forEach((id, i) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = tcp[i].toFixed(4);
+          });
+        }
+      } else if (s.isLiveMonitoring) {
+        // ── REAL MODE ──
         const ip = document.getElementById('robot-ip').value.trim();
         const dot = document.getElementById('robot-dot')?.style.background;
         if (ip && dot !== 'var(--bl)') {
@@ -206,6 +227,10 @@ export function startTelemetryPoller() {
 
 export function startGripperTelemetry() {
   async function poll() {
+    // Skip gripper polling entirely in sim mode
+    const s = await import('./state.js');
+    if (s.isSimulationMode) { setTimeout(poll, 500); return; }
+
     const ip = document.getElementById('robot-ip')?.value?.trim();
     if (!ip) {
       setTimeout(poll, 1000);
@@ -275,30 +300,20 @@ export function startJog(axis, direction) {
 
   if (isSimulationMode) {
     // ── SIM MODE: Nudge simTcp in the requested Cartesian axis ──
-    // Axes 0-2 are translation (m/s), 3-5 are rotation (rad/s)
-    const LINEAR_SPEED  = 0.05;   // m per tick at 60fps
-    const ANGULAR_SPEED = 0.025;  // rad per tick at 60fps
+    // Uses module-level simTcp (imported at top) for zero-overhead RAF loop
+    const LINEAR_SPEED  = 0.003;  // m per frame (~60fps)
+    const ANGULAR_SPEED = 0.015;  // rad per frame
 
     function simCartJogLoop() {
       if (!isJogging) return;
       import('./state.js').then(s => {
-        const tcp = [...(s.simTcp || [0,0,0,0,0,0])];
-        const delta = axis < 3 ? LINEAR_SPEED * direction : ANGULAR_SPEED * direction;
-        tcp[axis] += delta;
+        const tcp = [...s.simTcp];
+        tcp[axis] += axis < 3 ? LINEAR_SPEED * direction : ANGULAR_SPEED * direction;
         s.setSimTcp(tcp);
-        // Convert TCP nudge to approximate joint update via viewer
-        // For now update the viewer directly with existing simJoints — 
-        // full IK is sim-play territory. The TCP display still updates.
-        import('./viewer3d.js').then(v => v.updateViewer(s.simJoints, {
-          x: s.globalSettings.tcpX, y: s.globalSettings.tcpY, z: s.globalSettings.tcpZ,
-          rx: s.globalSettings.tcpRx, ry: s.globalSettings.tcpRy, rz: s.globalSettings.tcpRz
-        }));
-        // Update telemetry display
-        const fmt = (v, dec) => v.toFixed(dec);
         const ids = ['live-x','live-y','live-z','live-rx','live-ry','live-rz'];
         ids.forEach((id, i) => {
           const el = document.getElementById(id);
-          if (el) el.textContent = fmt(tcp[i], i < 3 ? 4 : 4);
+          if (el) el.textContent = tcp[i].toFixed(4);
         });
       });
       requestAnimationFrame(simCartJogLoop);
@@ -334,7 +349,7 @@ export function startJogJoint(jointIdx, direction) {
       if (!isJointJogging) return;
       import('./state.js').then(s => {
         const j = [...s.simJoints];
-        j[jointIdx] += speed;
+        j[jointIdx] = Math.max(-2*Math.PI, Math.min(2*Math.PI, j[jointIdx] + speed));
         s.setSimJoints(j);
       });
       requestAnimationFrame(jogLoop);
