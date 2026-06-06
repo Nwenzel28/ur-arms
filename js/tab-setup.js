@@ -403,7 +403,7 @@ function checkAndRevertIfAtTarget() {
     });
 
     const current = s.getCurrentJoints();
-    const threshold = 0.05; // ~3 degrees
+    const threshold = 0.1; // ~5.7 degrees
     const closeEnough = targetJoints.every((target, i) =>
       Math.abs(target - current[i]) < threshold
     );
@@ -431,7 +431,7 @@ function checkArrivalInterval() {
       });
 
       const current = s.getCurrentJoints();
-      const threshold = 0.05; // ~3 degrees
+      const threshold = 0.1; // ~5.7 degrees
       const closeEnough = targetJoints.every((target, i) =>
         Math.abs(target - current[i]) < threshold
       );
