@@ -94,13 +94,16 @@ function tcpOffsetMatrix(offset, THREE) {
 // ── Scene state ─────────────────────────────────────────────
 let scene, camera, renderer, orbitControls;
 let meshObjects   = [];   // one THREE.Object3D per link (0=base … 6=wrist3)
+let previewMeshObjects = [];   // semi-transparent preview meshes
 let tcpMesh       = null;
 let tcpAxesGroup  = null;
 let flangeMarker  = null;
 let offsetLine    = null;
+let previewTcpMesh = null;   // preview TCP
 let THREE         = null;
 let OC            = null;
 let _lastJoints   = [0, -PI/2, 0, -PI/2, -PI/2, 0];
+let _previewJoints = null;   // null = hidden, array = show at these joints
 let _meshesLoaded = false;
 
 // ── Public: init ────────────────────────────────────────────
@@ -178,6 +181,14 @@ export async function initViewer(containerId) {
   );
   scene.add(tcpMesh);
 
+  // ── Preview TCP octahedron ──
+  previewTcpMesh = new THREE.Mesh(
+    new THREE.OctahedronGeometry(0.014, 0),
+    new THREE.MeshStandardMaterial({ color: 0x8b7fff, roughness: 0.25, metalness: 0.75, transparent: true, opacity: 0.4 })
+  );
+  previewTcpMesh.visible = false;
+  scene.add(previewTcpMesh);
+
   // ── TCP axis lines ──
   tcpAxesGroup = new THREE.Group();
   [
@@ -242,15 +253,15 @@ function loadColladaLoader() {
 function loadAllMeshes() {
   const loader = new THREE.ColladaLoader();
   const grey = new THREE.MeshStandardMaterial({ color: 0xb0b0b5, roughness: 0.55, metalness: 0.35 });
+  const previewGrey = new THREE.MeshStandardMaterial({ color: 0x7a7a7f, roughness: 0.55, metalness: 0.35, transparent: true, opacity: 0.4 });
 
   const promises = MESH_NAMES.map((name, i) => {
     return new Promise((resolve) => {
+      // ── MAIN ARM ──
       loader.load(
         MESH_BASE_URL + name + '.dae',
         (collada) => {
           const obj = collada.scene;
-
-          // Override all materials to match the dark UI theme
           obj.traverse(child => {
             if (child.isMesh) {
               child.material = grey.clone();
@@ -258,15 +269,11 @@ function loadAllMeshes() {
               child.receiveShadow = true;
             }
           });
-
-          // Wrap in a pivot group so we can apply the URDF mesh origin offset
           const pivot = new THREE.Group();
           const originMat = originMatrix(MESH_ORIGINS[i].xyz, MESH_ORIGINS[i].rpy, THREE);
-
           if (i === 2 || i === 3) {
             const humanRotation = new THREE.Matrix4().makeRotationZ(Math.PI);
-            // premultiply applies the rotation to the DH motor shaft, not the mesh's tip
-            originMat.premultiply(humanRotation); 
+            originMat.premultiply(humanRotation);
           }
           const offsetPos = new THREE.Vector3();
           const offsetQuat = new THREE.Quaternion();
@@ -274,15 +281,51 @@ function loadAllMeshes() {
           obj.position.copy(offsetPos);
           obj.quaternion.copy(offsetQuat);
           pivot.add(obj);
-
           meshObjects[i] = pivot;
           scene.add(pivot);
-          resolve();
+
+          // ── PREVIEW ARM ──
+          loader.load(
+            MESH_BASE_URL + name + '.dae',
+            (colladaPreview) => {
+              const objPrev = colladaPreview.scene;
+              objPrev.traverse(child => {
+                if (child.isMesh) {
+                  child.material = previewGrey.clone();
+                  child.castShadow = false;
+                  child.receiveShadow = false;
+                }
+              });
+              const pivotPrev = new THREE.Group();
+              const originMatPrev = originMatrix(MESH_ORIGINS[i].xyz, MESH_ORIGINS[i].rpy, THREE);
+              if (i === 2 || i === 3) {
+                const humanRotation = new THREE.Matrix4().makeRotationZ(Math.PI);
+                originMatPrev.premultiply(humanRotation);
+              }
+              const offsetPosPrev = new THREE.Vector3();
+              const offsetQuatPrev = new THREE.Quaternion();
+              originMatPrev.decompose(offsetPosPrev, offsetQuatPrev, new THREE.Vector3());
+              objPrev.position.copy(offsetPosPrev);
+              objPrev.quaternion.copy(offsetQuatPrev);
+              pivotPrev.add(objPrev);
+              pivotPrev.visible = false;   // hidden until preview is shown
+              previewMeshObjects[i] = pivotPrev;
+              scene.add(pivotPrev);
+              resolve();
+            },
+            undefined,
+            (err) => {
+              console.warn(`Failed to load preview ${name}.dae:`, err);
+              previewMeshObjects[i] = new THREE.Group();
+              previewMeshObjects[i].visible = false;
+              scene.add(previewMeshObjects[i]);
+              resolve();
+            }
+          );
         },
         undefined,
         (err) => {
           console.warn(`Failed to load ${name}.dae:`, err);
-          // Fallback: tiny invisible group so index stays correct
           meshObjects[i] = new THREE.Group();
           scene.add(meshObjects[i]);
           resolve();
@@ -307,15 +350,38 @@ export function updateViewer(joints, tcpOffset = null) {
   // Each mesh pivot sits at its start-of-link DH frame
   for (let i = 0; i < 7; i++) {
     if (!meshObjects[i]) continue;
-    
-    // CRITICAL FIX: Use meshFrames, NOT transforms!
-    const mat = meshFrames[i]; 
+
+    const mat = meshFrames[i];
     const p = new THREE.Vector3();
     const q = new THREE.Quaternion();
     mat.decompose(p, q, new THREE.Vector3());
-    
+
     meshObjects[i].position.copy(p);
     meshObjects[i].quaternion.copy(q);
+  }
+
+  // ── Position Preview Meshes (if visible) ──
+  if (_previewJoints !== null) {
+    const { meshFrames: previewFrames } = fk(_previewJoints, THREE);
+    for (let i = 0; i < 7; i++) {
+      if (!previewMeshObjects[i]) continue;
+      const mat = previewFrames[i];
+      const p = new THREE.Vector3();
+      const q = new THREE.Quaternion();
+      mat.decompose(p, q, new THREE.Vector3());
+      previewMeshObjects[i].position.copy(p);
+      previewMeshObjects[i].quaternion.copy(q);
+    }
+
+    // Also update preview TCP
+    const { transforms: previewTransforms } = fk(_previewJoints, THREE);
+    const flangePosPrev = getPos(previewTransforms[6], THREE);
+    const flangeQuatPrev = new THREE.Quaternion();
+    previewTransforms[6].decompose(new THREE.Vector3(), flangeQuatPrev, new THREE.Vector3());
+    if (previewTcpMesh) {
+      previewTcpMesh.position.copy(flangePosPrev);
+      previewTcpMesh.quaternion.copy(flangeQuatPrev);
+    }
   }
 
   // ── TCP ──
@@ -346,6 +412,21 @@ export function updateViewer(joints, tcpOffset = null) {
   }
 
   updateOffsetLine(flangePos, tcpPos, !!hasOffset);
+}
+
+export function showPreview(joints) {
+  if (!_meshesLoaded) return;
+  _previewJoints = [...joints];
+  previewMeshObjects.forEach(m => m.visible = true);
+  if (previewTcpMesh) previewTcpMesh.visible = true;
+  updateViewer(null);
+}
+
+export function hidePreview() {
+  _previewJoints = null;
+  previewMeshObjects.forEach(m => m.visible = false);
+  if (previewTcpMesh) previewTcpMesh.visible = false;
+  updateViewer(null);
 }
 
 // ── Helpers ─────────────────────────────────────────────────

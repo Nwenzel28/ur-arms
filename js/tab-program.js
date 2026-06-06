@@ -268,7 +268,24 @@ export async function renderNodeConfig() {
         Select a program element in the center sequence to edit its properties here.
       </div>
     `;
+    // Hide preview when no step is selected
+    await import('./viewer3d.js').then(v => v.hidePreview());
     return;
+  }
+
+  // Show preview for position-based steps
+  if (s.type === 'movej' || s.type === 'movel') {
+    const pos = positions.find(p => p.id === s.pid);
+    if (pos && pos.j) {
+      await import('./viewer3d.js').then(v => v.showPreview(pos.j));
+    }
+  } else if (s.type === 'movec') {
+    const toPos = positions.find(p => p.id === s.to);
+    if (toPos && toPos.j) {
+      await import('./viewer3d.js').then(v => v.showPreview(toPos.j));
+    }
+  } else {
+    await import('./viewer3d.js').then(v => v.hidePreview());
   }
 
   let html = `

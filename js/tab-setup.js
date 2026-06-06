@@ -292,9 +292,23 @@ export function enterEditMode() {
       const el = document.getElementById(id);
       if (el && current) {
         el.value = toDisp(current[i]);
+        // Show preview as user edits
+        el.addEventListener('input', updateEditPreview, { once: false });
       }
     });
+
+    // Show initial preview
+    updateEditPreview();
   });
+}
+
+function updateEditPreview() {
+  const labels = ['edit-j0','edit-j1','edit-j2','edit-j3','edit-j4','edit-j5'];
+  const previewJoints = labels.map(id => {
+    const el = document.getElementById(id);
+    return fromDisp(el?.value || 0);
+  });
+  import('./viewer3d.js').then(v => v.showPreview(previewJoints));
 }
 
 export function cancelEditMode() {
@@ -304,11 +318,22 @@ export function cancelEditMode() {
   const cancelBtn = document.getElementById('btn-cancel-edit');
   const applyBtn = document.getElementById('btn-apply-joints');
 
+  // Remove event listeners
+  const labels = ['edit-j0','edit-j1','edit-j2','edit-j3','edit-j4','edit-j5'];
+  labels.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.removeEventListener('input', updateEditPreview);
+    }
+  });
+
   if (display) display.style.display = 'flex';
   if (editor) editor.style.display = 'none';
   if (editBtn) editBtn.style.display = 'block';
   if (cancelBtn) cancelBtn.style.display = 'none';
   if (applyBtn) applyBtn.style.display = 'none';
+
+  import('./viewer3d.js').then(v => v.hidePreview());
 }
 
 export function startApplyJoints() {
@@ -359,10 +384,64 @@ export function stopApplyJoints() {
   import('./state.js').then(s => {
     if (s.isSimulationMode) {
       window._editJointRaf = false;
+      // Check if we're close to target and auto-revert if so
+      checkAndRevertIfAtTarget();
       return;
     }
     sendDirect("def stop_edit():\n  stopl(2.5)\nend\n");
+    // Start checking for arrival
+    checkArrivalInterval();
   });
+}
+
+function checkAndRevertIfAtTarget() {
+  import('./state.js').then(s => {
+    const labels = ['edit-j0','edit-j1','edit-j2','edit-j3','edit-j4','edit-j5'];
+    const targetJoints = labels.map(id => {
+      const el = document.getElementById(id);
+      return fromDisp(el?.value || 0);
+    });
+
+    const current = s.getCurrentJoints();
+    const threshold = 0.05; // ~3 degrees
+    const closeEnough = targetJoints.every((target, i) =>
+      Math.abs(target - current[i]) < threshold
+    );
+
+    if (closeEnough) {
+      cancelEditMode();
+    }
+  });
+}
+
+function checkArrivalInterval() {
+  let checkCount = 0;
+  const interval = setInterval(() => {
+    checkCount++;
+    if (checkCount > 40) { // Stop checking after ~10 seconds (40 * 250ms)
+      clearInterval(interval);
+      return;
+    }
+
+    import('./state.js').then(s => {
+      const labels = ['edit-j0','edit-j1','edit-j2','edit-j3','edit-j4','edit-j5'];
+      const targetJoints = labels.map(id => {
+        const el = document.getElementById(id);
+        return fromDisp(el?.value || 0);
+      });
+
+      const current = s.getCurrentJoints();
+      const threshold = 0.05; // ~3 degrees
+      const closeEnough = targetJoints.every((target, i) =>
+        Math.abs(target - current[i]) < threshold
+      );
+
+      if (closeEnough) {
+        clearInterval(interval);
+        cancelEditMode();
+      }
+    });
+  }, 250);
 }
 
 // Expose to window for inline HTML event handlers

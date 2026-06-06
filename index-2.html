@@ -132,13 +132,31 @@
             <div><span style="color: var(--tx3)">W2:</span> <span id="live-j4">0.00</span>°</div>
             <div><span style="color: var(--tx3)">W3:</span> <span id="live-j5">0.00</span>°</div>
           </div>
-          <div style="display: grid; grid-template-columns: repeat(6, 60px); gap: 4px; flex: 1; flex-wrap: wrap;" id="jnt-editor" style="display: none;">
-            <input type="number" id="edit-j0" step="0.01" style="width:50px; padding:2px; font-size:9px;">
-            <input type="number" id="edit-j1" step="0.01" style="width:50px; padding:2px; font-size:9px;">
-            <input type="number" id="edit-j2" step="0.01" style="width:50px; padding:2px; font-size:9px;">
-            <input type="number" id="edit-j3" step="0.01" style="width:50px; padding:2px; font-size:9px;">
-            <input type="number" id="edit-j4" step="0.01" style="width:50px; padding:2px; font-size:9px;">
-            <input type="number" id="edit-j5" step="0.01" style="width:50px; padding:2px; font-size:9px;">
+          <div style="display: none; gap: 4px; flex: 1; flex-wrap: wrap; align-items: flex-end;" id="jnt-editor">
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+              <label style="font-size: 9px; color: var(--tx3); font-weight: bold;">B</label>
+              <input type="number" id="edit-j0" step="0.01" style="width:50px; padding:4px; font-size:9px; background:var(--sf); border:1px solid var(--bd); border-radius:3px; color:var(--tx);">
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+              <label style="font-size: 9px; color: var(--tx3); font-weight: bold;">S</label>
+              <input type="number" id="edit-j1" step="0.01" style="width:50px; padding:4px; font-size:9px; background:var(--sf); border:1px solid var(--bd); border-radius:3px; color:var(--tx);">
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+              <label style="font-size: 9px; color: var(--tx3); font-weight: bold;">E</label>
+              <input type="number" id="edit-j2" step="0.01" style="width:50px; padding:4px; font-size:9px; background:var(--sf); border:1px solid var(--bd); border-radius:3px; color:var(--tx);">
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+              <label style="font-size: 9px; color: var(--tx3); font-weight: bold;">W1</label>
+              <input type="number" id="edit-j3" step="0.01" style="width:50px; padding:4px; font-size:9px; background:var(--sf); border:1px solid var(--bd); border-radius:3px; color:var(--tx);">
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+              <label style="font-size: 9px; color: var(--tx3); font-weight: bold;">W2</label>
+              <input type="number" id="edit-j4" step="0.01" style="width:50px; padding:4px; font-size:9px; background:var(--sf); border:1px solid var(--bd); border-radius:3px; color:var(--tx);">
+            </div>
+            <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+              <label style="font-size: 9px; color: var(--tx3); font-weight: bold;">W3</label>
+              <input type="number" id="edit-j5" step="0.01" style="width:50px; padding:4px; font-size:9px; background:var(--sf); border:1px solid var(--bd); border-radius:3px; color:var(--tx);">
+            </div>
           </div>
           <button class="btn btn-sm" id="btn-edit-joints" onclick="window._setup.enterEditMode()" style="font-size: 9px; padding: 2px 6px;">Edit</button>
           <button class="btn btn-sm" id="btn-cancel-edit" onclick="window._setup.cancelEditMode()" style="font-size: 9px; padding: 2px 6px; display: none;">Cancel</button>
