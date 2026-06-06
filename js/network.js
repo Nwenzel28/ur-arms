@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // NETWORK — all fetch() calls to relay.py
 // ═══════════════════════════════════════════════════════════
-import { steps, positions, isJogging, setIsJogging, setIsFreedrive, fdAxes, isJointJogging, setIsJointJogging, isSimulationMode, simJoints, setSimJoints, globalSettings } from './state.js';
+import { steps, positions, isJogging, setIsJogging, isFreedrive, setIsFreedrive, fdAxes, isJointJogging, setIsJointJogging, isSimulationMode, simJoints, setSimJoints, globalSettings } from './state.js';
 import { updateViewer } from './viewer3d.js';
 import { buildCode } from './tab-program.js';
 
@@ -96,7 +96,10 @@ export function startFreedriveDetection() {
   .then(r => r.json())
   .then(data => {
     if (data.ok && data.prog) {
-      if (data.prog.includes("STOPPED") || data.prog.includes("PAUSED")) {
+      // Only reset freedrive UI if freedrive is actually active.
+      // "STOPPED" appears in programState even when the robot is idle,
+      // so we must guard against killing the button state spuriously.
+      if (isFreedrive && (data.prog.includes("STOPPED") || data.prog.includes("PAUSED"))) {
         resetFreedriveUI();
       }
     }
