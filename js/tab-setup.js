@@ -272,11 +272,105 @@ export function activateGripper() {
 export function openGripper()  { sendDirect(`def grp():\n  socket_close("rq_srv")\n  socket_open("127.0.0.1", 63352, "rq_srv")\n  socket_send_string("SET SPE 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET FOR 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET POS 0", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_close("rq_srv")\nend\ngrp()`);  setIsGripperOpen(true); }
 export function closeGripper() { sendDirect(`def grp():\n  socket_close("rq_srv")\n  socket_open("127.0.0.1", 63352, "rq_srv")\n  socket_send_string("SET SPE 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET FOR 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET POS 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_close("rq_srv")\nend\ngrp()`);  setIsGripperOpen(false); }
 
+export function enterEditMode() {
+  import('./state.js').then(s => {
+    const display = document.getElementById('jnt-display');
+    const editor = document.getElementById('jnt-editor');
+    const editBtn = document.getElementById('btn-edit-joints');
+    const cancelBtn = document.getElementById('btn-cancel-edit');
+    const applyBtn = document.getElementById('btn-apply-joints');
+
+    if (display) display.style.display = 'none';
+    if (editor) editor.style.display = 'grid';
+    if (editBtn) editBtn.style.display = 'none';
+    if (cancelBtn) cancelBtn.style.display = 'block';
+    if (applyBtn) applyBtn.style.display = 'block';
+
+    const current = s.getCurrentJoints();
+    const labels = ['edit-j0','edit-j1','edit-j2','edit-j3','edit-j4','edit-j5'];
+    labels.forEach((id, i) => {
+      const el = document.getElementById(id);
+      if (el && current) {
+        el.value = toDisp(current[i]);
+      }
+    });
+  });
+}
+
+export function cancelEditMode() {
+  const display = document.getElementById('jnt-display');
+  const editor = document.getElementById('jnt-editor');
+  const editBtn = document.getElementById('btn-edit-joints');
+  const cancelBtn = document.getElementById('btn-cancel-edit');
+  const applyBtn = document.getElementById('btn-apply-joints');
+
+  if (display) display.style.display = 'flex';
+  if (editor) editor.style.display = 'none';
+  if (editBtn) editBtn.style.display = 'block';
+  if (cancelBtn) cancelBtn.style.display = 'none';
+  if (applyBtn) applyBtn.style.display = 'none';
+}
+
+export function startApplyJoints() {
+  import('./state.js').then(s => {
+    const labels = ['edit-j0','edit-j1','edit-j2','edit-j3','edit-j4','edit-j5'];
+    const targetJoints = labels.map(id => {
+      const el = document.getElementById(id);
+      return fromDisp(el?.value || 0);
+    });
+
+    if (s.isSimulationMode) {
+      // ── SIM MODE: Animate simJoints toward target ──
+      if (!targetJoints.every(v => typeof v === 'number')) {
+        console.warn('Invalid joint values');
+        return;
+      }
+      const START = [...s.simJoints];
+      const STEPS = 60;
+      let frame = 0;
+      window._editJointRaf = true;
+
+      function step() {
+        if (!window._editJointRaf) return;
+        frame++;
+        const t = Math.min(frame / STEPS, 1);
+        const ease = t * t * (3 - 2 * t);
+        const j = START.map((v, i) => v + (targetJoints[i] - v) * ease);
+        s.setSimJoints(j);
+        if (t < 1) {
+          requestAnimationFrame(step);
+        } else {
+          window._editJointRaf = false;
+        }
+      }
+      requestAnimationFrame(step);
+      return;
+    }
+
+    // ── REAL MODE: Send movej command to robot ──
+    const cartStr = targetJoints.map(v => v.toFixed(4)).join(',');
+    const urscript = `def edit_move():\n  movej([${cartStr}], a=1.2, v=1.05)\nend\n`;
+    resetFreedriveUI();
+    sendDirect(urscript);
+  });
+}
+
+export function stopApplyJoints() {
+  import('./state.js').then(s => {
+    if (s.isSimulationMode) {
+      window._editJointRaf = false;
+      return;
+    }
+    sendDirect("def stop_edit():\n  stopl(2.5)\nend\n");
+  });
+}
+
 // Expose to window for inline HTML event handlers
 export function exposeSetup() {
   window._setup = {
     liveJoint, renamePos, addPos, deletePos,
     startMoveHere, stopMoveHere, setToCurrent, recordLivePosition,
-    toggleFreedrive, openGripper, closeGripper, toggleFdAxis, activateGripper
+    toggleFreedrive, openGripper, closeGripper, toggleFdAxis, activateGripper,
+    enterEditMode, cancelEditMode, startApplyJoints, stopApplyJoints
   };
 }

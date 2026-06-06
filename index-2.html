@@ -124,7 +124,7 @@
         </div>
         <div style="display: flex; gap: 12px; align-items: center;">
           <span style="color: var(--ac); font-weight: bold; width: 32px;">JNT:</span>
-          <div style="display: flex; gap: 10px; flex: 1; flex-wrap: wrap;">
+          <div style="display: flex; gap: 10px; flex: 1; flex-wrap: wrap;" id="jnt-display">
             <div><span style="color: var(--tx3)">B:</span> <span id="live-j0">0.00</span>°</div>
             <div><span style="color: var(--tx3)">S:</span> <span id="live-j1">0.00</span>°</div>
             <div><span style="color: var(--tx3)">E:</span> <span id="live-j2">0.00</span>°</div>
@@ -132,6 +132,21 @@
             <div><span style="color: var(--tx3)">W2:</span> <span id="live-j4">0.00</span>°</div>
             <div><span style="color: var(--tx3)">W3:</span> <span id="live-j5">0.00</span>°</div>
           </div>
+          <div style="display: grid; grid-template-columns: repeat(6, 60px); gap: 4px; flex: 1; flex-wrap: wrap;" id="jnt-editor" style="display: none;">
+            <input type="number" id="edit-j0" step="0.01" style="width:50px; padding:2px; font-size:9px;">
+            <input type="number" id="edit-j1" step="0.01" style="width:50px; padding:2px; font-size:9px;">
+            <input type="number" id="edit-j2" step="0.01" style="width:50px; padding:2px; font-size:9px;">
+            <input type="number" id="edit-j3" step="0.01" style="width:50px; padding:2px; font-size:9px;">
+            <input type="number" id="edit-j4" step="0.01" style="width:50px; padding:2px; font-size:9px;">
+            <input type="number" id="edit-j5" step="0.01" style="width:50px; padding:2px; font-size:9px;">
+          </div>
+          <button class="btn btn-sm" id="btn-edit-joints" onclick="window._setup.enterEditMode()" style="font-size: 9px; padding: 2px 6px;">Edit</button>
+          <button class="btn btn-sm" id="btn-cancel-edit" onclick="window._setup.cancelEditMode()" style="font-size: 9px; padding: 2px 6px; display: none;">Cancel</button>
+          <button class="btn btn-sm btn-ac" id="btn-apply-joints"
+            style="font-size: 9px; padding: 2px 6px; display: none;"
+            onmousedown="window._setup.startApplyJoints()"
+            onmouseup="window._setup.stopApplyJoints()"
+            onmouseleave="window._setup.stopApplyJoints()">Apply</button>
           <div style="display: inline-flex; align-items: center; gap: 6px; font-size: 10px;">
             <span style="color: var(--tx3); font-weight: bold;">Gripper:</span>
             <span id="live-gripper-pos" style="color: var(--ac);">---</span>
