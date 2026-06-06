@@ -186,12 +186,20 @@ async function executeStep(step) {
     case 'set_payload':
     case 'set_tcp':
     case 'activate_gripper':
-    case 'read_gripper':
     case 'assign':
     case 'timer':
     case 'guarded_move':
       logSim(`[${step.type}] (skipped in sim)`);
       break;
+
+    case 'read_gripper': {
+      logSim(`GRIP: READ - awaiting user input for ${step.varName ?? 'part_size'}`);
+      const value = prompt(`Enter value for ${step.varName ?? 'part_size'}:`, '0');
+      if (value !== null) {
+        logSim(`GRIP: READ - ${step.varName ?? 'part_size'} = ${value}`);
+      }
+      break;
+    }
 
     case 'end':
     case 'folder':

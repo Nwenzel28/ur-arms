@@ -301,36 +301,73 @@ export async function renderNodeConfig() {
 
   switch(s.type) {
     case 'movej':
-    case 'movel': {
-      const posOpts = positions.map(p => `<option value="${p.id}" ${s.pid === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
+    case 'movel':
+    case 'movec': {
       html += `
         <div>
-          <label style="${labelStyle}">Target Position</label>
-          <select style="${inputStyle}" onchange="window._prog.upd('${s.id}', 'pid', this.value)">
-            <option value="" ${!s.pid ? 'selected' : ''}>-- Select Position --</option>
-            ${posOpts}
+          <label style="${labelStyle}">Move Type</label>
+          <select style="${inputStyle}" onchange="window._prog.changeType('${s.id}', this.value)">
+            <option value="movej" ${s.type === 'movej' ? 'selected' : ''}>Move J (Joint)</option>
+            <option value="movel" ${s.type === 'movel' ? 'selected' : ''}>Move L (Linear)</option>
+            <option value="movec" ${s.type === 'movec' ? 'selected' : ''}>Move C (Circular)</option>
+          </select>
+        </div>
+      `;
+
+      if (s.type === 'movej' || s.type === 'movel') {
+        const posOpts = positions.map(p => `<option value="${p.id}" ${s.pid === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
+        html += `
+          <div>
+            <label style="${labelStyle}">Target Position</label>
+            <select style="${inputStyle}" onchange="window._prog.upd('${s.id}', 'pid', this.value)">
+              <option value="" ${!s.pid ? 'selected' : ''}>-- Select Position --</option>
+              ${posOpts}
+            </select>
+          </div>
+        `;
+      } else if (s.type === 'movec') {
+        const viaOpts = positions.map(p => `<option value="${p.id}" ${s.via === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
+        const toOpts = positions.map(p => `<option value="${p.id}" ${s.to === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
+        html += `
+          <div>
+            <label style="${labelStyle}">Via Position (Arc Middle)</label>
+            <select style="${inputStyle}" onchange="window._prog.upd('${s.id}', 'via', this.value)">
+              <option value="" ${!s.via ? 'selected' : ''}>-- Select Position --</option>
+              ${viaOpts}
+            </select>
+          </div>
+          <div>
+            <label style="${labelStyle}">To Position (Arc End)</label>
+            <select style="${inputStyle}" onchange="window._prog.upd('${s.id}', 'to', this.value)">
+              <option value="" ${!s.to ? 'selected' : ''}>-- Select Position --</option>
+              ${toOpts}
+            </select>
+          </div>
+        `;
+      }
+      break;
+    }
+    case 'activate_gripper':
+    case 'open_gripper':
+    case 'close_gripper': {
+      html += `
+        <div>
+          <label style="${labelStyle}">Gripper Command</label>
+          <select style="${inputStyle}" onchange="window._prog.changeType('${s.id}', this.value)">
+            <option value="activate_gripper" ${s.type === 'activate_gripper' ? 'selected' : ''}>Activate</option>
+            <option value="open_gripper" ${s.type === 'open_gripper' ? 'selected' : ''}>Open</option>
+            <option value="close_gripper" ${s.type === 'close_gripper' ? 'selected' : ''}>Close</option>
           </select>
         </div>
       `;
       break;
     }
-    case 'movec': {
-      const viaOpts = positions.map(p => `<option value="${p.id}" ${s.via === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
-      const toOpts = positions.map(p => `<option value="${p.id}" ${s.to === p.id ? 'selected' : ''}>${p.name}</option>`).join('');
+    case 'read_gripper': {
       html += `
         <div>
-          <label style="${labelStyle}">Via Position (Arc Middle)</label>
-          <select style="${inputStyle}" onchange="window._prog.upd('${s.id}', 'via', this.value)">
-            <option value="" ${!s.via ? 'selected' : ''}>-- Select Position --</option>
-            ${viaOpts}
-          </select>
-        </div>
-        <div>
-          <label style="${labelStyle}">To Position (Arc End)</label>
-          <select style="${inputStyle}" onchange="window._prog.upd('${s.id}', 'to', this.value)">
-            <option value="" ${!s.to ? 'selected' : ''}>-- Select Position --</option>
-            ${toOpts}
-          </select>
+          <label style="${labelStyle}">Save Position Variable Name</label>
+          <input type="text" style="${inputStyle}" value="${s.varName ?? 'part_size'}" placeholder="e.g. part_size"
+            oninput="window._prog.upd('${s.id}', 'varName', this.value)"/>
         </div>
       `;
       break;
