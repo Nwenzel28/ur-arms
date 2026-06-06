@@ -281,7 +281,7 @@ export function enterEditMode() {
     const applyBtn = document.getElementById('btn-apply-joints');
 
     if (display) display.style.display = 'none';
-    if (editor) editor.style.display = 'grid';
+    if (editor) editor.style.display = 'flex';
     if (editBtn) editBtn.style.display = 'none';
     if (cancelBtn) cancelBtn.style.display = 'block';
     if (applyBtn) applyBtn.style.display = 'block';
@@ -403,7 +403,7 @@ function checkAndRevertIfAtTarget() {
     });
 
     const current = s.getCurrentJoints();
-    const threshold = 0.1; // ~5.7 degrees
+    const threshold = 0.075; // ~4.3 degrees
     const closeEnough = targetJoints.every((target, i) =>
       Math.abs(target - current[i]) < threshold
     );
@@ -431,7 +431,7 @@ function checkArrivalInterval() {
       });
 
       const current = s.getCurrentJoints();
-      const threshold = 0.1; // ~5.7 degrees
+      const threshold = 0.075; // ~4.3 degrees
       const closeEnough = targetJoints.every((target, i) =>
         Math.abs(target - current[i]) < threshold
       );
