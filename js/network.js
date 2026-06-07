@@ -3,7 +3,6 @@
 // ═══════════════════════════════════════════════════════════
 import { steps, positions, isJogging, setIsJogging, isFreedrive, setIsFreedrive, fdAxes, isJointJogging, setIsJointJogging, isSimulationMode, simJoints, setSimJoints, globalSettings } from './state.js';
 import { updateViewer } from './viewer3d.js';
-import { buildCode } from './tab-program.js';
 
 export const RELAY = 'http://localhost:5678';
 
@@ -79,8 +78,9 @@ export function resetFreedriveUI() {
   setIsFreedrive(false);
   const btn = document.getElementById('btn-freedrive');
   if (btn) {
-    btn.textContent = 'Freedrive';
+    btn.textContent = 'Freedrive: OFF';
     btn.classList.remove('btn-ac');
+    btn.style.opacity = '';
   }
 }
 
@@ -95,9 +95,11 @@ export function startFreedriveDetection() {
   })
   .then(r => r.json())
   .then(data => {
-    // 🎯 FIX: Track the hardware execution mode (data.mode), not the dashboard program
-    if (data.ok && data.mode) {
-      if (isFreedrive && (data.mode.includes("IDLE") || data.mode.includes("POWER_OFF"))) {
+    if (data.ok && data.prog) {
+      // Only reset freedrive UI if freedrive is actually active.
+      // "STOPPED" appears in programState even when the robot is idle,
+      // so we must guard against killing the button state spuriously.
+      if (isFreedrive && (data.prog.includes("STOPPED") || data.prog.includes("PAUSED"))) {
         resetFreedriveUI();
       }
     }
@@ -255,6 +257,9 @@ export function startGripperTelemetry() {
           let pct = Math.round(((raw - 3) / (230 - 3)) * 100);
           const posEl = document.getElementById('live-gripper-pos');
           if (posEl) posEl.textContent = `${raw} (${pct}%)`;
+          // Drive 3D gripper: raw 3=open (0 rad), 230=closed (0.8 rad)
+          const gripperQ = ((raw - 3) / (230 - 3)) * 0.8;
+          import('./gripper3d.js').then(gr => gr.animateGripper(gripperQ, 150));
         }
 
         const objEl = document.getElementById('live-gripper-obj');
