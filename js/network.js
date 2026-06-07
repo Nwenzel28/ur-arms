@@ -95,11 +95,9 @@ export function startFreedriveDetection() {
   })
   .then(r => r.json())
   .then(data => {
-    if (data.ok && data.prog) {
-      // Only reset freedrive UI if freedrive is actually active.
-      // "STOPPED" appears in programState even when the robot is idle,
-      // so we must guard against killing the button state spuriously.
-      if (isFreedrive && (data.prog.includes("STOPPED") || data.prog.includes("PAUSED"))) {
+    // 🎯 FIX: Track the hardware execution mode (data.mode), not the dashboard program
+    if (data.ok && data.mode) {
+      if (isFreedrive && (data.mode.includes("IDLE") || data.mode.includes("POWER_OFF"))) {
         resetFreedriveUI();
       }
     }

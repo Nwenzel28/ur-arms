@@ -227,7 +227,7 @@ export function toggleFreedrive() {
       sendDirect(`def fd_on():\n  freedrive_mode([${s.fdAxes.join(',')}], p[0,0,0,0,0,0])\n  while True:\n    sync()\n  end\nend\n`);
     } else {
       s.setIsFreedrive(false);
-      btn.textContent = 'Freedrive';
+      btn.textContent = 'Freedrive: OFF';
       btn.classList.remove('btn-ac');
       sendDirect(`def fd_off():\n  end_freedrive_mode()\nend\n`);
     }
@@ -254,6 +254,7 @@ export function activateGripper() {
       const grpBox = document.getElementById('gripper-actions-box');
       if (actBtn) actBtn.style.display = 'none';
       if (grpBox) grpBox.style.display = 'flex';
+      import('./gripper3d.js').then(gr => gr.animateGripper(0)); // start open
       return;
     }
     const ip = document.getElementById('robot-ip').value.trim();
@@ -269,179 +270,16 @@ export function activateGripper() {
 }
 
 // Gripper actions
-export function openGripper()  { sendDirect(`def grp():\n  socket_close("rq_srv")\n  socket_open("127.0.0.1", 63352, "rq_srv")\n  socket_send_string("SET SPE 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET FOR 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET POS 0", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_close("rq_srv")\nend\ngrp()`);  setIsGripperOpen(true); }
-export function closeGripper() { sendDirect(`def grp():\n  socket_close("rq_srv")\n  socket_open("127.0.0.1", 63352, "rq_srv")\n  socket_send_string("SET SPE 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET FOR 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET POS 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_close("rq_srv")\nend\ngrp()`);  setIsGripperOpen(false); }
-
-export function enterEditMode() {
-  import('./state.js').then(s => {
-    const display = document.getElementById('jnt-display');
-    const editor = document.getElementById('jnt-editor');
-    const editBtn = document.getElementById('btn-edit-joints');
-    const cancelBtn = document.getElementById('btn-cancel-edit');
-    const applyBtn = document.getElementById('btn-apply-joints');
-
-    if (display) display.style.display = 'none';
-    if (editor) editor.style.display = 'flex';
-    if (editBtn) editBtn.style.display = 'none';
-    if (cancelBtn) cancelBtn.style.display = 'block';
-    if (applyBtn) applyBtn.style.display = 'block';
-
-    const current = s.getCurrentJoints();
-    const labels = ['edit-j0','edit-j1','edit-j2','edit-j3','edit-j4','edit-j5'];
-    labels.forEach((id, i) => {
-      const el = document.getElementById(id);
-      if (el && current) {
-        el.value = toDisp(current[i]);
-        // Show preview as user edits
-        el.addEventListener('input', updateEditPreview, { once: false });
-      }
-    });
-
-    // Show initial preview
-    updateEditPreview();
-  });
+export function openGripper() {
+  import('./gripper3d.js').then(gr => gr.animateGripper(0));   // 0 rad = open
+  setIsGripperOpen(true);
+  sendDirect(`def grp():\n  socket_close("rq_srv")\n  socket_open("127.0.0.1", 63352, "rq_srv")\n  socket_send_string("SET SPE 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET FOR 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET POS 0", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_close("rq_srv")\nend\ngrp()`);
 }
 
-function updateEditPreview() {
-  const labels = ['edit-j0','edit-j1','edit-j2','edit-j3','edit-j4','edit-j5'];
-  const previewJoints = labels.map(id => {
-    const el = document.getElementById(id);
-    return fromDisp(el?.value || 0);
-  });
-  import('./viewer3d.js').then(v => v.showPreview(previewJoints));
-}
-
-export function cancelEditMode() {
-  const display = document.getElementById('jnt-display');
-  const editor = document.getElementById('jnt-editor');
-  const editBtn = document.getElementById('btn-edit-joints');
-  const cancelBtn = document.getElementById('btn-cancel-edit');
-  const applyBtn = document.getElementById('btn-apply-joints');
-
-  // Remove event listeners
-  const labels = ['edit-j0','edit-j1','edit-j2','edit-j3','edit-j4','edit-j5'];
-  labels.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.removeEventListener('input', updateEditPreview);
-    }
-  });
-
-  if (display) display.style.display = 'flex';
-  if (editor) editor.style.display = 'none';
-  if (editBtn) editBtn.style.display = 'block';
-  if (cancelBtn) cancelBtn.style.display = 'none';
-  if (applyBtn) applyBtn.style.display = 'none';
-
-  import('./viewer3d.js').then(v => v.hidePreview());
-}
-
-export function startApplyJoints() {
-  import('./state.js').then(s => {
-    const labels = ['edit-j0','edit-j1','edit-j2','edit-j3','edit-j4','edit-j5'];
-    const targetJoints = labels.map(id => {
-      const el = document.getElementById(id);
-      return fromDisp(el?.value || 0);
-    });
-
-    if (s.isSimulationMode) {
-      // ── SIM MODE: Animate simJoints toward target ──
-      if (!targetJoints.every(v => typeof v === 'number')) {
-        console.warn('Invalid joint values');
-        return;
-      }
-      const START = [...s.simJoints];
-      const STEPS = 60;
-      let frame = 0;
-      window._editJointRaf = true;
-
-      function step() {
-        if (!window._editJointRaf) return;
-        frame++;
-        const t = Math.min(frame / STEPS, 1);
-        const ease = t * t * (3 - 2 * t);
-        const j = START.map((v, i) => v + (targetJoints[i] - v) * ease);
-        s.setSimJoints(j);
-        if (t < 1) {
-          requestAnimationFrame(step);
-        } else {
-          window._editJointRaf = false;
-        }
-      }
-      requestAnimationFrame(step);
-      return;
-    }
-
-    // ── REAL MODE: Send movej command to robot ──
-    const cartStr = targetJoints.map(v => v.toFixed(4)).join(',');
-    const urscript = `def edit_move():\n  movej([${cartStr}], a=1.2, v=1.05)\nend\n`;
-    resetFreedriveUI();
-    sendDirect(urscript);
-  });
-}
-
-export function stopApplyJoints() {
-  import('./state.js').then(s => {
-    if (s.isSimulationMode) {
-      window._editJointRaf = false;
-      // Check if we're close to target and auto-revert if so
-      checkAndRevertIfAtTarget();
-      return;
-    }
-    sendDirect("def stop_edit():\n  stopl(2.5)\nend\n");
-    // Start checking for arrival
-    checkArrivalInterval();
-  });
-}
-
-function checkAndRevertIfAtTarget() {
-  import('./state.js').then(s => {
-    const labels = ['edit-j0','edit-j1','edit-j2','edit-j3','edit-j4','edit-j5'];
-    const targetJoints = labels.map(id => {
-      const el = document.getElementById(id);
-      return fromDisp(el?.value || 0);
-    });
-
-    const current = s.getCurrentJoints();
-    const threshold = 0.075; // ~4.3 degrees
-    const closeEnough = targetJoints.every((target, i) =>
-      Math.abs(target - current[i]) < threshold
-    );
-
-    if (closeEnough) {
-      cancelEditMode();
-    }
-  });
-}
-
-function checkArrivalInterval() {
-  let checkCount = 0;
-  const interval = setInterval(() => {
-    checkCount++;
-    if (checkCount > 40) { // Stop checking after ~10 seconds (40 * 250ms)
-      clearInterval(interval);
-      return;
-    }
-
-    import('./state.js').then(s => {
-      const labels = ['edit-j0','edit-j1','edit-j2','edit-j3','edit-j4','edit-j5'];
-      const targetJoints = labels.map(id => {
-        const el = document.getElementById(id);
-        return fromDisp(el?.value || 0);
-      });
-
-      const current = s.getCurrentJoints();
-      const threshold = 0.075; // ~4.3 degrees
-      const closeEnough = targetJoints.every((target, i) =>
-        Math.abs(target - current[i]) < threshold
-      );
-
-      if (closeEnough) {
-        clearInterval(interval);
-        cancelEditMode();
-      }
-    });
-  }, 250);
+export function closeGripper() {
+  import('./gripper3d.js').then(gr => gr.animateGripper(0.8)); // 0.8 rad = closed
+  setIsGripperOpen(false);
+  sendDirect(`def grp():\n  socket_close("rq_srv")\n  socket_open("127.0.0.1", 63352, "rq_srv")\n  socket_send_string("SET SPE 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET FOR 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET POS 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_close("rq_srv")\nend\ngrp()`);
 }
 
 // Expose to window for inline HTML event handlers
@@ -449,7 +287,6 @@ export function exposeSetup() {
   window._setup = {
     liveJoint, renamePos, addPos, deletePos,
     startMoveHere, stopMoveHere, setToCurrent, recordLivePosition,
-    toggleFreedrive, openGripper, closeGripper, toggleFdAxis, activateGripper,
-    enterEditMode, cancelEditMode, startApplyJoints, stopApplyJoints
+    toggleFreedrive, openGripper, closeGripper, toggleFdAxis, activateGripper
   };
 }
