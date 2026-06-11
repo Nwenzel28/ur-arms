@@ -171,13 +171,31 @@ async function executeStep(step) {
 
     case 'open_gripper': {
       logSim(`GRIP: OPEN`);
+      try {
+        const gr = await import('./gripper3d.js');
+        gr.animateGripper(0);
+      } catch (err) {}
       await new Promise(r => setTimeout(r, 500));
       break;
     }
 
     case 'close_gripper': {
       logSim(`GRIP: CLOSE`);
+      try {
+        const gr = await import('./gripper3d.js');
+        gr.animateGripper(0.8);
+      } catch (err) {}
       await new Promise(r => setTimeout(r, 500));
+      break;
+    }
+
+    case 'activate_gripper': {
+      logSim(`GRIP: ACTIVATE`);
+      try {
+        const gr = await import('./gripper3d.js');
+        gr.animateGripper(0); // initialize to open
+      } catch (err) {}
+      await new Promise(r => setTimeout(r, 800));
       break;
     }
 
@@ -185,7 +203,6 @@ async function executeStep(step) {
     case 'popup':
     case 'set_payload':
     case 'set_tcp':
-    case 'activate_gripper':
     case 'assign':
     case 'timer':
     case 'guarded_move':

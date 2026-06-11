@@ -5,6 +5,7 @@
 // ═══════════════════════════════════════════════════════════
 
 const PI = Math.PI;
+import { initGripper, setGripperTransform } from './gripper3d.js';
 
 // ── UR3e Standard DH Parameters ────────────────────────────
 const DH = {
@@ -237,6 +238,12 @@ export async function initViewer(containerId) {
   await loadColladaLoader();
   await loadAllMeshes();
 
+  try {
+    await initGripper(THREE, scene);
+  } catch (err) {
+    console.warn("Failed to initialize gripper in 3D viewer:", err);
+  }
+
   hideLoadingOverlay(container);
   updateViewer(_lastJoints);
 }
@@ -388,6 +395,11 @@ export function updateViewer(joints, tcpOffset = null) {
   const flangePos = getPos(transforms[6], THREE);
   const flangeQuat = new THREE.Quaternion();
   transforms[6].decompose(new THREE.Vector3(), flangeQuat, new THREE.Vector3());
+
+  // Update gripper transform
+  try {
+    setGripperTransform(transforms[6]);
+  } catch (err) {}
 
   let tcpPos = flangePos.clone();
   let tcpQuat = flangeQuat.clone();
