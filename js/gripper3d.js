@@ -190,12 +190,13 @@ function loadGripperMeshes() {
       });
       // Meshes are in mm → scale to metres
       obj.scale.set(0.001, 0.001, 0.001);
-      // Rotate meshes to align with the robot's Z_UP coordinate frame.
-      // The left side has a base RPY rotation of PI around Z, so its Y axis is inverted relative to the right side/base.
-      if (linkName.startsWith('left_')) {
-        obj.rotation.x = PI / 2;
+      // Align meshes to the joint coordinate frames.
+      // base_link.dae is Z_UP (setting rotation.x to 0 aligns its Z-axis with the group Z-axis).
+      // All other meshes are Y_UP, so we rotate them by PI/2 to align their Y-axis with the group Z-axis.
+      if (linkName === 'base') {
+        obj.rotation.x = 0;
       } else {
-        obj.rotation.x = -PI / 2;
+        obj.rotation.x = PI / 2;
       }
       g[linkName].add(obj);
       resolve();
