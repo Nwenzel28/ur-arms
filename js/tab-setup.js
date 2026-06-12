@@ -17,7 +17,10 @@ export function renderPositions() {
   el.innerHTML = positions.map(pos => {
     if (!pos.c) pos.c = [...pos.j];
     return `
-    <div class="pos-card" id="pc-${pos.id}" style="background:var(--sf2);border:1px solid var(--bd);border-radius:var(--r);padding:10px;margin-bottom:8px;">
+    <div class="pos-card" id="pc-${pos.id}"
+      onmouseenter="window._setup.hoverPos('${pos.id}', true)"
+      onmouseleave="window._setup.hoverPos('${pos.id}', false)"
+      style="background:var(--sf2);border:1px solid var(--bd);border-radius:var(--r);padding:10px;margin-bottom:8px;">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
         <div style="width:8px;height:8px;border-radius:50%;background:${posComplete(pos)?'var(--gn)':'var(--tx3)'}"></div>
         <input style="flex:1;background:transparent;border:none;border-bottom:1px solid var(--bd);color:var(--tx);font-weight:600;font-size:13px;padding:2px 4px;" 
@@ -282,11 +285,26 @@ export function closeGripper() {
   sendDirect(`def grp():\n  socket_close("rq_srv")\n  socket_open("127.0.0.1", 63352, "rq_srv")\n  socket_send_string("SET SPE 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET FOR 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_send_string("SET POS 255", "rq_srv")\n  socket_send_byte(10, "rq_srv")\n  sync()\n  socket_close("rq_srv")\nend\ngrp()`);
 }
 
+export function hoverPos(pid, show) {
+  const pos = positions.find(p => p.id === pid);
+  if (!pos) return;
+  import('./viewer3d.js').then(v => {
+    if (show) {
+      if (pos.j && pos.j.some(val => val !== 0)) {
+        v.showPreview(pos.j);
+      }
+    } else {
+      v.hidePreview();
+    }
+  });
+}
+
 // Expose to window for inline HTML event handlers
 export function exposeSetup() {
   window._setup = {
     liveJoint, renamePos, addPos, deletePos,
     startMoveHere, stopMoveHere, setToCurrent, recordLivePosition,
-    toggleFreedrive, openGripper, closeGripper, toggleFdAxis, activateGripper
+    toggleFreedrive, openGripper, closeGripper, toggleFdAxis, activateGripper,
+    hoverPos
   };
 }

@@ -48,7 +48,8 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--tx);font:
 .card-title{font:600 11px/1 var(--mono);color:var(--tx2);letter-spacing:.08em;text-transform:uppercase;flex:1}
 
 /* ── Position cards ──────────────────────────────────────── */
-.pos-card{border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;margin-bottom:8px}
+.pos-card{border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;margin-bottom:8px;transition:border-color 0.15s, box-shadow 0.15s;}
+.pos-card:hover{border-color:var(--ac) !important;box-shadow:0 0 6px var(--aclo);}
 .pos-hdr{display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--sf2);border-bottom:1px solid var(--bd)}
 .pos-dot{width:7px;height:7px;border-radius:50%;background:var(--bd2);flex-shrink:0;transition:.2s}
 .pos-dot.full{background:var(--gn);box-shadow:0 0 6px var(--gn)}
