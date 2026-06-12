@@ -188,16 +188,15 @@ function loadGripperMeshes() {
           child.receiveShadow = true;
         }
       });
+      
       // Meshes are in mm → scale to metres
       obj.scale.set(0.001, 0.001, 0.001);
-      // Align meshes to the joint coordinate frames.
-      // base_link.dae is Z_UP (setting rotation.x to 0 aligns its Z-axis with the group Z-axis).
-      // All other meshes are Y_UP, so we rotate them by PI/2 to align their Y-axis with the group Z-axis.
-      if (linkName === 'base') {
-        obj.rotation.x = 0;
-      } else {
-        obj.rotation.x = PI / 2;
-      }
+      
+      // 🎯 FIX 2: Remove the conditional 90-degree rotations.
+      // All meshes from this URDF share the same local coordinate system. 
+      // Setting them all to 0 allows the JOINT_ORIGINS to do their job.
+      obj.rotation.set(0, 0, 0);
+      
       g[linkName].add(obj);
       resolve();
     }, undefined, err => {
@@ -213,10 +212,21 @@ function loadGripperMeshes() {
 // Called every frame from viewer3d with the wrist3 world matrix.
 export function setGripperTransform(wrist3Matrix) {
   if (!_gripperRoot) return;
+  
+  // 🎯 FIX 1: UR3e Tool Flange Offset
+  // wrist3 origin is deep inside the cylinder. Move the gripper out 92mm to the mounting plate.
+  // Note: Standard UR kinematics point the tool flange along the Z-axis. 
+  // (If your specific arm mesh uses Y-out, change this to 0, 0.092, 0)
+  const flangeOffset = new _THREE.Matrix4().makeTranslation(0, 0, 0.092); 
+  const toolMatrix = wrist3Matrix.clone().multiply(flangeOffset);
+
   const p = new _THREE.Vector3();
   const q = new _THREE.Quaternion();
   const s = new _THREE.Vector3();
-  wrist3Matrix.decompose(p, q, s);
+  
+  // Decompose the new offset matrix instead of the raw wrist matrix
+  toolMatrix.decompose(p, q, s);
+  
   _gripperRoot.position.copy(p);
   _gripperRoot.quaternion.copy(q);
 }
