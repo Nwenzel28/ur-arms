@@ -85,8 +85,29 @@ export function moveStep(sid, dir) {
 
 export function changeType(sid, type) {
   const i = steps.findIndex(s=>s.id===sid); if (i<0) return;
-  steps[i] = {...defaultStep(type), id:sid};
-  renderSteps(); refreshCode();
+  const oldStep = steps[i];
+  const newStep = {...defaultStep(type), id:sid};
+
+  const moveTypes = ['movej', 'movel', 'movec'];
+  if (moveTypes.includes(oldStep.type) && moveTypes.includes(type)) {
+    if (type === 'movej' || type === 'movel') {
+      if (oldStep.type === 'movej' || oldStep.type === 'movel') {
+        newStep.pid = oldStep.pid;
+      } else if (oldStep.type === 'movec') {
+        newStep.pid = oldStep.to || oldStep.via;
+      }
+    } else if (type === 'movec') {
+      if (oldStep.type === 'movej' || oldStep.type === 'movel') {
+        newStep.via = oldStep.pid;
+        newStep.to = oldStep.pid;
+      }
+    }
+  }
+
+  steps[i] = newStep;
+  renderSteps();
+  renderNodeConfig();
+  refreshCode();
 }
 
 export function upd(sid, key, val) {

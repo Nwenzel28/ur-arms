@@ -114,7 +114,7 @@ const LINK_MATERIAL = {
 // ── Helper: build a Matrix4 from [x,y,z,rx,ry,rz] ─────────
 function originMat(o) {
   const q = new _THREE.Quaternion()
-    .setFromEuler(new _THREE.Euler(o[3], o[4], o[5], 'XYZ'));
+    .setFromEuler(new _THREE.Euler(o[3], o[4], o[5], 'ZYX'));
   const m = new _THREE.Matrix4();
   m.compose(new _THREE.Vector3(o[0], o[1], o[2]), q, new _THREE.Vector3(1,1,1));
   return m;
@@ -167,7 +167,7 @@ function applyFixedOrigin(name, group) {
   const o = JOINT_ORIGINS[name];
   if (!o) return;
   const q = new _THREE.Quaternion()
-    .setFromEuler(new _THREE.Euler(o[3], o[4], o[5], 'XYZ'));
+    .setFromEuler(new _THREE.Euler(o[3], o[4], o[5], 'ZYX'));
   group.position.set(o[0], o[1], o[2]);
   group.quaternion.copy(q);
 }
@@ -190,6 +190,8 @@ function loadGripperMeshes() {
       });
       // Meshes are in mm → scale to metres
       obj.scale.set(0.001, 0.001, 0.001);
+      // Rotate Y_UP meshes by -PI/2 around X to align with the robot's Z_UP coordinate frame
+      obj.rotation.x = -PI / 2;
       g[linkName].add(obj);
       resolve();
     }, undefined, err => {
@@ -251,7 +253,7 @@ function setJointAngle(group, origin, angle) {
   const o = origin;
   // Base orientation from joint origin rpy
   const baseQ = new _THREE.Quaternion()
-    .setFromEuler(new _THREE.Euler(o[3], o[4], o[5], 'XYZ'));
+    .setFromEuler(new _THREE.Euler(o[3], o[4], o[5], 'ZYX'));
   // Joint rotation around local X
   const jointQ = new _THREE.Quaternion()
     .setFromAxisAngle(new _THREE.Vector3(1, 0, 0), angle);
