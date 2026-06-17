@@ -58,7 +58,7 @@ const JOINT_ORIGINS = {
   // left_outer_finger → left_inner_finger  (mimic -1)
   left_inner_finger:   [0,  0.0061,    0.0471,   0, 0, 0],
   // left_inner_finger → left_pad  (fixed)
-  left_pad:            [0, -0.02202,   0.03242,  0, 0, 0],
+  left_pad:            [0, 0,   0,  0, 0, 0],
 
   // base_link → right_outer_knuckle  (mimic +1, NO rpy flip)
   right_outer_knuckle: [0,  0.0306011, 0.054904, 0, 0, 0],
@@ -69,7 +69,7 @@ const JOINT_ORIGINS = {
   // right_outer_finger → right_inner_finger  (mimic -1)
   right_inner_finger:  [0,  0.0061,    0.0471,   0, 0, 0],
   // right_inner_finger → right_pad  (fixed)
-  right_pad:           [0, -0.02202,   0.03242,  0, 0, 0],
+  right_pad:           [0, 0,   0,  0, 0, 0],
 };
 
 // ── Mesh visual origins from URDF (all zero for this URDF) ─
