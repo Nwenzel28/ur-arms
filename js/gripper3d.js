@@ -192,14 +192,10 @@ function loadGripperMeshes() {
       // Meshes are in mm → scale to metres
       obj.scale.set(0.001, 0.001, 0.001);
       
-      // 🎯 FIX 1: Convert Y-Up finger meshes to Z-Up math frame equally!
-      // This aligns the visual meshes with the mathematical hinges,
-      // reconnecting the floating pads to the knuckles.
-      if (linkName === 'base') {
-        obj.rotation.set(0, 0, 0);
-      } else {
-        obj.rotation.set(PI / 2, 0, 0); 
-      }
+      // 🎯 FIX 2: Remove the conditional 90-degree rotations.
+      // All meshes from this URDF share the same local coordinate system. 
+      // Setting them all to 0 allows the JOINT_ORIGINS to do their job.
+      obj.rotation.set(0, 0, 0);
       
       g[linkName].add(obj);
       resolve();
