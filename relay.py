@@ -14,7 +14,7 @@ GRIPPER_PORT = 63352   # Robotiq 2F-85 URCap Modbus TCP daemon
 #   Windows CMD:  set GEMINI_API_KEY=your-key-here
 # Get a free key at https://aistudio.google.com/apikey
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL   = "gemini-2.0-flash"
+GEMINI_MODEL   = "gemini-3.1-flash-lite"
 GEMINI_URL     = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 
 AI_SYSTEM_PROMPT = """You are the built-in assistant for a custom UR3e robot arm web pendant
