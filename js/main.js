@@ -7,6 +7,7 @@ import { initViewer } from './viewer3d.js';
 import { renderPositions, exposeSetup, addPos, toggleFreedrive, openGripper, closeGripper, recordLivePosition } from './tab-setup.js';
 import { renderSteps, refreshCode, exposeProgram, addStep, sendToRobot } from './tab-program.js';
 import { initRunTab } from './tab-run.js';
+import { initAiAssistant } from './ai-assistant.js';
 
 // ── TAB SWITCHING ──
 function initTabs() {
@@ -266,6 +267,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 3D viewer
   initViewer('robot-3d-view');
+
+  // AI Q&A assistant (floating chat widget)
+  initAiAssistant();
 
   // Background services
   startFreedriveDetection();

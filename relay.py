@@ -1,11 +1,45 @@
 # relay.py — UR3e Relay Server
 # Run with: python3 relay.py
 from http.server import HTTPServer, BaseHTTPRequestHandler
-import socket, json, struct, time, threading
+import socket, json, struct, time, threading, os, urllib.request, urllib.error
 
 ROBOT_PORT   = 30002   # URScript injection
 STATE_PORT   = 30003   # Real-time client (robot telemetry)
 GRIPPER_PORT = 63352   # Robotiq 2F-85 URCap Modbus TCP daemon
+
+# ── 🤖 Gemini AI Assistant Config ───────────────────────────────────────
+# Never hardcode the key here. Set it as an environment variable before
+# launching the relay, e.g.:
+#   macOS/Linux:  export GEMINI_API_KEY="your-key-here"
+#   Windows CMD:  set GEMINI_API_KEY=your-key-here
+# Get a free key at https://aistudio.google.com/apikey
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_MODEL   = "gemini-2.0-flash"
+GEMINI_URL     = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+
+AI_SYSTEM_PROMPT = """You are the built-in assistant for a custom UR3e robot arm web pendant
+(a UR3e with a Robotiq 2F-85 gripper). You answer questions about the operator's saved
+positions, program steps, and settings, and explain how the program builder works.
+
+The program builder's step types are: movej, movel, movec, guarded_move, activate_gripper,
+open_gripper, close_gripper, read_gripper, loop_start, if_start, else_if, else, wait_cond,
+thread_start, end, assign, timer, sleep, textmsg, popup, halt, set_digital_out, set_payload,
+set_tcp, comment, folder.
+
+You will be given the current state of the user's project (positions, steps, settings, and
+whether Simulation Mode is on) as JSON context. Use it to answer questions concretely
+(e.g. "what does PICK's Z look like", "why would my loop never run", "what will step 4 do").
+
+Rules:
+- Be concise. Prefer short, direct answers over long essays.
+- If asked to write or modify a program, describe what to do in plain language and which
+  step types to use, but do NOT output raw JSON or full programs unless explicitly asked.
+- If something in their program looks like a mistake (e.g. an if_start with no matching end,
+  or a movec missing a via/to position), point it out proactively but briefly.
+- If you don't have enough context to answer, say so plainly instead of guessing.
+- Never claim you can directly modify the program yourself — you can only answer questions
+  and offer guidance right now.
+"""
 
 # ── 💬 Popup State ──────────────────────────────────────────────────────
 popup_msg = None
@@ -341,6 +375,68 @@ class Handler(BaseHTTPRequestHandler):
                         print(f"Failed to auto-dismiss pendant popup: {e}")
                 
                 resp = json.dumps({"ok": True}).encode()
+        # ── AI Assistant (Gemini) ───────────────────────────────────────
+        elif action == 'ai_ask':
+            if not GEMINI_API_KEY:
+                resp = json.dumps({
+                    "ok": False,
+                    "error": "GEMINI_API_KEY is not set on the relay server. "
+                             "Set it as an environment variable and restart relay.py."
+                }).encode()
+            else:
+                try:
+                    question = data.get('question', '').strip()
+                    context  = data.get('context', {})
+                    history  = data.get('history', [])  # [{role:'user'|'model', text:'...'}]
+
+                    if not question:
+                        resp = json.dumps({"ok": False, "error": "Empty question"}).encode()
+                    else:
+                        contents = []
+                        # Prior turns, so follow-up questions have memory
+                        for turn in history[-10:]:
+                            role = 'model' if turn.get('role') == 'model' else 'user'
+                            contents.append({"role": role, "parts": [{"text": turn.get('text', '')}]})
+
+                        user_text = (
+                            f"Current project context (JSON):\n{json.dumps(context)}\n\n"
+                            f"Question: {question}"
+                        )
+                        contents.append({"role": "user", "parts": [{"text": user_text}]})
+
+                        payload = {
+                            "contents": contents,
+                            "systemInstruction": {"parts": [{"text": AI_SYSTEM_PROMPT}]},
+                            "generationConfig": {"temperature": 0.3, "maxOutputTokens": 800}
+                        }
+
+                        req = urllib.request.Request(
+                            f"{GEMINI_URL}?key={GEMINI_API_KEY}",
+                            data=json.dumps(payload).encode(),
+                            headers={"Content-Type": "application/json"},
+                            method="POST"
+                        )
+                        with urllib.request.urlopen(req, timeout=20) as r:
+                            result = json.loads(r.read().decode())
+
+                        candidates = result.get('candidates', [])
+                        if candidates and candidates[0].get('content', {}).get('parts'):
+                            answer = candidates[0]['content']['parts'][0].get('text', '').strip()
+                            resp = json.dumps({"ok": True, "answer": answer}).encode()
+                        else:
+                            reason = candidates[0].get('finishReason') if candidates else 'no candidates'
+                            resp = json.dumps({"ok": False, "error": f"No answer returned ({reason})"}).encode()
+
+                except urllib.error.HTTPError as e:
+                    try:
+                        err_body = json.loads(e.read().decode())
+                        err_msg = err_body.get('error', {}).get('message', str(e))
+                    except Exception:
+                        err_msg = str(e)
+                    resp = json.dumps({"ok": False, "error": f"Gemini API error: {err_msg}"}).encode()
+                except Exception as e:
+                    resp = json.dumps({"ok": False, "error": str(e)}).encode()
+
         # ── Fetch Live UI Logs ─────────────────────────────────────────
         elif action == 'fetch_logs':
             # Send the current logs
