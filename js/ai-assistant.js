@@ -12,6 +12,73 @@ import { positions, steps, globalSettings, isSimulationMode, simJoints, simTcp }
 let _history = [];   // [{role:'user'|'model', text}]
 let _open = false;
 
+// ── Minimal, safe markdown renderer ──────────────────────────
+// Escapes HTML first, then converts a small, deliberate subset of
+// markdown (bold, inline code, code blocks, bullet/numbered lists,
+// line breaks). Not a full markdown parser — just enough for the
+// formatting Gemini actually produces in these answers.
+function escapeHtml(s) {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function mdToHtml(raw) {
+  const text = escapeHtml(raw);
+
+  // Pull out fenced code blocks first so their contents aren't touched
+  // by inline rules below.
+  const blocks = [];
+  let withPlaceholders = text.replace(/```([\s\S]*?)```/g, (_, code) => {
+    const idx = blocks.push(`<pre class="ai-codeblock"><code>${code.trim()}</code></pre>`) - 1;
+    return `\x00BLOCK${idx}\x00`;
+  });
+
+  // Split into lines to handle lists + paragraphs
+  const lines = withPlaceholders.split('\n');
+  let html = '';
+  let listType = null; // 'ul' | 'ol' | null
+
+  const closeList = () => {
+    if (listType) { html += `</${listType}>`; listType = null; }
+  };
+
+  const inlineFormat = (line) =>
+    line
+      .replace(/`([^`]+?)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/(^|[\s(])\*([^*\s][^*]*?)\*(?=[\s).,!?]|$)/g, '$1<em>$2</em>');
+
+  for (let line of lines) {
+    const bullet = line.match(/^\s*[-*]\s+(.*)$/);
+    const numbered = line.match(/^\s*\d+\.\s+(.*)$/);
+
+    if (bullet) {
+      if (listType !== 'ul') { closeList(); html += '<ul class="ai-list">'; listType = 'ul'; }
+      html += `<li>${inlineFormat(bullet[1])}</li>`;
+    } else if (numbered) {
+      if (listType !== 'ol') { closeList(); html += '<ol class="ai-list">'; listType = 'ol'; }
+      html += `<li>${inlineFormat(numbered[1])}</li>`;
+    } else {
+      closeList();
+      if (line.trim() === '') {
+        html += '<br>';
+      } else if (/^\x00BLOCK\d+\x00$/.test(line.trim())) {
+        html += line.trim();
+      } else {
+        html += `<div>${inlineFormat(line)}</div>`;
+      }
+    }
+  }
+  closeList();
+
+  // Swap code-block placeholders back in
+  html = html.replace(/\x00BLOCK(\d+)\x00/g, (_, i) => blocks[+i]);
+
+  return html;
+}
+
 // ── Build a compact context snapshot to send with every question ──
 function buildContext() {
   return {
@@ -62,6 +129,13 @@ function injectStyles() {
     .ai-msg.model{align-self:flex-start;background:var(--sf2);color:var(--tx);border:1px solid var(--bd);border-bottom-left-radius:2px}
     .ai-msg.err{align-self:flex-start;background:var(--rdlo);color:var(--rd);border:1px solid #ef444440}
     .ai-msg.hint{align-self:center;color:var(--tx3);font-size:11px;text-align:center;background:none}
+    .ai-msg code{background:rgba(255,255,255,.08);border:1px solid var(--bd2);border-radius:3px;padding:1px 4px;font:11px var(--mono);}
+    .ai-msg.user code{background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.3);}
+    .ai-msg strong{font-weight:700;color:inherit}
+    .ai-msg .ai-list{margin:2px 0 2px 18px;padding:0}
+    .ai-msg .ai-list li{margin:2px 0}
+    .ai-msg .ai-codeblock{background:#07070a;border:1px solid var(--bd2);border-radius:6px;padding:8px 10px;margin:6px 0;overflow-x:auto}
+    .ai-msg .ai-codeblock code{background:none;border:none;padding:0;font:11px var(--mono);color:#c8c8d8;white-space:pre}
     #ai-input-row{display:flex;gap:6px;padding:10px;border-top:1px solid var(--bd);flex-shrink:0}
     #ai-input{flex:1;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);color:var(--tx);padding:8px 10px;font:12px var(--sans);resize:none}
     #ai-input:focus{outline:none;border-color:var(--ac)}
@@ -130,7 +204,11 @@ function appendMsg(role, text) {
   const wrap = document.getElementById('ai-msgs');
   const div = document.createElement('div');
   div.className = `ai-msg ${role}`;
-  div.textContent = text;
+  if (role === 'model' || role === 'err') {
+    div.innerHTML = mdToHtml(text);
+  } else {
+    div.textContent = text;
+  }
   wrap.appendChild(div);
   wrap.scrollTop = wrap.scrollHeight;
   return div;
