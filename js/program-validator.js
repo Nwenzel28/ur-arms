@@ -23,39 +23,50 @@ const isStr  = v => typeof v === 'string';
 const isBool = v => typeof v === 'boolean';
 const isAny  = () => true;
 
-const STEP_SCHEMA = {
+// Two tiers, matched against the REAL URScript compiler (buildCode() in
+// tab-program.js), not just a spec doc:
+//   HARD  — fields with NO fallback in codegen. Missing/invalid here
+//           produces genuinely broken URScript (e.g. "if (undefined):")
+//           or silently drops meaningful logic. These block Apply.
+//   SOFT  — fields the compiler defaults via `??` (e.g. `s.sec ?? 1.0`,
+//           `s.weight ?? 0`). Missing here is safe and matches the app's
+//           own tolerant behavior — only flagged as a warning, and only
+//           when the value is PRESENT but the wrong type.
+const HARD_SCHEMA = {
   movej:            { pid: isStr },
   movel:            { pid: isStr },
   movec:            { via: isStr, to: isStr },
-  guarded_move:     { speed: isNum, retract: isNum },
-  activate_gripper: {},
-  open_gripper:     {},
-  close_gripper:    {},
-  read_gripper:     { varName: isStr },
-  loop_start:       { loopType: v => v === 'forever' || v === 'times' },
-  // Legacy opener types (not in the current palette) — no required-field
-  // enforcement, just recognized so old saved programs still validate.
-  loop_n:           {},
-  loop_forever:     {},
-  loop_while:       {},
-  if_din:           {},
   if_start:         { condition: isStr },
   else_if:          { condition: isStr },
-  else:             {},
   wait_cond:        { condition: isStr },
   thread_start:     { threadName: isStr },
-  end:              {},
   assign:           { varName: isStr, varValue: isStr },
-  timer:            { timerAct: v => v === 'start' || v === 'read', timerVar: isStr },
+  // loop_start's loopCount requirement is conditional (only when
+  // loopType === 'times') and is handled as a special case below.
+};
+
+const SOFT_SCHEMA = {
+  guarded_move:     { speed: isNum, retract: isNum },
+  loop_start:       { loopType: v => v === 'forever' || v === 'times', loopCount: isNum },
+  read_gripper:     { varName: isStr },
   sleep:            { sec: isNum },
   textmsg:          { msg: isStr },
-  popup:            { msg: isStr },
-  halt:             {},
+  popup:            { msg: isStr, pType: isStr },
   set_digital_out:  { port: isNum, val: isBool },
   set_payload:      { weight: isNum },
   set_tcp:          { pose: isStr },
   comment:          { commentTxt: isStr },
   folder:           { folderName: isStr },
+  timer:            { timerAct: v => v === 'start' || v === 'read', timerVar: isStr },
+  else_if:          {},
+};
+
+// All recognized step types (for the "unknown type" check) — union of
+// hard/soft schemas plus types with no fields at all.
+const STEP_SCHEMA = {
+  ...HARD_SCHEMA, ...SOFT_SCHEMA,
+  activate_gripper: {}, open_gripper: {}, close_gripper: {}, else: {}, end: {}, halt: {},
+  loop_n: {}, loop_forever: {}, loop_while: {}, if_din: {},
 };
 
 const REF_FIELDS = {
@@ -139,18 +150,35 @@ export function validateProgram(program, existingPositions = []) {
       return;
     }
 
-    // Required fields + type checks
-    Object.entries(schema).forEach(([key, check]) => {
-      if (!(key in s)) {
-        errors.push(`${tag} (${s.type}) is missing required field "${key}".`);
-      } else if (!check(s[key])) {
-        errors.push(`${tag} (${s.type}) field "${key}" has an invalid value: ${JSON.stringify(s[key])}.`);
-      }
-    });
+    // HARD fields: must be present and correctly typed, or Apply is blocked.
+    const hard = HARD_SCHEMA[s.type];
+    if (hard) {
+      Object.entries(hard).forEach(([key, check]) => {
+        if (!(key in s)) {
+          errors.push(`${tag} (${s.type}) is missing required field "${key}" — the generated program would not run correctly without it.`);
+        } else if (!check(s[key])) {
+          errors.push(`${tag} (${s.type}) field "${key}" has an invalid value: ${JSON.stringify(s[key])}.`);
+        }
+      });
+    }
 
-    // loop_start.times needs loopCount
+    // SOFT fields: the app itself defaults these safely if missing (see
+    // buildCode() in tab-program.js), so absence is fine — only flag if
+    // present with an unusable type.
+    const soft = SOFT_SCHEMA[s.type];
+    if (soft) {
+      Object.entries(soft).forEach(([key, check]) => {
+        if (key in s && !check(s[key])) {
+          warnings.push(`${tag} (${s.type}) field "${key}" has an unexpected value (${JSON.stringify(s[key])}) — the app will fall back to a default, but you may want to check it.`);
+        }
+      });
+    }
+
+    // loop_start.loopCount is the one truly conditional hard requirement:
+    // only needed when loopType is explicitly "times" (no fallback exists
+    // in that branch of the compiler).
     if (s.type === 'loop_start' && s.loopType === 'times' && !isNum(s.loopCount)) {
-      errors.push(`${tag} (loop_start) has loopType "times" but loopCount is missing or not a number.`);
+      errors.push(`${tag} (loop_start) has loopType "times" but loopCount is missing or not a number — this would generate broken URScript.`);
     }
 
     // Position references

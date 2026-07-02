@@ -161,6 +161,9 @@ ALLOWED OPERATIONS in "ops" (applied in the order you list them):
   {{ "op": "delete",        "targetId": "<existing step id>" }}
   {{ "op": "replace",       "targetId": "<existing step id>", "step": <one new step object> }}
 
+Note on "replace": the fields you provide in "step" are MERGED onto the existing step — you only
+need to include the fields you're actually changing. Any field you omit keeps its current value.
+
 New step objects use the exact same schema as below (type + its required fields). Do NOT include
 an "id" field on new steps — ids are assigned automatically when applied.
 

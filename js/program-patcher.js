@@ -56,7 +56,11 @@ export function applyPatchOps(existingSteps, ops, uidFn) {
         return;
       }
       removed.push(result[idx]);
-      const newStep = { ...op.step, id: result[idx].id }; // keep the same id — nothing else can reference it
+      // Merge onto the existing step rather than fully overwriting it —
+      // the AI's replacement may only specify the fields it's changing,
+      // and a full overwrite would silently drop everything else
+      // (e.g. loopCount on a loop_start it wasn't trying to touch).
+      const newStep = { ...result[idx], ...op.step, id: result[idx].id };
       added.push(newStep);
       result[idx] = newStep;
 
