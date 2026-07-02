@@ -76,7 +76,7 @@ Allowed "type" values and their REQUIRED fields (use exactly these key names):
   activate_gripper {}                                 — activate the Robotiq gripper
   open_gripper     {}
   close_gripper    {}
-  read_gripper     { varName }                        — reads gripper position into a variable. higher value = more closed. 3 is fully open, 230 is fully closed.
+  read_gripper     { varName }                        — reads gripper position into a variable
   loop_start       { loopType: "forever" | "times", loopCount (only if loopType=="times") }
   if_start         { condition }                       — URScript-style boolean expression string
   else_if          { condition }
@@ -105,6 +105,91 @@ RULES:
   (condition, msg, varValue, pose, commentTxt, folderName, threadName, varName, pType).
 - Do not invent step types outside the list above.
 - Keep the program only as long as needed to satisfy the request — don't pad with unrelated steps.
+"""
+
+# ── 🩹 Program-modification system prompt (Stage 3: targeted patches) ──
+# Deliberately NOT a full-program regenerator. Emits a small ordered list
+# of patch operations against the user's EXISTING step ids, so edits stay
+# minimal, reviewable, and never silently rewrite untouched parts of the
+# program.
+STEP_FIELD_TABLE = """  movej            { pid }                          — joint move to a saved position
+  movel            { pid }                          — linear move to a saved position
+  movec            { via, to }                       — circular move through one position to another
+  guarded_move     { speed (m/s), retract (mm) }      — force/contact search move
+  activate_gripper {}
+  open_gripper     {}
+  close_gripper    {}
+  read_gripper     { varName }
+  loop_start       { loopType: "forever" | "times", loopCount (only if loopType=="times") }
+  if_start         { condition }
+  else_if          { condition }
+  else             {}
+  wait_cond        { condition }
+  thread_start     { threadName }
+  end              {}
+  assign           { varName, varValue }
+  timer            { timerAct: "start" | "read", timerVar }
+  sleep            { sec (number) }
+  textmsg          { msg }
+  popup            { msg, pType: "msg" }
+  halt             {}
+  set_digital_out  { port (number), val (boolean) }
+  set_payload      { weight (kg) }
+  set_tcp          { pose: "x,y,z,rx,ry,rz" as a comma-separated string }
+  comment          { commentTxt }
+  folder           { folderName }"""
+
+MODIFY_SYSTEM_PROMPT = f"""You modify an EXISTING UR3e Program Builder project by emitting a small,
+targeted set of patch operations. You do NOT regenerate the whole program, and you do NOT re-emit
+steps that aren't changing. Output MUST be a single JSON object and NOTHING ELSE — no markdown
+fences, no commentary.
+
+OUTPUT SHAPE:
+{{
+  "ops": [ ... ],
+  "newPositions": [ ... ]   // optional — only if the request needs a position that doesn't exist yet,
+                             // same shape as position generation: {{ "id": "gp0", "name", "j": [...], "c": [...] }}
+}}
+
+You will be given the user's CURRENT steps (each with its real "id", "type", and parameters) and
+current positions as context. Reference EXISTING step ids EXACTLY as given in that context —
+never invent, guess, or renumber a step id.
+
+ALLOWED OPERATIONS in "ops" (applied in the order you list them):
+  {{ "op": "insert_before", "targetId": "<existing step id>", "steps": [ <new step objects> ] }}
+  {{ "op": "insert_after",  "targetId": "<existing step id>", "steps": [ <new step objects> ] }}
+  {{ "op": "delete",        "targetId": "<existing step id>" }}
+  {{ "op": "replace",       "targetId": "<existing step id>", "step": <one new step object> }}
+
+New step objects use the exact same schema as below (type + its required fields). Do NOT include
+an "id" field on new steps — ids are assigned automatically when applied.
+
+STEP TYPES AND REQUIRED FIELDS:
+{STEP_FIELD_TABLE}
+
+COMMON PATTERN — inserting a new branch into an existing if/elseif/else chain:
+To add a new "else_if" branch in the middle of an existing chain, use "insert_before" targeting
+the id of whichever step currently comes right after where the new branch should go (the next
+else_if, the else, or the closing end of that if-block). Example — inserting a branch before the
+existing step with id "u18":
+  {{ "op": "insert_before", "targetId": "u18", "steps": [
+      {{ "type": "else_if", "condition": "part_size == 230" }},
+      {{ "type": "movel", "pid": "u2" }},
+      {{ "type": "open_gripper" }}
+  ] }}
+Note: an inserted else_if branch does NOT need its own "end" — it's joining an if-block that's
+already open and already has one closing "end" later in the sequence.
+
+RULES:
+- Make the smallest edit that satisfies the request. Don't touch or re-emit unrelated steps.
+- Any loop_start/if_start/thread_start/folder YOU insert as a whole new block must include its
+  own matching "end" within the same insert. Branch-only insertions (else_if/else content) do not.
+- movej/movel "pid" and movec "via"/"to" in new steps must reference a position id that already
+  exists in context, or one you add via "newPositions".
+- Use numbers as JSON numbers, not strings, except explicitly-text fields (condition, msg,
+  varValue, pose, commentTxt, folderName, threadName, varName, pType).
+- If the request is ambiguous about WHERE to insert, pick the most sensible existing target id
+  based on the step list given and proceed — don't ask a question, this is a single-shot API call.
 """
 
 # ── 💬 Popup State ──────────────────────────────────────────────────────
@@ -555,6 +640,74 @@ class Handler(BaseHTTPRequestHandler):
                                 # but we still parse defensively in case of truncation.
                                 program = json.loads(raw_text)
                                 resp = json.dumps({"ok": True, "program": program}).encode()
+                            except json.JSONDecodeError as e:
+                                resp = json.dumps({
+                                    "ok": False,
+                                    "error": f"Model output was not valid JSON: {e}",
+                                    "raw": raw_text[:2000]
+                                }).encode()
+
+                except urllib.error.HTTPError as e:
+                    try:
+                        err_body = json.loads(e.read().decode())
+                        err_msg = err_body.get('error', {}).get('message', str(e))
+                    except Exception:
+                        err_msg = str(e)
+                    resp = json.dumps({"ok": False, "error": f"Gemini API error: {err_msg}"}).encode()
+                except Exception as e:
+                    resp = json.dumps({"ok": False, "error": str(e)}).encode()
+
+        # ── AI Program Modification (Gemini, JSON mode, patch ops) ──────
+        elif action == 'ai_modify_program':
+            if not GEMINI_API_KEY:
+                resp = json.dumps({
+                    "ok": False,
+                    "error": "GEMINI_API_KEY is not set on the relay server. "
+                             "Set it as an environment variable and restart relay.py."
+                }).encode()
+            else:
+                try:
+                    prompt  = data.get('prompt', '').strip()
+                    context = data.get('context', {})
+
+                    if not prompt:
+                        resp = json.dumps({"ok": False, "error": "Empty prompt"}).encode()
+                    else:
+                        user_text = (
+                            "Current project context (JSON) — 'steps' has the real ids you must "
+                            f"target, 'positions' has real position ids you may reference:\n"
+                            f"{json.dumps(context)}\n\n"
+                            f"Modification request:\n{prompt}"
+                        )
+
+                        payload = {
+                            "contents": [{"role": "user", "parts": [{"text": user_text}]}],
+                            "systemInstruction": {"parts": [{"text": MODIFY_SYSTEM_PROMPT}]},
+                            "generationConfig": {
+                                "temperature": 0.2,
+                                "maxOutputTokens": 4000,
+                                "responseMimeType": "application/json"
+                            }
+                        }
+
+                        req = urllib.request.Request(
+                            f"{GEMINI_URL}?key={GEMINI_API_KEY}",
+                            data=json.dumps(payload).encode(),
+                            headers={"Content-Type": "application/json"},
+                            method="POST"
+                        )
+                        with urllib.request.urlopen(req, timeout=30) as r:
+                            result = json.loads(r.read().decode())
+
+                        candidates = result.get('candidates', [])
+                        if not candidates or not candidates[0].get('content', {}).get('parts'):
+                            reason = candidates[0].get('finishReason') if candidates else 'no candidates'
+                            resp = json.dumps({"ok": False, "error": f"No patch returned ({reason})"}).encode()
+                        else:
+                            raw_text = candidates[0]['content']['parts'][0].get('text', '')
+                            try:
+                                patch = json.loads(raw_text)
+                                resp = json.dumps({"ok": True, "patch": patch}).encode()
                             except json.JSONDecodeError as e:
                                 resp = json.dumps({
                                     "ok": False,

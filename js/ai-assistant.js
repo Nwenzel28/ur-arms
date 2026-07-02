@@ -8,6 +8,7 @@
 // ═══════════════════════════════════════════════════════════
 import { RELAY } from './network.js';
 import { positions, steps, globalSettings, isSimulationMode, simJoints, simTcp } from './state.js';
+import { applyPatchOps, describeStep } from './program-patcher.js';
 
 let _history = [];   // [{role:'user'|'model', text}]
 let _open = false;
@@ -153,6 +154,11 @@ function injectStyles() {
     .ai-preview-discard{background:none;border:1px solid var(--bd2);color:var(--tx2);border-radius:var(--r);padding:7px 12px;cursor:pointer;font-size:11px}
     .ai-preview-discard:hover{border-color:var(--rd);color:var(--rd)}
     .ai-preview-discard:disabled{opacity:.4;cursor:default}
+    .ai-diff-hdr{font-weight:600;font-size:11px;margin-top:4px}
+    .ai-diff-add{color:var(--gn)}
+    .ai-diff-rem{color:var(--rd)}
+    .ai-diff-add-list{color:var(--gn)}
+    .ai-diff-rem-list{color:var(--rd);text-decoration:line-through;text-decoration-color:#ef444488}
     #ai-input-row{display:flex;gap:6px;padding:10px;border-top:1px solid var(--bd);flex-shrink:0}
     #ai-input{flex:1;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);color:var(--tx);padding:8px 10px;font:12px var(--sans);resize:none}
     #ai-input:focus{outline:none;border-color:var(--ac)}
@@ -286,6 +292,8 @@ async function sendFromInput() {
   try {
     if (_mode === 'generate') {
       await generateProgram(text);
+    } else if (_mode === 'modify') {
+      await modifyProgram(text);
     } else {
       await sendQuestion(text);
     }
@@ -451,6 +459,176 @@ async function applyProgram(program) {
   stateMod.setPositions([...stateMod.positions, ...newPositions]);
   stateMod.setSteps([...stateMod.steps, ...newSteps]);
   if (program.settings) stateMod.setGlobalSettings(program.settings);
+
+  setupMod.renderPositions();
+  progMod.renderSteps();
+  progMod.refreshCode();
+}
+
+// ── Stage 3: Modify existing program via targeted patch ops ──
+async function modifyProgram(prompt) {
+  appendMsg('user', prompt);
+  showTyping();
+
+  try {
+    const res = await fetch(RELAY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'ai_modify_program',
+        prompt,
+        context: {
+          positions: positions.map(p => ({ id: p.id, name: p.name, j: p.j, c: p.c })),
+          steps: steps.map(s => ({ ...s })),
+          settings: globalSettings
+        }
+      })
+    });
+    const data = await res.json();
+    hideTyping();
+
+    if (!data.ok) {
+      let msg = data.error || 'Could not generate a modification.';
+      if (data.raw) msg += `\n\nModel's raw output (for debugging):\n\`\`\`\n${data.raw}\n\`\`\``;
+      appendMsg('err', `⚠ ${msg}`);
+      return;
+    }
+
+    const patch = data.patch || {};
+    const { validateProgram } = await import('./program-validator.js');
+    const stateMod = await import('./state.js');
+
+    // Apply ops against a throwaway copy first (uses a local id counter so
+    // nothing touches real state yet — only on Apply do we regenerate ids
+    // through the app's real uid() counter).
+    let previewCounter = 0;
+    const previewUid = () => '_preview' + (previewCounter++);
+    const patchResult = applyPatchOps(steps, patch.ops, previewUid);
+
+    if (patchResult.errors.length) {
+      appendMsg('err', `⚠ Could not apply the suggested changes:\n${patchResult.errors.map(e => `- ${e}`).join('\n')}`);
+      return;
+    }
+
+    // Validate the FULL resulting program (existing + patched), including any
+    // new positions the AI proposed, so nesting/reference checks see everything.
+    const allPositions = [...positions, ...(patch.newPositions || [])];
+    const validation = validateProgram(
+      { positions: patch.newPositions || [], steps: patchResult.steps, settings: {} },
+      positions
+    );
+
+    appendModificationPreview(patch, patchResult, validation, allPositions);
+  } catch (e) {
+    hideTyping();
+    appendMsg('err', `⚠ Could not reach the relay server (${e.message}). Is relay.py running?`);
+  }
+}
+
+function appendModificationPreview(patch, patchResult, validation, allPositions) {
+  const wrap = document.getElementById('ai-msgs');
+  const { errors, warnings } = validation;
+  const { added, removed } = patchResult;
+  const posById = Object.fromEntries(allPositions.map(p => [p.id, p]));
+
+  const div = document.createElement('div');
+  div.className = 'ai-msg model ai-preview';
+
+  let html = `<div class="ai-preview-title">🩹 Proposed Change</div>`;
+  html += `<div class="ai-preview-summary">${added.length} step(s) added, ${removed.length} step(s) removed/changed.</div>`;
+
+  if (added.length) {
+    html += `<div class="ai-diff-hdr ai-diff-add">➕ Added</div>`;
+    html += `<ul class="ai-list ai-diff-add-list">${added.map(s => `<li>${escapeHtml(describeStep(s, posById))}</li>`).join('')}</ul>`;
+  }
+  if (removed.length) {
+    html += `<div class="ai-diff-hdr ai-diff-rem">➖ Removed</div>`;
+    html += `<ul class="ai-list ai-diff-rem-list">${removed.map(s => `<li>${escapeHtml(describeStep(s, posById))}</li>`).join('')}</ul>`;
+  }
+  if (errors.length) {
+    html += `<div class="ai-preview-errhdr">⚠ ${errors.length} problem(s) found — not safe to apply:</div>`;
+    html += `<ul class="ai-list ai-err-list">${errors.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>`;
+  }
+  if (warnings.length) {
+    html += `<div class="ai-preview-warnhdr">Notes:</div>`;
+    html += `<ul class="ai-list ai-warn-list">${warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul>`;
+  }
+  div.innerHTML = html;
+
+  const btnRow = document.createElement('div');
+  btnRow.className = 'ai-preview-btns';
+
+  const applyBtn = document.createElement('button');
+  applyBtn.className = 'ai-preview-apply';
+  applyBtn.textContent = errors.length ? 'Fix required before applying' : 'Apply Change';
+  applyBtn.disabled = errors.length > 0;
+
+  const discardBtn = document.createElement('button');
+  discardBtn.className = 'ai-preview-discard';
+  discardBtn.textContent = 'Discard';
+
+  applyBtn.addEventListener('click', async () => {
+    applyBtn.disabled = true;
+    discardBtn.disabled = true;
+    applyBtn.textContent = 'Applying…';
+    try {
+      await applyModification(patch);
+      applyBtn.textContent = '✓ Applied';
+    } catch (e) {
+      applyBtn.textContent = 'Apply failed — see below';
+      appendMsg('err', `⚠ Failed to apply: ${e.message}`);
+      discardBtn.disabled = false;
+    }
+  });
+
+  discardBtn.addEventListener('click', () => div.remove());
+
+  btnRow.appendChild(applyBtn);
+  btnRow.appendChild(discardBtn);
+  div.appendChild(btnRow);
+
+  wrap.appendChild(div);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+// Commits a validated patch to the live app state: re-applies the same ops
+// against the REAL current steps (in case anything changed since preview),
+// this time generating real ids through the app's own uid() counter, then
+// re-renders exactly like a hand-built edit would.
+async function applyModification(patch) {
+  const stateMod = await import('./state.js');
+  const setupMod = await import('./tab-setup.js');
+  const progMod = await import('./tab-program.js');
+
+  const idMap = {};
+  const newPositions = (patch.newPositions || []).map(p => {
+    const newId = stateMod.uid();
+    idMap[p.id] = newId;
+    return { id: newId, name: p.name, j: p.j, c: p.c || [0, 0, 0, 0, 0, 0] };
+  });
+
+  // Rewrite any pid/via/to in the patch ops that pointed at newly-created
+  // positions before applying, so the real applied steps reference real ids.
+  const remappedOps = (patch.ops || []).map(op => {
+    const remapStepRefs = s => {
+      const copy = { ...s };
+      ['pid', 'via', 'to'].forEach(f => { if (copy[f] && idMap[copy[f]]) copy[f] = idMap[copy[f]]; });
+      return copy;
+    };
+    if (op.op === 'replace' && op.step) return { ...op, step: remapStepRefs(op.step) };
+    if ((op.op === 'insert_before' || op.op === 'insert_after') && op.steps) {
+      return { ...op, steps: op.steps.map(remapStepRefs) };
+    }
+    return op;
+  });
+
+  const result = applyPatchOps(stateMod.steps, remappedOps, stateMod.uid);
+  if (result.errors.length) {
+    throw new Error(result.errors.join('; '));
+  }
+
+  if (newPositions.length) stateMod.setPositions([...stateMod.positions, ...newPositions]);
+  stateMod.setSteps(result.steps);
 
   setupMod.renderPositions();
   progMod.renderSteps();
