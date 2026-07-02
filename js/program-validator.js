@@ -12,12 +12,16 @@
 // not just the AI's prompt spec, which could drift.
 // ═══════════════════════════════════════════════════════════
 
-const BLOCK_OPENERS = ['loop_start', 'if_start', 'thread_start', 'folder'];
+// Matches the real OPENERS constant in tab-program.js exactly (including
+// legacy types that don't appear in the current palette but may still
+// exist in older saved projects and must not be flagged as "unknown").
+const BLOCK_OPENERS = ['loop_start', 'loop_n', 'loop_forever', 'loop_while', 'if_start', 'if_din', 'thread_start', 'folder'];
 
 // type -> { required: [ [key, validator, label] ] }
 const isNum  = v => typeof v === 'number' && Number.isFinite(v);
 const isStr  = v => typeof v === 'string';
 const isBool = v => typeof v === 'boolean';
+const isAny  = () => true;
 
 const STEP_SCHEMA = {
   movej:            { pid: isStr },
@@ -29,6 +33,12 @@ const STEP_SCHEMA = {
   close_gripper:    {},
   read_gripper:     { varName: isStr },
   loop_start:       { loopType: v => v === 'forever' || v === 'times' },
+  // Legacy opener types (not in the current palette) — no required-field
+  // enforcement, just recognized so old saved programs still validate.
+  loop_n:           {},
+  loop_forever:     {},
+  loop_while:       {},
+  if_din:           {},
   if_start:         { condition: isStr },
   else_if:          { condition: isStr },
   else:             {},
@@ -151,23 +161,30 @@ export function validateProgram(program, existingPositions = []) {
       }
     });
 
-    // Block nesting
+    // Block nesting — mirrors tab-program.js's actual depth algorithm
+    // (a clamped running counter, NOT a strict typed stack). That means:
+    //   - an "end" with nothing open is tolerated (depth just stays at 0),
+    //     it does NOT invalidate the program — only a NOTE, not an error.
+    //   - only a block that's still open when the steps run out is a real
+    //     problem (that's the one case the app itself can't compile/run).
     if (BLOCK_OPENERS.includes(s.type)) {
       blockStack.push({ type: s.type, index: i });
     } else if (s.type === 'end') {
       if (blockStack.length === 0) {
-        errors.push(`${tag} is an "end" with no matching open block (loop_start/if_start/thread_start/folder).`);
+        warnings.push(`${tag} is an "end" with nothing currently open — it has no effect (matches the app's own tolerant behavior, but may indicate a misplaced block).`);
       } else {
         blockStack.pop();
       }
     } else if (s.type === 'else_if' || s.type === 'else') {
       const top = blockStack[blockStack.length - 1];
-      if (!top || top.type !== 'if_start') {
+      if (!top || (top.type !== 'if_start' && top.type !== 'if_din')) {
         warnings.push(`${tag} (${s.type}) does not appear to be inside an open "if_start" block.`);
       }
     }
   });
 
+  // Only genuinely-unclosed blocks are hard errors — an extra/stray "end"
+  // is not, since the app's own compiler tolerates it (see above).
   if (blockStack.length > 0) {
     blockStack.forEach(b => {
       errors.push(`steps[${b.index}] ("${b.type}") is never closed with a matching "end".`);
