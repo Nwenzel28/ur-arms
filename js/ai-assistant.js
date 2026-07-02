@@ -184,6 +184,7 @@ function injectDom() {
       <div id="ai-mode-toggle">
         <button class="ai-mode-btn on" id="ai-mode-ask" type="button">Ask</button>
         <button class="ai-mode-btn" id="ai-mode-gen" type="button">Generate</button>
+        <button class="ai-mode-btn" id="ai-mode-mod" type="button">Modify</button>
       </div>
       <button id="ai-panel-close" title="Close">✕</button>
     </div>
@@ -201,6 +202,7 @@ function injectDom() {
   document.getElementById('ai-panel-close').addEventListener('click', togglePanel);
   document.getElementById('ai-mode-ask').addEventListener('click', () => setMode('ask'));
   document.getElementById('ai-mode-gen').addEventListener('click', () => setMode('generate'));
+  document.getElementById('ai-mode-mod').addEventListener('click', () => setMode('modify'));
 
   const input = document.getElementById('ai-input');
   const sendBtn = document.getElementById('ai-send');
@@ -221,14 +223,18 @@ function setMode(mode) {
   _mode = mode;
   document.getElementById('ai-mode-ask').classList.toggle('on', mode === 'ask');
   document.getElementById('ai-mode-gen').classList.toggle('on', mode === 'generate');
+  document.getElementById('ai-mode-mod').classList.toggle('on', mode === 'modify');
   const input = document.getElementById('ai-input');
   const hint = document.getElementById('ai-hint');
   if (mode === 'ask') {
     input.placeholder = 'Ask a question…';
     if (hint) hint.textContent = "Ask me about your positions, steps, or how a block works. I can see your current project but I can't change it yet.";
-  } else {
+  } else if (mode === 'generate') {
     input.placeholder = 'Describe the program you want…';
     if (hint) hint.textContent = "Describe a program (e.g. \"pick from HOME and sort by size into two bins\"). I'll generate steps, validate them, and show you a preview before anything is added — nothing is applied automatically.";
+  } else {
+    input.placeholder = 'Describe the change to make…';
+    if (hint) hint.textContent = "Describe a targeted edit to your CURRENT program (e.g. \"add a case for part_size == 210 near the top of the if/elseif chain\"). I'll show exactly what's added/removed before anything changes.";
   }
 }
 
