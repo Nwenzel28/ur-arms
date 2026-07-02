@@ -76,7 +76,7 @@ Allowed "type" values and their REQUIRED fields (use exactly these key names):
   activate_gripper {}                                 — activate the Robotiq gripper
   open_gripper     {}
   close_gripper    {}
-  read_gripper     { varName }                        — reads gripper position into a variable
+  read_gripper     { varName }                        — reads gripper position into a variable. higher value = more closed. 3 is fully open, 230 is fully closed.
   loop_start       { loopType: "forever" | "times", loopCount (only if loopType=="times") }
   if_start         { condition }                       — URScript-style boolean expression string
   else_if          { condition }
