@@ -11,6 +11,7 @@ import { positions, steps, globalSettings, isSimulationMode, simJoints, simTcp }
 
 let _history = [];   // [{role:'user'|'model', text}]
 let _open = false;
+let _mode = 'ask';   // 'ask' | 'generate'
 
 // ── Minimal, safe markdown renderer ──────────────────────────
 // Escapes HTML first, then converts a small, deliberate subset of
@@ -136,6 +137,22 @@ function injectStyles() {
     .ai-msg .ai-list li{margin:2px 0}
     .ai-msg .ai-codeblock{background:#07070a;border:1px solid var(--bd2);border-radius:6px;padding:8px 10px;margin:6px 0;overflow-x:auto}
     .ai-msg .ai-codeblock code{background:none;border:none;padding:0;font:11px var(--mono);color:#c8c8d8;white-space:pre}
+    #ai-mode-toggle{display:flex;border:1px solid var(--bd2);border-radius:6px;overflow:hidden;flex-shrink:0}
+    .ai-mode-btn{padding:4px 9px;font:600 10px var(--mono);border:none;background:none;color:var(--tx2);cursor:pointer;transition:.15s;letter-spacing:.03em}
+    .ai-mode-btn.on{background:var(--ac);color:#fff}
+    .ai-preview{max-width:96%!important;display:flex;flex-direction:column;gap:6px}
+    .ai-preview-title{font-weight:700;color:var(--ac)}
+    .ai-preview-summary{color:var(--tx2);font-size:11px}
+    .ai-preview-errhdr{color:var(--rd);font-weight:600;margin-top:4px}
+    .ai-preview-warnhdr{color:var(--tx3);font-weight:600;margin-top:4px}
+    .ai-err-list{color:var(--rd)}
+    .ai-warn-list{color:var(--tx3)}
+    .ai-preview-btns{display:flex;gap:8px;margin-top:6px}
+    .ai-preview-apply{flex:1;background:var(--gn);border:none;color:#000;font-weight:700;border-radius:var(--r);padding:7px 0;cursor:pointer;font-size:11px}
+    .ai-preview-apply:disabled{background:var(--bd2);color:var(--tx3);cursor:default}
+    .ai-preview-discard{background:none;border:1px solid var(--bd2);color:var(--tx2);border-radius:var(--r);padding:7px 12px;cursor:pointer;font-size:11px}
+    .ai-preview-discard:hover{border-color:var(--rd);color:var(--rd)}
+    .ai-preview-discard:disabled{opacity:.4;cursor:default}
     #ai-input-row{display:flex;gap:6px;padding:10px;border-top:1px solid var(--bd);flex-shrink:0}
     #ai-input{flex:1;background:var(--bg);border:1px solid var(--bd);border-radius:var(--r);color:var(--tx);padding:8px 10px;font:12px var(--sans);resize:none}
     #ai-input:focus{outline:none;border-color:var(--ac)}
@@ -164,10 +181,14 @@ function injectDom() {
   panel.innerHTML = `
     <div id="ai-panel-hdr">
       <span class="ai-title">Program Assistant</span>
+      <div id="ai-mode-toggle">
+        <button class="ai-mode-btn on" id="ai-mode-ask" type="button">Ask</button>
+        <button class="ai-mode-btn" id="ai-mode-gen" type="button">Generate</button>
+      </div>
       <button id="ai-panel-close" title="Close">✕</button>
     </div>
     <div id="ai-msgs">
-      <div class="ai-msg hint">Ask me about your positions, steps, or how a block works. I can see your current project but I can't change it yet.</div>
+      <div class="ai-msg hint" id="ai-hint">Ask me about your positions, steps, or how a block works. I can see your current project but I can't change it yet.</div>
     </div>
     <div id="ai-input-row">
       <textarea id="ai-input" rows="1" placeholder="Ask a question…"></textarea>
@@ -178,20 +199,37 @@ function injectDom() {
 
   btn.addEventListener('click', togglePanel);
   document.getElementById('ai-panel-close').addEventListener('click', togglePanel);
+  document.getElementById('ai-mode-ask').addEventListener('click', () => setMode('ask'));
+  document.getElementById('ai-mode-gen').addEventListener('click', () => setMode('generate'));
 
   const input = document.getElementById('ai-input');
   const sendBtn = document.getElementById('ai-send');
-  sendBtn.addEventListener('click', () => sendQuestion());
+  sendBtn.addEventListener('click', () => sendFromInput());
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      sendQuestion();
+      sendFromInput();
     }
   });
   input.addEventListener('input', () => {
     input.style.height = 'auto';
     input.style.height = Math.min(input.scrollHeight, 100) + 'px';
   });
+}
+
+function setMode(mode) {
+  _mode = mode;
+  document.getElementById('ai-mode-ask').classList.toggle('on', mode === 'ask');
+  document.getElementById('ai-mode-gen').classList.toggle('on', mode === 'generate');
+  const input = document.getElementById('ai-input');
+  const hint = document.getElementById('ai-hint');
+  if (mode === 'ask') {
+    input.placeholder = 'Ask a question…';
+    if (hint) hint.textContent = "Ask me about your positions, steps, or how a block works. I can see your current project but I can't change it yet.";
+  } else {
+    input.placeholder = 'Describe the program you want…';
+    if (hint) hint.textContent = "Describe a program (e.g. \"pick from HOME and sort by size into two bins\"). I'll generate steps, validate them, and show you a preview before anything is added — nothing is applied automatically.";
+  }
 }
 
 function togglePanel() {
@@ -228,18 +266,33 @@ function hideTyping() {
   document.getElementById('ai-typing-indicator')?.remove();
 }
 
-async function sendQuestion() {
+async function sendFromInput() {
   const input = document.getElementById('ai-input');
-  const sendBtn = document.getElementById('ai-send');
-  const question = input.value.trim();
-  if (!question) return;
+  const text = input.value.trim();
+  if (!text) return;
 
-  appendMsg('user', question);
-  _history.push({ role: 'user', text: question });
+  const sendBtn = document.getElementById('ai-send');
   input.value = '';
   input.style.height = 'auto';
   input.disabled = true;
   sendBtn.disabled = true;
+
+  try {
+    if (_mode === 'generate') {
+      await generateProgram(text);
+    } else {
+      await sendQuestion(text);
+    }
+  } finally {
+    input.disabled = false;
+    sendBtn.disabled = false;
+    input.focus();
+  }
+}
+
+async function sendQuestion(question) {
+  appendMsg('user', question);
+  _history.push({ role: 'user', text: question });
   showTyping();
 
   try {
@@ -265,11 +318,137 @@ async function sendQuestion() {
   } catch (e) {
     hideTyping();
     appendMsg('err', `⚠ Could not reach the relay server (${e.message}). Is relay.py running?`);
-  } finally {
-    input.disabled = false;
-    sendBtn.disabled = false;
-    input.focus();
   }
+}
+
+// ── Stage 2: Generate program JSON, validate, preview, apply ──
+async function generateProgram(prompt) {
+  appendMsg('user', prompt);
+  showTyping();
+
+  try {
+    const res = await fetch(RELAY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'ai_generate_program',
+        prompt,
+        context: {
+          positions: positions.map(p => ({ id: p.id, name: p.name, j: p.j, c: p.c })),
+          settings: globalSettings
+        }
+      })
+    });
+    const data = await res.json();
+    hideTyping();
+
+    if (!data.ok) {
+      let msg = data.error || 'Could not generate a program.';
+      if (data.raw) msg += `\n\nModel's raw output (for debugging):\n\`\`\`\n${data.raw}\n\`\`\``;
+      appendMsg('err', `⚠ ${msg}`);
+      return;
+    }
+
+    const { validateProgram } = await import('./program-validator.js');
+    const validation = validateProgram(data.program, positions);
+    appendProgramPreview(data.program, validation);
+  } catch (e) {
+    hideTyping();
+    appendMsg('err', `⚠ Could not reach the relay server (${e.message}). Is relay.py running?`);
+  }
+}
+
+function appendProgramPreview(program, validation) {
+  const wrap = document.getElementById('ai-msgs');
+  const { errors, warnings, summary } = validation;
+
+  const div = document.createElement('div');
+  div.className = 'ai-msg model ai-preview';
+
+  let html = `<div class="ai-preview-title">📋 Generated Program</div>`;
+  html += `<div class="ai-preview-summary">${summary.newPositions} new position(s), ${summary.newSteps} new step(s) — will be appended to the end of your current program.</div>`;
+
+  if (errors.length) {
+    html += `<div class="ai-preview-errhdr">⚠ ${errors.length} problem(s) found — not safe to apply:</div>`;
+    html += `<ul class="ai-list ai-err-list">${errors.map(e => `<li>${escapeHtml(e)}</li>`).join('')}</ul>`;
+  }
+  if (warnings.length) {
+    html += `<div class="ai-preview-warnhdr">Notes:</div>`;
+    html += `<ul class="ai-list ai-warn-list">${warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul>`;
+  }
+  div.innerHTML = html;
+
+  const btnRow = document.createElement('div');
+  btnRow.className = 'ai-preview-btns';
+
+  const applyBtn = document.createElement('button');
+  applyBtn.className = 'ai-preview-apply';
+  applyBtn.textContent = errors.length ? 'Fix required before applying' : 'Apply to Program';
+  applyBtn.disabled = errors.length > 0;
+
+  const discardBtn = document.createElement('button');
+  discardBtn.className = 'ai-preview-discard';
+  discardBtn.textContent = 'Discard';
+
+  applyBtn.addEventListener('click', async () => {
+    applyBtn.disabled = true;
+    discardBtn.disabled = true;
+    applyBtn.textContent = 'Applying…';
+    try {
+      await applyProgram(program);
+      applyBtn.textContent = '✓ Applied to Program';
+    } catch (e) {
+      applyBtn.textContent = 'Apply failed — see below';
+      appendMsg('err', `⚠ Failed to apply: ${e.message}`);
+      discardBtn.disabled = false;
+    }
+  });
+
+  discardBtn.addEventListener('click', () => div.remove());
+
+  btnRow.appendChild(applyBtn);
+  btnRow.appendChild(discardBtn);
+  div.appendChild(btnRow);
+
+  wrap.appendChild(div);
+  wrap.scrollTop = wrap.scrollHeight;
+}
+
+// Merge a validated generated program into the live app state.
+// Regenerates every id through the app's own uid() counter so generated
+// ids can never collide with existing ones, then rewrites pid/via/to
+// references that pointed at newly-created positions to match.
+async function applyProgram(program) {
+  const stateMod = await import('./state.js');
+  const setupMod = await import('./tab-setup.js');
+  const progMod = await import('./tab-program.js');
+
+  const idMap = {};
+
+  const newPositions = (program.positions || []).map(p => {
+    const newId = stateMod.uid();
+    idMap[p.id] = newId;
+    return { id: newId, name: p.name, j: p.j, c: p.c || [0, 0, 0, 0, 0, 0] };
+  });
+
+  const newSteps = (program.steps || []).map(s => {
+    const newId = stateMod.uid();
+    idMap[s.id] = newId;
+    const copy = { ...s, id: newId };
+    ['pid', 'via', 'to'].forEach(field => {
+      if (copy[field] && idMap[copy[field]]) copy[field] = idMap[copy[field]];
+      // else: references an existing (pre-generation) position id — leave untouched
+    });
+    return copy;
+  });
+
+  stateMod.setPositions([...stateMod.positions, ...newPositions]);
+  stateMod.setSteps([...stateMod.steps, ...newSteps]);
+  if (program.settings) stateMod.setGlobalSettings(program.settings);
+
+  setupMod.renderPositions();
+  progMod.renderSteps();
+  progMod.refreshCode();
 }
 
 // ── Public init ─────────────────────────────────────────────

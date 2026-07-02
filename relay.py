@@ -41,6 +41,72 @@ Rules:
   and offer guidance right now.
 """
 
+# ── 🛠 Program-generation system prompt (Stage 2: JSON program output) ──
+# This is deliberately a condensed version of JSONBuilderCode.md. Keep the
+# two in sync if the step schema ever changes.
+PROGRAM_GEN_SYSTEM_PROMPT = """You generate a UR3e Program Builder project as JSON. The robot is a
+UR3e with a Robotiq 2F-85 gripper. Output MUST be a single JSON object and NOTHING ELSE —
+no markdown fences, no commentary, no explanation before or after.
+
+TOP-LEVEL SHAPE (all three keys required):
+{
+  "positions": [ ... ],
+  "steps": [ ... ],
+  "settings": { "js": 1.05, "ja": 1.4, "ls": 0.25, "la": 1.2 }
+}
+Do not add other top-level keys or other settings keys.
+
+POSITIONS — each item:
+{ "id": "gp0", "name": "APPROACH", "j": [6 numbers, radians], "c": [6 numbers: x,y,z,rx,ry,rz in metres/radians] }
+- "id" must be unique among positions you generate. Prefix generated ids with "gp" (gp0, gp1, ...)
+  so they cannot collide with the user's existing position ids.
+- Reuse an EXISTING position (by its given id) from the context below instead of creating a
+  duplicate whenever the user's request refers to a place they already have saved (e.g. "HOME").
+- Only invent new positions with placeholder joint/cartesian values when the user's request needs
+  a position that doesn't exist yet; make clear in your numbers that these are placeholders
+  the user must jog/teach for real (e.g. keep them near an existing related position's values,
+  don't fabricate wildly different numbers).
+
+STEPS — every step has "id" (prefix generated ids with "gs", unique, e.g. gs0, gs1, ...) and "type".
+Allowed "type" values and their REQUIRED fields (use exactly these key names):
+  movej            { pid }                          — joint move to a saved position
+  movel            { pid }                          — linear move to a saved position
+  movec            { via, to }                       — circular move through one position to another
+  guarded_move     { speed (m/s), retract (mm) }      — force/contact search move
+  activate_gripper {}                                 — activate the Robotiq gripper
+  open_gripper     {}
+  close_gripper    {}
+  read_gripper     { varName }                        — reads gripper position into a variable
+  loop_start       { loopType: "forever" | "times", loopCount (only if loopType=="times") }
+  if_start         { condition }                       — URScript-style boolean expression string
+  else_if          { condition }
+  else             {}
+  wait_cond        { condition }
+  thread_start     { threadName }
+  end              {}                                  — closes the most recent loop_start/if_start/thread_start/folder
+  assign           { varName, varValue }               — varValue is a string expression
+  timer            { timerAct: "start" | "read", timerVar }
+  sleep            { sec (number) }
+  textmsg          { msg }
+  popup            { msg, pType: "msg" }
+  halt             {}
+  set_digital_out  { port (number), val (boolean) }
+  set_payload      { weight (kg) }
+  set_tcp          { pose: "x,y,z,rx,ry,rz" as a comma-separated string }
+  comment          { commentTxt }
+  folder           { folderName }                      — closed with "end"
+
+RULES:
+- Every loop_start / if_start / thread_start / folder MUST have a matching "end" later in the
+  same steps array, correctly nested (don't close outer blocks before inner ones).
+- movej/movel "pid" and movec "via"/"to" must reference a position id that exists — either an
+  existing id given in context, or one you created in this response's "positions" array.
+- Use numbers as JSON numbers, not strings, except where the field is explicitly text
+  (condition, msg, varValue, pose, commentTxt, folderName, threadName, varName, pType).
+- Do not invent step types outside the list above.
+- Keep the program only as long as needed to satisfy the request — don't pad with unrelated steps.
+"""
+
 # ── 💬 Popup State ──────────────────────────────────────────────────────
 popup_msg = None
 popup_resolved = False
@@ -426,6 +492,75 @@ class Handler(BaseHTTPRequestHandler):
                         else:
                             reason = candidates[0].get('finishReason') if candidates else 'no candidates'
                             resp = json.dumps({"ok": False, "error": f"No answer returned ({reason})"}).encode()
+
+                except urllib.error.HTTPError as e:
+                    try:
+                        err_body = json.loads(e.read().decode())
+                        err_msg = err_body.get('error', {}).get('message', str(e))
+                    except Exception:
+                        err_msg = str(e)
+                    resp = json.dumps({"ok": False, "error": f"Gemini API error: {err_msg}"}).encode()
+                except Exception as e:
+                    resp = json.dumps({"ok": False, "error": str(e)}).encode()
+
+        # ── AI Program Generation (Gemini, JSON mode) ───────────────────
+        elif action == 'ai_generate_program':
+            if not GEMINI_API_KEY:
+                resp = json.dumps({
+                    "ok": False,
+                    "error": "GEMINI_API_KEY is not set on the relay server. "
+                             "Set it as an environment variable and restart relay.py."
+                }).encode()
+            else:
+                try:
+                    prompt  = data.get('prompt', '').strip()
+                    context = data.get('context', {})
+
+                    if not prompt:
+                        resp = json.dumps({"ok": False, "error": "Empty prompt"}).encode()
+                    else:
+                        user_text = (
+                            "Existing project context (JSON) — reuse these position ids where "
+                            f"relevant, do not duplicate them:\n{json.dumps(context)}\n\n"
+                            f"Generate a program for this request:\n{prompt}"
+                        )
+
+                        payload = {
+                            "contents": [{"role": "user", "parts": [{"text": user_text}]}],
+                            "systemInstruction": {"parts": [{"text": PROGRAM_GEN_SYSTEM_PROMPT}]},
+                            "generationConfig": {
+                                "temperature": 0.2,
+                                "maxOutputTokens": 4000,
+                                "responseMimeType": "application/json"
+                            }
+                        }
+
+                        req = urllib.request.Request(
+                            f"{GEMINI_URL}?key={GEMINI_API_KEY}",
+                            data=json.dumps(payload).encode(),
+                            headers={"Content-Type": "application/json"},
+                            method="POST"
+                        )
+                        with urllib.request.urlopen(req, timeout=30) as r:
+                            result = json.loads(r.read().decode())
+
+                        candidates = result.get('candidates', [])
+                        if not candidates or not candidates[0].get('content', {}).get('parts'):
+                            reason = candidates[0].get('finishReason') if candidates else 'no candidates'
+                            resp = json.dumps({"ok": False, "error": f"No program returned ({reason})"}).encode()
+                        else:
+                            raw_text = candidates[0]['content']['parts'][0].get('text', '')
+                            try:
+                                # responseMimeType=application/json guarantees syntactic JSON,
+                                # but we still parse defensively in case of truncation.
+                                program = json.loads(raw_text)
+                                resp = json.dumps({"ok": True, "program": program}).encode()
+                            except json.JSONDecodeError as e:
+                                resp = json.dumps({
+                                    "ok": False,
+                                    "error": f"Model output was not valid JSON: {e}",
+                                    "raw": raw_text[:2000]
+                                }).encode()
 
                 except urllib.error.HTTPError as e:
                     try:
