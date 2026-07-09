@@ -1,17 +1,4 @@
-# Gemini Q&A Assistant — Setup
-
-## What changed
-- **relay.py** — added an `ai_ask` action that proxies to the Gemini API (`gemini-2.0-flash`).
-  The API key lives only on the server (your relay.py process), never in the browser.
-- **ai-assistant.js** *(new file)* — a floating chat widget (💬 button, bottom-right) that
-  sends the user's question plus a snapshot of the current project (positions, steps,
-  settings, sim mode) to the relay, and displays Gemini's answer.
-- **main.js** — two lines added to import and initialize the widget on page load.
-
-## Install
-1. Drop `ai-assistant.js` into your `js/` folder next to `main.js`, `state.js`, etc.
-2. Replace your `main.js` and `relay.py` with the updated versions (or apply the same
-   two edits / new action by hand if you've changed them since).
+# Gemini AI Assistant — Setup
 
 ## Get a free Gemini API key
 1. Go to https://aistudio.google.com/apikey
