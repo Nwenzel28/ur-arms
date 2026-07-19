@@ -67,6 +67,8 @@ const STEP_SCHEMA = {
   ...HARD_SCHEMA, ...SOFT_SCHEMA,
   activate_gripper: {}, open_gripper: {}, close_gripper: {}, else: {}, end: {}, halt: {},
   loop_n: {}, loop_forever: {}, loop_while: {}, if_din: {},
+  // Utility steps present in the palette but with no required code-gen fields:
+  set_gravity: {}, zero_ftsensor: {}, set_baselight: {},
 };
 
 const REF_FIELDS = {
@@ -122,7 +124,8 @@ export function validateProgram(program, existingPositions = []) {
     }
     if (!isStr(p.name) || !p.name) errors.push(`${tag}.name must be a non-empty string.`);
     if (!isJointArray(p.j)) errors.push(`${tag}.j must be an array of 6 numbers (radians).`);
-    if (p.c !== undefined && !isJointArray(p.c)) errors.push(`${tag}.c must be an array of 6 numbers if present.`);
+    // 'c' (Cartesian pose) is optional — buildCode() falls back to 'j' when c is absent or all-zeros.
+    if (p.c !== undefined && !isJointArray(p.c)) warnings.push(`${tag}.c is present but not a valid 6-number array — the app will use joint angles instead.`);
   });
 
   // Combined pool of valid position ids: existing (from state.js) + newly generated

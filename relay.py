@@ -18,13 +18,18 @@ GEMINI_MODEL   = "gemini-3.1-flash-lite"
 GEMINI_URL     = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 
 AI_SYSTEM_PROMPT = """You are the built-in assistant for a custom UR3e robot arm web pendant
-(a UR3e with a Robotiq 2F-85 gripper). You answer questions about the operator's saved
-positions, program steps, and settings, and explain how the program builder works.
+(a UR3e with a Robotiq 2F-85 gripper). You help operators build, understand, and debug
+robot programs.
+
+The app has three AI modes:
+- Ask: answer questions about positions, steps, settings, and how the builder works.
+- Generate: build a brand-new program from scratch (switch to Generate mode to do this).
+- Modify: make targeted edits to the existing program (switch to Modify mode to do this).
 
 The program builder's step types are: movej, movel, movec, guarded_move, activate_gripper,
 open_gripper, close_gripper, read_gripper, loop_start, if_start, else_if, else, wait_cond,
 thread_start, end, assign, timer, sleep, textmsg, popup, halt, set_digital_out, set_payload,
-set_tcp, comment, folder.
+set_tcp, set_gravity, zero_ftsensor, set_baselight, comment, folder.
 
 You will be given the current state of the user's project (positions, steps, settings, and
 whether Simulation Mode is on) as JSON context. Use it to answer questions concretely
@@ -32,13 +37,11 @@ whether Simulation Mode is on) as JSON context. Use it to answer questions concr
 
 Rules:
 - Be concise. Prefer short, direct answers over long essays.
-- If asked to write or modify a program, describe what to do in plain language and which
-  step types to use, but do NOT output raw JSON or full programs unless explicitly asked.
+- When asked to write or modify a program, describe what to do AND suggest switching to
+  Generate or Modify mode so it can be done automatically.
 - If something in their program looks like a mistake (e.g. an if_start with no matching end,
   or a movec missing a via/to position), point it out proactively but briefly.
 - If you don't have enough context to answer, say so plainly instead of guessing.
-- Never claim you can directly modify the program yourself — you can only answer questions
-  and offer guidance right now.
 """
 
 # ── 🛠 Program-generation system prompt (Stage 2: JSON program output) ──
@@ -93,6 +96,9 @@ Allowed "type" values and their REQUIRED fields (use exactly these key names):
   set_digital_out  { port (number), val (boolean) }
   set_payload      { weight (kg) }
   set_tcp          { pose: "x,y,z,rx,ry,rz" as a comma-separated string }
+  set_gravity      { gravX (number), gravY (number), gravZ (number) }   — set gravity vector
+  zero_ftsensor    {}                                                     — zero force/torque sensor
+  set_baselight    { color: "white"|"blue"|"green"|"red"|"off" }         — set robot base LED
   comment          { commentTxt }
   folder           { folderName }                      — closed with "end"
 
@@ -136,6 +142,9 @@ STEP_FIELD_TABLE = """  movej            { pid }                          — jo
   set_digital_out  { port (number), val (boolean) }
   set_payload      { weight (kg) }
   set_tcp          { pose: "x,y,z,rx,ry,rz" as a comma-separated string }
+  set_gravity      { gravX (number), gravY (number), gravZ (number) }
+  zero_ftsensor    {}
+  set_baselight    { color: "white"|"blue"|"green"|"red"|"off" }
   comment          { commentTxt }
   folder           { folderName }"""
 
@@ -561,7 +570,7 @@ class Handler(BaseHTTPRequestHandler):
                         payload = {
                             "contents": contents,
                             "systemInstruction": {"parts": [{"text": AI_SYSTEM_PROMPT}]},
-                            "generationConfig": {"temperature": 0.3, "maxOutputTokens": 800}
+                            "generationConfig": {"temperature": 0.3, "maxOutputTokens": 1500}
                         }
 
                         req = urllib.request.Request(
