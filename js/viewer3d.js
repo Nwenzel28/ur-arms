@@ -490,3 +490,35 @@ function hideLoadingOverlay(container) {
   const el = container.querySelector('#viewer-loading');
   if (el) el.remove();
 }
+
+// ── Public: Get Cartesian Pos from Joints ──────────────────
+export function getKinematics(joints, tcpOffset = null) {
+  if (!THREE) return null;
+  
+  // Run pure math FK on the provided joints
+  const { transforms } = fk(joints, THREE);
+  const flangeMat = transforms[6];
+  
+  const pos = new THREE.Vector3();
+  const quat = new THREE.Quaternion();
+
+  if (tcpOffset) {
+    const tcpMat = new THREE.Matrix4().multiplyMatrices(flangeMat, tcpOffsetMatrix(tcpOffset, THREE));
+    tcpMat.decompose(pos, quat, new THREE.Vector3());
+  } else {
+    flangeMat.decompose(pos, quat, new THREE.Vector3());
+  }
+
+  // Convert Quaternion to Rotation Vector (rx, ry, rz) used by UR
+  let rx = 0, ry = 0, rz = 0;
+  const angle = 2 * Math.acos(quat.w);
+  const s = Math.sqrt(1 - quat.w * quat.w);
+  
+  if (s > 0.001) { // Avoid divide by zero
+    rx = (quat.x / s) * angle;
+    ry = (quat.y / s) * angle;
+    rz = (quat.z / s) * angle;
+  }
+
+  return { x: pos.x, y: pos.y, z: pos.z, rx, ry, rz };
+}
