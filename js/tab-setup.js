@@ -317,6 +317,19 @@ export function enterEditMode() {
     document.getElementById('jnt-editor').style.display = 'flex';
     document.getElementById('btn-finish-edit').style.display = 'inline-flex';
     document.getElementById('btn-apply-joints').style.display = 'inline-flex';
+    
+    updateEditPreview();
+  });
+}
+
+export function updateEditPreview() {
+  const targetJ = [];
+  for (let i = 0; i < 6; i++) {
+    const inp = document.getElementById(`edit-j${i}`);
+    targetJ.push(fromDisp(inp.value || 0));
+  }
+  import('./viewer3d.js').then(v => {
+    v.showPreview(targetJ);
   });
 }
 
@@ -327,6 +340,8 @@ export function finishEditMode() {
   
   document.getElementById('jnt-display').style.display = 'flex';
   document.getElementById('btn-edit-joints').style.display = 'inline-flex';
+  
+  import('./viewer3d.js').then(v => v.hidePreview());
 }
 
 export function startApplyJoints() {
@@ -379,6 +394,7 @@ export function exposeSetup() {
     liveJoint, renamePos, addPos, deletePos,
     startMoveHere, stopMoveHere, setToCurrent, recordLivePosition,
     toggleFreedrive, openGripper, closeGripper, toggleFdAxis, activateGripper,
-    hoverPos, enterEditMode, finishEditMode, startApplyJoints, stopApplyJoints
+    hoverPos, enterEditMode, finishEditMode, startApplyJoints, stopApplyJoints,
+    updateEditPreview
   };
 }

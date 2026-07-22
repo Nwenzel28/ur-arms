@@ -138,27 +138,27 @@
           <div style="display: none; gap: 8px; align-items: center;" id="jnt-editor">
             <div style="display: flex; align-items: center; gap: 3px;">
               <label style="font-size: 9px; color: var(--tx3); font-weight: bold; width: 16px;">B</label>
-              <input type="number" id="edit-j0" step="0.01" style="width:45px; padding:4px; font-size:9px; background:var(--sf); border:1px solid var(--bd); border-radius:3px; color:var(--tx);">
+              <input type="number" id="edit-j0" step="0.01" oninput="window._setup.updateEditPreview()" style="width:45px; padding:4px; font-size:9px; background:var(--sf); border:1px solid var(--bd); border-radius:3px; color:var(--tx);">
             </div>
             <div style="display: flex; align-items: center; gap: 3px;">
               <label style="font-size: 9px; color: var(--tx3); font-weight: bold; width: 16px;">S</label>
-              <input type="number" id="edit-j1" step="0.01" style="width:45px; padding:4px; font-size:9px; background:var(--sf); border:1px solid var(--bd); border-radius:3px; color:var(--tx);">
+              <input type="number" id="edit-j1" step="0.01" oninput="window._setup.updateEditPreview()" style="width:45px; padding:4px; font-size:9px; background:var(--sf); border:1px solid var(--bd); border-radius:3px; color:var(--tx);">
             </div>
             <div style="display: flex; align-items: center; gap: 3px;">
               <label style="font-size: 9px; color: var(--tx3); font-weight: bold; width: 16px;">E</label>
-              <input type="number" id="edit-j2" step="0.01" style="width:45px; padding:4px; font-size:9px; background:var(--sf); border:1px solid var(--bd); border-radius:3px; color:var(--tx);">
+              <input type="number" id="edit-j2" step="0.01" oninput="window._setup.updateEditPreview()" style="width:45px; padding:4px; font-size:9px; background:var(--sf); border:1px solid var(--bd); border-radius:3px; color:var(--tx);">
             </div>
             <div style="display: flex; align-items: center; gap: 3px;">
               <label style="font-size: 9px; color: var(--tx3); font-weight: bold; width: 22px;">W1</label>
-              <input type="number" id="edit-j3" step="0.01" style="width:45px; padding:4px; font-size:9px; background:var(--sf); border:1px solid var(--bd); border-radius:3px; color:var(--tx);">
+              <input type="number" id="edit-j3" step="0.01" oninput="window._setup.updateEditPreview()" style="width:45px; padding:4px; font-size:9px; background:var(--sf); border:1px solid var(--bd); border-radius:3px; color:var(--tx);">
             </div>
             <div style="display: flex; align-items: center; gap: 3px;">
               <label style="font-size: 9px; color: var(--tx3); font-weight: bold; width: 22px;">W2</label>
-              <input type="number" id="edit-j4" step="0.01" style="width:45px; padding:4px; font-size:9px; background:var(--sf); border:1px solid var(--bd); border-radius:3px; color:var(--tx);">
+              <input type="number" id="edit-j4" step="0.01" oninput="window._setup.updateEditPreview()" style="width:45px; padding:4px; font-size:9px; background:var(--sf); border:1px solid var(--bd); border-radius:3px; color:var(--tx);">
             </div>
             <div style="display: flex; align-items: center; gap: 3px;">
               <label style="font-size: 9px; color: var(--tx3); font-weight: bold; width: 22px;">W3</label>
-              <input type="number" id="edit-j5" step="0.01" style="width:45px; padding:4px; font-size:9px; background:var(--sf); border:1px solid var(--bd); border-radius:3px; color:var(--tx);">
+              <input type="number" id="edit-j5" step="0.01" oninput="window._setup.updateEditPreview()" style="width:45px; padding:4px; font-size:9px; background:var(--sf); border:1px solid var(--bd); border-radius:3px; color:var(--tx);">
             </div>
           </div>
           <button class="btn btn-sm" id="btn-edit-joints" onclick="window._setup.enterEditMode()" style="font-size: 9px; padding: 2px 6px;">Edit</button>
