@@ -96,7 +96,11 @@ async function dashPauseOrSim() {
     pauseSimExecution();
     logLine('Simulation paused');
   } else {
-    dashPause();
+    dashSpeed(0);
+    window._isPausedBySpeed = true;
+    logLine('Hardware execution paused (speed set to 0%).');
+    const btn = document.getElementById('dash-play');
+    if (btn) btn.innerHTML = '▶︎ RESUME';
   }
 }
 
@@ -108,6 +112,7 @@ async function dashStopOrSim() {
     logLine('Simulation stopped');
   } else {
     dashStop();
+    window._isPausedBySpeed = false;
   }
 }
 
@@ -163,30 +168,34 @@ async function playProgram() {
   
   // 1. Check if the robot is currently in a paused state
   const logs = document.getElementById('live-logs');
-  const isPaused = logs && logs._lastStatus && logs._lastStatus.toLowerCase().includes('paused');
+  const isNativePaused = logs && logs._lastStatus && logs._lastStatus.toLowerCase().includes('paused');
 
-  if (isPaused) {
-    // ── RESUME EXISTING PROGRAM (Port 29999) ──
+  if (window._isPausedBySpeed || isNativePaused) {
+    // ── RESUME EXISTING PROGRAM ──
     btn.innerHTML = '▶︎ RESUMING...';
     btn.disabled = true;
     logLine('Resuming paused program...');
     
+    const sliderEl = document.getElementById('dash-speed-slider');
+    const speedVal = sliderEl ? parseFloat(sliderEl.value) : 100;
+    dashSpeed(speedVal);
+    window._isPausedBySpeed = false;
+    
     try {
-      const res = await fetch(RELAY, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'dashboard_play', ip: ip })
-      });
-      const data = await res.json();
-      
-      if (data.ok) {
-        btn.innerHTML = '▶︎ RUNNING!';
-        btn.style.background = 'var(--gn)';
-        btn.style.borderColor = 'var(--gn)';
-        logLine('Program resumed successfully.');
-      } else {
-        throw new Error(data.error);
+      if (isNativePaused) {
+        const res = await fetch(RELAY, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'dashboard_play', ip: ip })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
       }
+      
+      btn.innerHTML = '▶︎ RUNNING!';
+      btn.style.background = 'var(--gn)';
+      btn.style.borderColor = 'var(--gn)';
+      logLine('Program resumed successfully.');
     } catch(e) {
       logLine(`Error resuming program: ${e.message}`);
     } finally {
