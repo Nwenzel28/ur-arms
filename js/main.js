@@ -192,7 +192,7 @@ function injectProgramControls() {
 
 // ── KEYBOARD SHORTCUTS ──
 function initKeyboardShortcuts() {
-  const TAB_TARGETS = ['tab-positions', 'tab-program', 'tab-run'];
+  const TAB_TARGETS = ['tab-positions', 'tab-program', 'tab-run', 'tab-ai'];
 
   document.addEventListener('keydown', e => {
     // Never fire when the user is typing in an input, textarea, or select
@@ -220,7 +220,8 @@ function initKeyboardShortcuts() {
 
       case '1':
       case '2':
-      case '3': {
+      case '3':
+      case '4': {
         e.preventDefault();
         const target = TAB_TARGETS[parseInt(e.key) - 1];
         const tab = document.querySelector(`.tab[data-target="${target}"]`);
