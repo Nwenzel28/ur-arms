@@ -229,20 +229,29 @@ def state_monitor():
     """Background thread that persistently reads telemetry from the robot."""
     global target_ip, robot_state
     current_socket = None
+    logged_connecting = False
+    last_logged_ip = None
 
     while True:
         if not target_ip:
             time.sleep(0.5)
             continue
 
+        if target_ip != last_logged_ip:
+            logged_connecting = False
+            last_logged_ip = target_ip
+
         try:
             if current_socket is None:
-                print(f"📡 [Kinematics] Connecting to {target_ip}:{STATE_PORT}...")
+                if not logged_connecting:
+                    print(f"📡 [Kinematics] Connecting to {target_ip}:{STATE_PORT}...")
+                    logged_connecting = True
                 current_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 current_socket.settimeout(2.0)
                 current_socket.connect((target_ip, STATE_PORT))
                 current_socket.settimeout(5.0) 
                 print(f"✅ [Kinematics] Connected!")
+                logged_connecting = False
 
             size_data = recv_exact(current_socket, 4)
             size = struct.unpack('>i', size_data)[0]
@@ -259,7 +268,7 @@ def state_monitor():
 
         except Exception as e:
             if robot_state['connected']:
-                print(f"⚠️ [Kinematics] Connection lost: {e}. Retrying in 1s...")
+                print(f"⚠️ [Kinematics] Connection lost: {e}. Retrying...")
             robot_state['connected'] = False
             robot_state['joints'] = None
             robot_state['tcp'] = None
@@ -274,21 +283,30 @@ def dashboard_monitor():
     """Background thread preventing socket exhaustion on the Dashboard Server while polling state & safety."""
     global target_ip, robot_dashboard_state, popup_msg, popup_resolved, ignore_popups_until
     current_socket = None
+    logged_connecting = False
+    last_logged_ip = None
 
     while True:
         if not target_ip:
             time.sleep(0.5)
             continue
 
+        if target_ip != last_logged_ip:
+            logged_connecting = False
+            last_logged_ip = target_ip
+
         try:
             if current_socket is None:
-                print(f"📡 [Dashboard] Connecting to {target_ip}:29999...")
+                if not logged_connecting:
+                    print(f"📡 [Dashboard] Connecting to {target_ip}:29999...")
+                    logged_connecting = True
                 current_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 current_socket.settimeout(2.0)
                 current_socket.connect((target_ip, 29999))
                 current_socket.settimeout(5.0)
                 current_socket.recv(1024) 
                 print(f"✅ [Dashboard] Connected!")
+                logged_connecting = False
 
             
 
