@@ -299,12 +299,86 @@ export function hoverPos(pid, show) {
   });
 }
 
+// ── Joint Edit Mode ──
+export function enterEditMode() {
+  import('./state.js').then(s => {
+    const joints = s.isSimulationMode ? s.simJoints : s.latestJoints;
+    if (!joints) {
+      alert("No joint data available.");
+      return;
+    }
+    for (let i = 0; i < 6; i++) {
+      const inp = document.getElementById(`edit-j${i}`);
+      if (inp) inp.value = toDisp(joints[i]);
+    }
+    document.getElementById('jnt-display').style.display = 'none';
+    document.getElementById('btn-edit-joints').style.display = 'none';
+    
+    document.getElementById('jnt-editor').style.display = 'flex';
+    document.getElementById('btn-finish-edit').style.display = 'inline-flex';
+    document.getElementById('btn-apply-joints').style.display = 'inline-flex';
+  });
+}
+
+export function finishEditMode() {
+  document.getElementById('jnt-editor').style.display = 'none';
+  document.getElementById('btn-finish-edit').style.display = 'none';
+  document.getElementById('btn-apply-joints').style.display = 'none';
+  
+  document.getElementById('jnt-display').style.display = 'flex';
+  document.getElementById('btn-edit-joints').style.display = 'inline-flex';
+}
+
+export function startApplyJoints() {
+  const targetJ = [];
+  for (let i = 0; i < 6; i++) {
+    const inp = document.getElementById(`edit-j${i}`);
+    targetJ.push(fromDisp(inp.value));
+  }
+  
+  import('./state.js').then(s => {
+    if (s.isSimulationMode) {
+      const START = [...s.simJoints];
+      const STEPS = 60;
+      let frame = 0;
+      window._simApplyRaf = true;
+      function step() {
+        if (!window._simApplyRaf) return;
+        frame++;
+        const t = Math.min(frame / STEPS, 1);
+        const ease = t * t * (3 - 2 * t);
+        const j = START.map((v, i) => v + (targetJ[i] - v) * ease);
+        s.setSimJoints(j);
+        if (t < 1) requestAnimationFrame(step);
+        else window._simApplyRaf = false;
+      }
+      requestAnimationFrame(step);
+      return;
+    }
+    
+    const jStr = targetJ.map(v => v.toFixed(4)).join(',');
+    const urscript = `def apply_j():\n  movej([${jStr}], a=1.2, v=0.25)\nend\n`;
+    resetFreedriveUI();
+    sendDirect(urscript);
+  });
+}
+
+export function stopApplyJoints() {
+  import('./state.js').then(s => {
+    if (s.isSimulationMode) {
+      window._simApplyRaf = false;
+      return;
+    }
+    sendDirect("def stop_j():\n  stopj(2.5)\nend\n");
+  });
+}
+
 // Expose to window for inline HTML event handlers
 export function exposeSetup() {
   window._setup = {
     liveJoint, renamePos, addPos, deletePos,
     startMoveHere, stopMoveHere, setToCurrent, recordLivePosition,
     toggleFreedrive, openGripper, closeGripper, toggleFdAxis, activateGripper,
-    hoverPos
+    hoverPos, enterEditMode, finishEditMode, startApplyJoints, stopApplyJoints
   };
 }
